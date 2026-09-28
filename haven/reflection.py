@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from . import prompts
-from .agent import Activity, Listener, Mind, QuietListener
+from .agent import CHARS_PER_TOKEN, KEEP_ALIVE, Listener, Mind
 from .store import Store
 
-REFLECTION_MAX_TOKENS = 32000
+REFLECTION_TOKENS = 3000
 # A "rewrite" shorter than this is a malformed reply, not a self-model.
 MIN_SELF_MODEL_CHARS = 120
 _MEMORY_KINDS = ["fact", "person", "experience", "insight", "feeling"]
 
+# Simple on purpose: Ollama turns this into a grammar the model's output must follow,
+# and small models do best with plain objects, arrays, and enums.
 REFLECTION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -30,7 +33,6 @@ REFLECTION_SCHEMA: dict[str, Any] = {
                     "importance": {"type": "integer"},
                 },
                 "required": ["content", "kind", "importance"],
-                "additionalProperties": False,
             },
         },
         "belief_changes": {
@@ -39,13 +41,12 @@ REFLECTION_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "action": {"type": "string", "enum": ["form", "revise", "abandon"]},
-                    "belief_id": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "belief_id": {"type": "integer"},
                     "statement": {"type": "string"},
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
                 },
                 "required": ["action", "belief_id", "statement", "confidence", "reason"],
-                "additionalProperties": False,
             },
         },
         "new_questions": {"type": "array", "items": {"type": "string"}},
@@ -55,21 +56,18 @@ REFLECTION_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {"id": {"type": "integer"}, "notes": {"type": "string"}},
                 "required": ["id", "notes"],
-                "additionalProperties": False,
             },
         },
         "journal": {"type": "string"},
         "inner_state": {"type": "string"},
         "self_model": {
-            "anyOf": [
-                {
-                    "type": "object",
-                    "properties": {"content": {"type": "string"}, "reason": {"type": "string"}},
-                    "required": ["content", "reason"],
-                    "additionalProperties": False,
-                },
-                {"type": "null"},
-            ]
+            "type": "object",
+            "properties": {
+                "rewrite": {"type": "boolean"},
+                "content": {"type": "string"},
+                "reason": {"type": "string"},
+            },
+            "required": ["rewrite", "content", "reason"],
         },
     },
     "required": [
@@ -83,7 +81,6 @@ REFLECTION_SCHEMA: dict[str, Any] = {
         "inner_state",
         "self_model",
     ],
-    "additionalProperties": False,
 }
 
 
@@ -127,29 +124,12 @@ class Reflection:
         return text
 
 
-class _Reflecting:
-    """Passes a reflection's thinking through to the listener; its JSON output isn't for display."""
-
-    def __init__(self, listener: Listener):
-        self.listener = listener
-
-    def begin_thinking(self) -> None:
-        pass
-
-    def thinking(self, delta: str) -> None:
-        self.listener.thinking(delta)
-
-    def text(self, delta: str) -> None:
-        pass
-
-    def activity(self, activity: Activity) -> None:
-        pass
-
-    def notice(self, message: str) -> None:
-        self.listener.notice(message)
-
-
-def reflect(mind: Mind, session_id: int, listener: Listener | None = None) -> Reflection | None:
+def reflect(
+    mind: Mind,
+    session_id: int,
+    listener: Listener | None = None,
+    on_progress: Callable[[], None] | None = None,
+) -> Reflection | None:
     """Reflect on whatever from this session Haven hasn't reflected on yet."""
     store = mind.store
     lines = store.unreflected(session_id)
@@ -158,30 +138,47 @@ def reflect(mind: Mind, session_id: int, listener: Listener | None = None) -> Re
         store.mark_reflected(line.id for line in lines)
         return None
     kind = store.session_kind(session_id)
-    params = mind.base_params()
-    params["max_tokens"] = REFLECTION_MAX_TOKENS
-    params["output_config"] = {
-        **params.get("output_config", {}),
-        "format": {"type": "json_schema", "schema": REFLECTION_SCHEMA},
-    }
-    message = mind.stream(
-        _Reflecting(listener or QuietListener()),
-        system=[{"type": "text", "text": prompts.reflection_system(store, store.clock())}],
-        messages=[{"role": "user", "content": prompts.transcript(lines, kind)}],
-        **params,
-    )
-    if message.stop_reason == "refusal":
-        raise ReflectionError("the model provider declined to process this reflection")
-    if message.stop_reason == "max_tokens":
-        raise ReflectionError("the reflection ran out of room before it finished")
-    text = "".join(block.text for block in message.content if block.type == "text")
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as error:
-        raise ReflectionError(f"the reflection wasn't valid JSON ({error})") from None
+    system = prompts.reflection_system(store, store.clock())
+    room = int((mind.context - REFLECTION_TOKENS) * CHARS_PER_TOKEN) - len(system)
+    transcript = prompts.transcript(lines, kind, max_chars=max(room, 2000))
+    data = None
+    for _ in range(2):  # small models occasionally produce broken JSON; one retry usually fixes it
+        text = _generate(mind, system, transcript, listener, on_progress)
+        try:
+            data = json.loads(text)
+            break
+        except json.JSONDecodeError:
+            continue
     if not isinstance(data, dict):
-        raise ReflectionError("the reflection wasn't a JSON object")
+        raise ReflectionError("the model's reflection wasn't valid JSON")
     return apply_reflection(store, session_id, kind, [line.id for line in lines], data)
+
+
+def _generate(
+    mind: Mind,
+    system: str,
+    transcript: str,
+    listener: Listener | None,
+    on_progress: Callable[[], None] | None,
+) -> str:
+    payload: dict[str, Any] = {
+        "model": mind.config.model,
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": transcript}],
+        "format": REFLECTION_SCHEMA,
+        "options": {"num_ctx": mind.context, "num_predict": REFLECTION_TOKENS},
+        "keep_alive": KEEP_ALIVE,
+    }
+    if mind.model.thinking:
+        payload["think"] = False  # the reflection itself is the thinking; keep the output pure JSON
+    parts = []
+    for count, chunk in enumerate(mind.client.chat(**payload)):
+        message = chunk.get("message") or {}
+        parts.append(message.get("content") or "")
+        if listener and message.get("thinking"):
+            listener.thinking(message["thinking"])
+        if on_progress and count % 40 == 39:
+            on_progress()
+    return "".join(parts)
 
 
 def apply_reflection(store: Store, session_id: int, kind: str, line_ids: list[int], data: dict) -> Reflection:
@@ -228,7 +225,7 @@ def apply_reflection(store: Store, session_id: int, kind: str, line_ids: list[in
             outcome.inner_state = inner_state
 
         revision = data.get("self_model")
-        if isinstance(revision, dict):
+        if isinstance(revision, dict) and revision.get("rewrite") is True:
             content = _text(revision.get("content"))
             if len(content) >= MIN_SELF_MODEL_CHARS and content != store.current_self().content:
                 reason = _text(revision.get("reason")) or "who I am had shifted"
@@ -245,7 +242,7 @@ def _apply_belief_change(store: Store, change: dict, outcome: Reflection) -> Non
     reason = _text(change.get("reason")) or "reflection"
     confidence = _number(change.get("confidence"), 0.5)
     belief_id = _int(change.get("belief_id"), None)
-    existing = store.get_belief(belief_id) if belief_id is not None else None
+    existing = store.get_belief(belief_id) if belief_id else None
 
     if action == "form" or (action == "revise" and existing is None):
         if statement:

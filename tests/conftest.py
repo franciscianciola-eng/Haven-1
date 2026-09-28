@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -7,6 +8,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
+
+from fakes import FakeWeb  # noqa: E402
 
 from haven import prompts  # noqa: E402
 from haven.agent import Mind  # noqa: E402
@@ -40,13 +43,12 @@ def store(clock: Clock) -> Store:
 
 @pytest.fixture
 def config(tmp_path: Path) -> Config:
-    return Config(home=tmp_path, eager_tool_streaming=True)
+    return Config(home=tmp_path)
 
 
 @pytest.fixture
 def make_mind(config: Config, store: Store):
-    def make(client, **overrides) -> Mind:
-        cfg = Config(**{**config.__dict__, **overrides})
-        return Mind(cfg, store, client)
+    def make(client, web_access=None, **overrides) -> Mind:
+        return Mind(dataclasses.replace(config, **overrides), store, client, web_access or FakeWeb())
 
     return make

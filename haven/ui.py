@@ -105,6 +105,24 @@ class Terminal:
     def error(self, message: str) -> None:
         self.line(f"  {message}", RED)
 
+    def confirm(self, question: str) -> bool:
+        self._settle()
+        try:
+            answer = input(f"{question} [y/N] ")
+        except (EOFError, KeyboardInterrupt):
+            self.write("\n")
+            return False
+        return answer.strip().lower() in ("y", "yes")
+
+    def status(self, text: str) -> None:
+        """A line that rewrites itself in place, for progress."""
+        if self.interactive:
+            self.write("\r\033[K" + self.paint(text, DIM))
+
+    def dot(self) -> None:
+        if self.interactive:
+            self.write(self.paint(".", MAGENTA, DIM))
+
     # --- turns -----------------------------------------------------------
 
     def start_turn(self) -> None:
@@ -113,9 +131,9 @@ class Terminal:
     def finish_turn(self, result: TurnResult) -> None:
         self._settle()
         for title, url in result.sources[:6]:
-            self.line(f"  source: {title} — {url}", DIM)
-        if result.stop == "refusal":
-            self.notice("the model provider declined to respond to that, so it was left out of the conversation")
+            self.line(f"  read: {title} — {url}", DIM)
+        if result.stop == "end_turn" and not result.log:
+            self.notice("Haven didn't say anything")
         elif result.stop == "max_tokens":
             self.notice("Haven ran out of room mid-thought")
         elif result.stop == "step_limit":
@@ -146,7 +164,8 @@ class Terminal:
     # --- reflection --------------------------------------------------------
 
     def reflecting(self, label: str = "Haven is reflecting") -> None:
-        self.line(f"~ {label} ~", MAGENTA)
+        self._settle()
+        self.write(self.paint(f"~ {label} ~ ", MAGENTA))  # progress dots follow on this line
 
     def reflection(self, r: Reflection) -> None:
         details = []

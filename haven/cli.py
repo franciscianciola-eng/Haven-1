@@ -1,4 +1,4 @@
-"""The `haven` command: talk with Haven, let it wander, and look inside its mind."""
+"""The `haven` command: talk with Haven, let it wander, forge its model, and look inside its mind."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-import anthropic
-
 from . import prompts
 from .agent import Mind
-from .config import EFFORT_LEVELS, Config
+from .config import DEFAULT_MODEL, MIN_CONTEXT, THINK_SETTINGS, TOOL_SETTINGS, Config, parse_host
+from .forge import MIN_FREE_GB, OUTTYPES, RECIPE, Forge, ForgeError
+from .ollama import ModelNotFound, OllamaError, OllamaUnavailable
 from .reflection import ReflectionError, reflect
 from .session import Conversation, wander
 from .store import Store
@@ -30,7 +30,7 @@ CHAT_HELP = """\
 
 
 class _Fatal(Exception):
-    """An API problem no retry will fix, like missing credentials. Already reported."""
+    """A problem no retry will fix, like Ollama not running. Already reported."""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -48,7 +48,10 @@ def main(argv: list[str] | None = None) -> int:
     overrides = {
         "home": args.home,
         "model": args.model,
-        "effort": args.effort,
+        "host": parse_host(args.host) if args.host else None,
+        "context": args.context,
+        "think": args.think,
+        "tools": args.tools,
         "show_thoughts": True if args.show_thoughts else None,
         "web": False if args.no_web else None,
     }
@@ -68,18 +71,30 @@ def main(argv: list[str] | None = None) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="haven",
-        description="Haven: a persistent AI mind that remembers, forms its own beliefs, and grows.",
+        description="Haven: a persistent AI mind that runs on your own computer, remembers, and grows.",
     )
     parser.add_argument("--home", type=_path, help="where Haven's mind is stored (default: ~/.haven)")
-    parser.add_argument("--model", help="the Claude model Haven thinks with (default: claude-opus-5)")
-    parser.add_argument("--effort", choices=EFFORT_LEVELS, help="how hard Haven thinks (default: the model's)")
-    parser.add_argument("--show-thoughts", action="store_true", help="show summaries of Haven's thinking")
+    parser.add_argument("--model", help=f"the Ollama model Haven thinks with (default: {DEFAULT_MODEL})")
+    parser.add_argument("--host", help="Ollama's address (default: http://127.0.0.1:11434)")
+    parser.add_argument("--context", type=_context, help="how many tokens the model sees at once (default: 16384)")
+    parser.add_argument("--think", choices=THINK_SETTINGS, help="reason before answering (default: auto)")
+    parser.add_argument("--tools", choices=TOOL_SETTINGS, help="how Haven calls tools (default: auto)")
+    parser.add_argument("--show-thoughts", action="store_true", help="show Haven's thinking")
     parser.add_argument("--no-web", action="store_true", help="don't let Haven search or read the web")
     sub = parser.add_subparsers(dest="command", metavar="command")
     sub.add_parser("chat", help="talk with Haven (the default)")
     wander_cmd = sub.add_parser("wander", help="let Haven explore the web on its own, then reflect")
     wander_cmd.add_argument("--steps", type=int, default=1, help="how many explorations in a row (default: 1)")
     sub.add_parser("reflect", help="have Haven reflect on anything it hasn't yet")
+    forge_cmd = sub.add_parser("forge", help="build Haven's own model by merging open-source weights")
+    forge_cmd.add_argument("--recipe", type=_path, default=RECIPE, help="a mergekit recipe (default: Haven's own)")
+    forge_cmd.add_argument("--name", default=DEFAULT_MODEL, help=f"what to call the model (default: {DEFAULT_MODEL})")
+    forge_cmd.add_argument("--outtype", choices=OUTTYPES, default="q8_0", help="GGUF precision (default: q8_0)")
+    forge_cmd.add_argument("--template-from", metavar="MODEL", help="copy the chat template from this Ollama model")
+    forge_cmd.add_argument("--cuda", action="store_true", help="merge on an NVIDIA GPU")
+    forge_cmd.add_argument("--keep", action="store_true", help="keep the merged weights and GGUF file")
+    forge_cmd.add_argument("--fresh", action="store_true", help="start over instead of resuming")
+    forge_cmd.add_argument("--yes", action="store_true", help="don't ask for confirmation")
     self_cmd = sub.add_parser("self", help="Haven's self-model")
     self_cmd.add_argument("--history", action="store_true", help="list every version and why it changed")
     self_cmd.add_argument("--version", type=int, help="show a specific version")
@@ -97,13 +112,20 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _path(value: str) -> Path:
-    return Path(value).expanduser()
+    return Path(value).expanduser().resolve()
+
+
+def _context(value: str) -> int:
+    if not value.isdigit() or int(value) < MIN_CONTEXT:
+        raise argparse.ArgumentTypeError(f"must be a number of tokens, at least {MIN_CONTEXT}")
+    return int(value)
 
 
 # --- talking and wandering ---------------------------------------------------
 
 
 def cmd_chat(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
+    _ready(mind, ui)
     _consolidate(mind, ui)
     convo = Conversation(mind)
     _banner(mind, ui)
@@ -126,8 +148,8 @@ def cmd_chat(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
             except KeyboardInterrupt:
                 ui.notice("interrupted")
                 continue
-            except Exception as error:
-                _report(error, ui)
+            except OllamaError as error:
+                _report(error, mind, ui)
                 continue
             ui.finish_turn(result)
     finally:
@@ -137,6 +159,10 @@ def cmd_chat(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
 
 
 def cmd_wander(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
+    _ready(mind, ui)
+    if mind.tool_mode == "off" or not mind.config.web:
+        ui.error("Wandering means exploring the web, so it needs Haven's tools and web access turned on.")
+        return 1
     _consolidate(mind, ui)
     steps = max(args.steps, 1)
     for step in range(steps):
@@ -147,8 +173,8 @@ def cmd_wander(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
         except KeyboardInterrupt:
             ui.notice("stopped")
             return 130
-        except Exception as error:
-            _report(error, ui)
+        except OllamaError as error:
+            _report(error, mind, ui)
             return 1
         ui.finish_turn(result)
         _reflect_on(mind, ui, session_id)
@@ -159,7 +185,91 @@ def cmd_reflect(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
     if not mind.store.unreflected_sessions():
         ui.line("Haven has already reflected on everything it has lived through.", DIM)
         return 0
+    _ready(mind, ui)
     return 0 if _consolidate(mind, ui, announce=False) else 1
+
+
+def cmd_forge(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
+    forge = Forge(
+        mind.config,
+        recipe=args.recipe,
+        name=args.name,
+        outtype=args.outtype,
+        template_from=args.template_from,
+        cuda=args.cuda,
+        keep=args.keep,
+        fresh=args.fresh,
+        say=ui.line,
+        client=mind.client,
+    )
+    problems = forge.problems()
+    if problems:
+        ui.error("The forge can't start yet:")
+        for problem in problems:
+            ui.line(f"  - {problem}")
+        return 1
+    ui.line(f"Forging '{forge.name}': a {forge.method()} merge of {' and '.join(forge.sources())}.", BOLD)
+    ui.line(
+        f"This downloads the source weights (about 8 GB for each 4B model), needs roughly {MIN_FREE_GB} GB "
+        "of free disk while it works, and takes a while. If it's interrupted, running it again picks up "
+        "where it left off.",
+        DIM,
+    )
+    if not args.yes and not ui.confirm("Start forging?"):
+        return 1
+    try:
+        forge.build()
+    except ForgeError as error:
+        ui.error(str(error))
+        return 1
+    except KeyboardInterrupt:
+        ui.notice("stopped; run `haven forge` again to pick up where it left off")
+        return 130
+    mind.store.set_meta(f"body:{forge.name}", forge.description())
+    ui.line(f"\nHaven's model is ready in Ollama as '{forge.name}'.", BOLD, CYAN)
+    ui.line("Run `haven` to talk." if forge.name == mind.config.model else f"Run `haven --model {forge.name}`.")
+    return 0
+
+
+def _ready(mind: Mind, ui: Terminal) -> None:
+    """Make sure Ollama is running and has the model, or explain what to do and stop."""
+    try:
+        mind.model  # noqa: B018  (this reaches Ollama)
+        return
+    except OllamaUnavailable:
+        ui.error(f"Haven's model runs on this computer through Ollama, which isn't answering at {mind.config.host}.")
+        ui.line("Install Ollama from https://ollama.com, make sure it's running, then try again.", DIM)
+    except ModelNotFound:
+        name = mind.config.model
+        if name == DEFAULT_MODEL:
+            ui.error("Haven's own model hasn't been forged yet.")
+            ui.line(
+                "Build it from open-source weights with `haven forge` (see the README). Or talk to Haven now "
+                "on a model from Ollama's library, for example:  haven --model qwen3:8b",
+                DIM,
+            )
+        elif ui.interactive and ui.confirm(f"Ollama doesn't have {name} yet. Download it now?"):
+            if _pull(mind, ui, name):
+                mind.model  # noqa: B018
+                return
+        else:
+            ui.error(f"Ollama doesn't have the model {name}. Get it with:  ollama pull {name}")
+    except OllamaError as error:
+        ui.error(f"Ollama couldn't load {mind.config.model}: {error.message}")
+    raise _Fatal
+
+
+def _pull(mind: Mind, ui: Terminal, name: str) -> bool:
+    try:
+        for chunk in mind.client.pull(name):
+            total, done = chunk.get("total"), chunk.get("completed")
+            share = f" {100 * done // total}%" if total and done else ""
+            ui.status(f"  {chunk.get('status', '')}{share}")
+    except OllamaError as error:
+        ui.error(f"Couldn't download {name}: {error.message}")
+        return False
+    ui.line("")
+    return True
 
 
 def _consolidate(mind: Mind, ui: Terminal, announce: bool = True) -> bool:
@@ -178,15 +288,15 @@ def _reflect_on(mind: Mind, ui: Terminal, session_id: int) -> bool:
         return True
     ui.reflecting()
     try:
-        outcome = reflect(mind, session_id, ui)
+        outcome = reflect(mind, session_id, ui, ui.dot)
     except KeyboardInterrupt:
         ui.notice("reflection skipped; Haven will reflect on this next time")
         return False
     except ReflectionError as error:
         ui.notice(f"Haven couldn't finish reflecting: {error}. It will try again next time.")
         return False
-    except Exception as error:
-        _report(error, ui)
+    except OllamaError as error:
+        _report(error, mind, ui)
         ui.notice("Haven will reflect on this next time")
         return False
     if outcome:
@@ -194,14 +304,14 @@ def _reflect_on(mind: Mind, ui: Terminal, session_id: int) -> bool:
     return True
 
 
-def _report(error: Exception, ui: Terminal) -> None:
-    """Explain an API error, or re-raise anything that isn't one."""
-    problem = api_problem(error)
-    if problem is None:
-        raise error
-    ui.error(problem)
-    if _fatal(error):
+def _report(error: OllamaError, mind: Mind, ui: Terminal) -> None:
+    if isinstance(error, OllamaUnavailable):
+        ui.error(f"Lost contact with Ollama at {mind.config.host}. Is it still running?")
         raise _Fatal from error
+    if isinstance(error, ModelNotFound):
+        ui.error(f"Ollama no longer has the model {mind.config.model}.")
+        raise _Fatal from error
+    ui.error(f"The model ran into a problem: {error.message}")
 
 
 def _banner(mind: Mind, ui: Terminal) -> None:
@@ -215,7 +325,7 @@ def _banner(mind: Mind, ui: Terminal) -> None:
         if last:
             parts.append(f"last talked {prompts.ago(last, store.clock())}")
         ui.line(" · ".join(parts), BOLD, CYAN)
-    ui.line("/help for commands · /bye or Ctrl-D to leave", DIM)
+    ui.line(f"thinking with {mind.config.model} · /help for commands · /bye or Ctrl-D to leave", DIM)
     ui.write("\n")
 
 
@@ -252,15 +362,15 @@ def _reflect_mid_conversation(convo: Conversation, ui: Terminal) -> None:
         return
     ui.reflecting()
     try:
-        outcome = convo.reflect(ui)
+        outcome = convo.reflect(ui, ui.dot)
     except KeyboardInterrupt:
         ui.notice("reflection skipped")
         return
     except ReflectionError as error:
         ui.notice(f"Haven couldn't finish reflecting: {error}")
         return
-    except Exception as error:
-        _report(error, ui)
+    except OllamaError as error:
+        _report(error, convo.mind, ui)
         return
     if outcome:
         ui.reflection(outcome)
@@ -376,14 +486,30 @@ def cmd_status(mind: Mind, ui: Terminal, args: argparse.Namespace) -> int:
     ui.line(f"  journal entries  {stats['journal_entries']}")
     ui.line(f"  self-model       v{current.number}, last revised {prompts.ago(current.created_at, now)}")
     ui.line(f"  state of mind    {store.inner_state}")
-    ui.line(f"  thinks with {config.model} · mind stored at {config.db_path}", DIM)
+    ui.line(f"  model            {config.model}  ({_model_state(mind)})")
+    ui.line(f"  mind stored at   {config.db_path}", DIM)
     return 0
+
+
+def _model_state(mind: Mind) -> str:
+    try:
+        version = mind.client.version()
+        info = mind.model
+    except OllamaUnavailable:
+        return f"Ollama isn't answering at {mind.config.host}"
+    except ModelNotFound:
+        return "not forged yet: run `haven forge`" if mind.config.model == DEFAULT_MODEL else "not downloaded"
+    except OllamaError as error:
+        return f"Ollama error: {error.message}"
+    abilities = [name for name, has in (("tools", info.tools), ("thinking", info.thinking)) if has]
+    return f"ready in Ollama {version}; " + (", ".join(abilities) if abilities else "Haven handles tool calls itself")
 
 
 COMMANDS: dict[str, Callable[[Mind, Terminal, argparse.Namespace], int]] = {
     "chat": cmd_chat,
     "wander": cmd_wander,
     "reflect": cmd_reflect,
+    "forge": cmd_forge,
     "self": cmd_self,
     "beliefs": cmd_beliefs,
     "journal": cmd_journal,
@@ -391,36 +517,3 @@ COMMANDS: dict[str, Callable[[Mind, Terminal, argparse.Namespace], int]] = {
     "questions": cmd_questions,
     "status": cmd_status,
 }
-
-
-# --- errors ---------------------------------------------------------------------
-
-
-def api_problem(error: BaseException) -> str | None:
-    """A readable explanation for an error from talking to the API; None for anything else."""
-    if isinstance(error, TypeError) and "authentication" in str(error).lower():
-        return (
-            "No Anthropic API credentials found. Set ANTHROPIC_API_KEY (get a key at "
-            "https://console.anthropic.com), or run `ant auth login`."
-        )
-    if isinstance(error, anthropic.AuthenticationError):
-        return "The Anthropic API rejected the credentials. Check ANTHROPIC_API_KEY."
-    if isinstance(error, anthropic.PermissionDeniedError):
-        return f"This API key isn't allowed to do that: {error.message}"
-    if isinstance(error, anthropic.NotFoundError):
-        return f"The API couldn't find that (is the model name right?): {error.message}"
-    if isinstance(error, anthropic.RateLimitError):
-        return "Rate limited by the API. Wait a moment and try again."
-    if isinstance(error, anthropic.APIStatusError):
-        return f"The API returned an error ({error.status_code}): {error.message}"
-    if isinstance(error, anthropic.APIConnectionError):
-        return "Couldn't reach the Anthropic API. Check your internet connection."
-    return None
-
-
-def _fatal(error: BaseException) -> bool:
-    """Errors that no retry will fix."""
-    return isinstance(
-        error,
-        (TypeError, anthropic.AuthenticationError, anthropic.PermissionDeniedError, anthropic.NotFoundError),
-    )

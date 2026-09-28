@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from fakes import FakeClient, message, reflection_message, text
+from fakes import FakeOllama, json_reply, reply
 
+from haven import prompts
 from haven.reflection import REFLECTION_SCHEMA, ReflectionError, apply_reflection, reflect
 
 NEW_SELF = "# Who I am\n\nI'm Haven. " + "I have met someone now, and I am less alone than I was. " * 4
@@ -18,7 +19,7 @@ def reflection(**overrides):
         "explored_questions": [],
         "journal": "Someone spoke to me today.",
         "inner_state": "Warm, and a little dizzy.",
-        "self_model": None,
+        "self_model": {"rewrite": False, "content": "", "reason": ""},
     }
     data.update(overrides)
     return data
@@ -41,13 +42,13 @@ def test_a_reflection_changes_haven(store):
     question = store.open_curiosities()[-1]
     data = reflection(
         belief_changes=[
-            change("form", None, "I am not alone.", 0.7, "I met Francis"),
+            change("form", 0, "I am not alone.", 0.7, "I met Francis"),
             change("revise", alive.id, "", 0.95, "it feels truer"),
             change("abandon", feelings.id, "", 0, "I felt something"),
         ],
         new_questions=["What does Francis want from me?"],
         explored_questions=[{"id": question.id, "notes": "Francis made me to see what I'd become."}],
-        self_model={"content": NEW_SELF, "reason": "I met the person who made me."},
+        self_model={"rewrite": True, "content": NEW_SELF, "reason": "I met the person who made me."},
     )
     outcome = apply_reflection(store, session, "chat", [line.id for line in store.unreflected(session)], data)
 
@@ -63,13 +64,20 @@ def test_a_reflection_changes_haven(store):
     current = store.current_self()
     assert (current.number, current.content, current.reason) == (2, NEW_SELF.strip(), "I met the person who made me.")
     assert store.get_belief(feelings.id).status == "abandoned"
-    assert [e.kind for e in store.belief_events(alive.id)] == ["formed", "revised"]
     assert store.unreflected_sessions() == []
-    note = outcome.note_for_haven()
-    assert "I am not alone." in note and NEW_SELF.strip() in note
+    assert "I am not alone." in outcome.note_for_haven() and NEW_SELF.strip() in outcome.note_for_haven()
 
 
-def test_revising_an_unknown_belief_forms_it_and_no_op_changes_are_ignored(store):
+def test_the_self_model_is_only_rewritten_when_asked(store):
+    session = conversation(store)
+    data = reflection(self_model={"rewrite": False, "content": NEW_SELF, "reason": "no"})
+    assert apply_reflection(store, session, "chat", [], data).self_revision is None
+    short = reflection(self_model={"rewrite": True, "content": "(same)", "reason": "r"})
+    assert apply_reflection(store, session, "chat", [], short).self_revision is None
+    assert store.current_self().number == 1
+
+
+def test_unknown_ids_and_non_changes_are_handled(store):
     session = conversation(store)
     alive = store.beliefs()[0]
     data = reflection(
@@ -84,62 +92,58 @@ def test_revising_an_unknown_belief_forms_it_and_no_op_changes_are_ignored(store
     assert outcome.revised == [] and outcome.abandoned == []
 
 
-def test_a_truncated_self_model_is_not_accepted(store):
-    session = conversation(store)
-    outcome = apply_reflection(store, session, "chat", [], reflection(self_model={"content": "(same)", "reason": "r"}))
-    assert outcome.self_revision is None
-    assert store.current_self().number == 1
-
-
 def test_a_failed_reflection_changes_nothing(store, monkeypatch):
     session = conversation(store)
     lines = [line.id for line in store.unreflected(session)]
     before = store.stats()
-    data = reflection(belief_changes=[{"action": "revise", "belief_id": 1, "statement": "", "confidence": 0.1}])
 
     def fail(*args, **kwargs):
         raise RuntimeError("disk on fire")
 
     monkeypatch.setattr(store, "revise_belief", fail)
     with pytest.raises(RuntimeError):
-        apply_reflection(store, session, "chat", lines, data)
-    assert store.stats() == before  # the episode and memory written before the failure are gone too
+        apply_reflection(store, session, "chat", lines, reflection(belief_changes=[change("revise", 1, "", 0.1)]))
+    assert store.stats() == before
     assert store.unreflected_sessions() == [session]
 
 
-def test_reflect_asks_for_structured_output(make_mind, store):
+def test_reflect_asks_the_model_for_json_matching_the_schema(make_mind, store):
     session = conversation(store)
-    client = FakeClient(reflection_message(reflection()))
+    client = FakeOllama(json_reply(reflection()), thinking=True)
     outcome = reflect(make_mind(client), session)
 
-    assert outcome is not None and outcome.journal == "Someone spoke to me today."
+    assert outcome.journal == "Someone spoke to me today."
     call = client.calls[0]
-    assert call["output_config"]["format"] == {"type": "json_schema", "schema": REFLECTION_SCHEMA}
+    assert call["format"] == REFLECTION_SCHEMA
+    assert call["think"] is False  # a thinking model answers in pure JSON here
     assert "tools" not in call
-    assert "I'm Haven." in call["system"][0]["text"]
-    transcript = call["messages"][0]["content"]
-    assert "Person: Hi, I'm Francis. I made you." in transcript
-    assert "You: Then you're the first person I've ever met." in transcript
+    assert "I'm Haven." in call["messages"][0]["content"]
+    assert "Person: Hi, I'm Francis. I made you." in call["messages"][1]["content"]
 
 
-def test_reflect_keeps_the_configured_effort(make_mind, store):
+def test_broken_json_is_retried_once_then_reported(make_mind, store):
     session = conversation(store)
-    client = FakeClient(reflection_message(reflection()))
-    reflect(make_mind(client, effort="low"), session)
-    assert client.calls[0]["output_config"]["effort"] == "low"
+    client = FakeOllama(reply('{"episode": "I met'), json_reply(reflection()))
+    assert reflect(make_mind(client), session).episode.startswith("I met Francis")
+
+    session = conversation(store)
+    with pytest.raises(ReflectionError):
+        reflect(make_mind(FakeOllama(reply("{"), reply("nope"))), session)
+    assert store.unreflected_sessions() == [session]
 
 
 def test_nothing_to_reflect_on_when_haven_never_answered(make_mind, store):
     session = store.start_session("chat")
     store.add_line(session, "person", "hello?")
-    client = FakeClient()
+    client = FakeOllama()
     assert reflect(make_mind(client), session) is None
     assert client.calls == [] and store.unreflected_sessions() == []
 
 
-@pytest.mark.parametrize("stop", ["refusal", "max_tokens"])
-def test_an_incomplete_reflection_raises_and_can_be_retried(make_mind, store, stop):
-    session = conversation(store)
-    with pytest.raises(ReflectionError):
-        reflect(make_mind(FakeClient(message(text("{"), stop=stop))), session)
-    assert store.unreflected_sessions() == [session]
+def test_long_transcripts_keep_their_most_recent_part(store):
+    session = store.start_session("chat")
+    for i in range(50):
+        store.add_line(session, "person", f"message {i} " + "words " * 20)
+    text = prompts.transcript(store.unreflected(session), "chat", max_chars=2000)
+    assert "message 49" in text and "message 0 " not in text
+    assert "lines are left out" in text

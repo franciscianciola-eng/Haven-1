@@ -1,0 +1,23 @@
+# The recipe for Haven's model: two open-weight models from the same family, blended into one.
+#
+#   Qwen/Qwen3-4B-Instruct-2507   conversation, following instructions, using tools
+#   Qwen/Qwen3-4B-Thinking-2507   careful, step-by-step reasoning
+#
+# Both are Apache-2.0 licensed and were fine-tuned from the same pretrained base, so their
+# weights live in the same space and can be blended. SLERP (spherical linear interpolation)
+# walks along the arc between the two sets of weights; t is how far toward the second model:
+# 0 is pure Instruct, 1 is pure Thinking. 0.3 keeps Instruct's conversational habits and tool
+# use while pulling in some of Thinking's reasoning.
+#
+# To forge a different Haven, change t, swap in other models of the same architecture, or use
+# another mergekit method (ties, dare_ties, model_stock, ...): https://github.com/arcee-ai/mergekit
+# Haven's forge uses a ChatML chat template, which fits Qwen-family models; for other families,
+# run `haven forge --template-from <an Ollama model of that family>`.
+merge_method: slerp
+base_model: Qwen/Qwen3-4B-Instruct-2507
+models:
+  - model: Qwen/Qwen3-4B-Instruct-2507
+  - model: Qwen/Qwen3-4B-Thinking-2507
+parameters:
+  t: 0.3
+dtype: bfloat16
