@@ -131,7 +131,8 @@ def test_resting_and_waking(app, tmp_path):
 
     assert run(args, Store(tmp_path), Terminal(out)) == 0  # a second start just goes to the one that's awake
     assert "already awake" in out.getvalue()
-    assert call(port, "/api/rest", {})["ok"] and chat.resting.is_set()
+    assert call(port, "/api/rest", {})["ok"]
+    assert chat.resting.wait(5)  # it answers first, then lets Haven rest
 
 
 def test_not_ready_yet(tmp_path):
