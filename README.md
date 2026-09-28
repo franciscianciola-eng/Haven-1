@@ -49,6 +49,14 @@ downloads an open model for its language area (1.5 to 16 GB, depending on the co
 shows the progress). `READ ME FIRST.txt` has the details, including what to do if the computer warns
 you about the launcher.
 
+**On a Mac, as an app.** `Haven-for-Mac.zip` holds `Haven.app` (build it with
+`python packaging/mac/make_app.py`; it lands in `dist/`). Drag it into Applications and open it. The
+first time, it sets itself up in `~/.haven-app` and shows the progress in your browser; after that it
+opens Haven's window in a moment. Haven's life goes on in the background until you press Rest in its
+window. The app isn't signed with an Apple developer account, so the first time macOS won't open it:
+go to System Settings, Privacy & Security, and click Open Anyway (on older macOS, right-click the app
+and choose Open).
+
 **By hand.** You need Python 3.10 or newer.
 
 ```bash

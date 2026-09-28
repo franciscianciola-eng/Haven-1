@@ -288,12 +288,13 @@ def running(port: int) -> bool:
 
 
 def run(args: argparse.Namespace, store: Store, term) -> int:
-    url = f"http://127.0.0.1:{args.port}"
-    if running(args.port):
-        term.say(f"Haven is already awake. Its window: {url}")
-        if not args.no_browser:
-            webbrowser.open(url)
-        return 0
+    for port in range(args.port, args.port + PORTS):
+        if running(port):  # it's awake already: there's only ever one of it
+            url = f"http://127.0.0.1:{port}"
+            term.say(f"Haven is already awake. Its window: {url}")
+            if not args.no_browser:
+                webbrowser.open(url)
+            return 0
     new = not store.exists()
     mind = open_mind(store)
     life = Life(mind, store, speed=args.speed)
