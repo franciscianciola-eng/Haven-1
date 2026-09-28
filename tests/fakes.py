@@ -109,8 +109,15 @@ class Handler(BaseHTTPRequestHandler):
             body, kind = stories(300, 1), "text/plain"
         elif path == "/tinystories-valid.txt":
             body, kind = stories(40, 2), "text/plain"
-        elif path.startswith("/gutenberg/"):
-            body, kind = book(int(path.split("/")[-1].split(".")[0])), "text/plain"
+        elif path.startswith("/mirror/") and path.endswith("-0.txt"):
+            number = int(path.split("/")[-2])
+            if number == 16:  # this one only has an old-style file, like some real books
+                self.send_response(404)
+                self.end_headers()
+                return
+            body, kind = book(number), "text/plain"
+        elif path.startswith("/mirror/") and path.endswith("/16.txt"):
+            body, kind = book(16), "text/plain"
         elif path == "/w/api.php":
             if query.get("generator") == ["random"]:
                 start = random.randint(0, 10_000)
@@ -158,7 +165,7 @@ def serve() -> tuple[ThreadingHTTPServer, dict]:
     urls = {
         "tinystories": f"{base}/tinystories.txt",
         "tinystories-valid": f"{base}/tinystories-valid.txt",
-        "gutenberg": base + "/gutenberg/{id}.txt",
+        "gutenberg": f"{base}/mirror",
         "simplewiki": f"{base}/w/api.php",
         "wikipedia": f"{base}/w/api.php",
         "squad-train": f"{base}/squad-train.json",

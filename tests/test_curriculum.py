@@ -16,8 +16,10 @@ def test_sources_read_their_formats(internet, tmp_path):
     web = Web(delay=0, allow_private=True)
     stories = sources.tinystories(web, tmp_path, 20_000, internet)
     assert stories.train and stories.held_out and all("Once upon a time" in s for s in stories.train)
-    books = sources.gutenberg(web, tmp_path, (11, 16), "books", internet)
-    assert books.train and "START OF THE PROJECT" not in " ".join(books.train)
+    one = sources.gutenberg(web, tmp_path, (11,), "one", internet)
+    books = sources.gutenberg(web, tmp_path, (11, 16), "books", internet)  # 16 only has an old-style file
+    assert len(books.train) > len(one.train) and "START OF THE PROJECT" not in " ".join(books.train)
+    assert sources.gutenberg_path(2591) == "2/5/9/2591/2591" and sources.gutenberg_path(7) == "0/7/7"
     wiki = sources.wiki(web, tmp_path, internet["simplewiki"], 30, "wiki")
     assert len(wiki.train) + len(wiki.held_out) >= 30
     squad = sources.squad(web, tmp_path, internet)

@@ -57,15 +57,18 @@ class Block(nn.Module):
         self.mlp = nn.Sequential(nn.Linear(cfg.d, 4 * cfg.d), nn.GELU(), nn.Linear(4 * cfg.d, cfg.d))
         self.dropout = cfg.dropout
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, past: tuple | None = None) -> tuple[torch.Tensor, tuple]:
+        """With `past` (the keys and values of earlier positions), x is the next single position."""
         b, t, d = x.shape
         q, k, v = self.qkv(self.norm1(x)).split(d, dim=2)
         shape = (b, t, self.heads, d // self.heads)
         q, k, v = (z.view(shape).transpose(1, 2) for z in (q, k, v))
+        if past is not None:
+            k, v = torch.cat([past[0], k], dim=2), torch.cat([past[1], v], dim=2)
         dropout = self.dropout if self.training else 0.0
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=True, dropout_p=dropout)
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=past is None, dropout_p=dropout)
         x = x + self.proj(y.transpose(1, 2).reshape(b, t, d))
-        return x + self.mlp(self.norm2(x))
+        return x + self.mlp(self.norm2(x)), (k, v)
 
 
 class Cortex(nn.Module):
@@ -103,16 +106,30 @@ class Cortex(nn.Module):
 
         Returns next-token logits (B, T, vocab) and the meaning after each token (B, T, core).
         """
-        b, t = tokens.shape
+        logits, meanings, _ = self.run(tokens, state)
+        return logits, meanings
+
+    def run(
+        self, tokens: torch.Tensor, state: torch.Tensor | None = None, past: list | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor, list]:
+        """The forward pass, also returning the keys and values so generation can carry on from them."""
+        b = tokens.shape[0]
         cfg = self.cfg
-        if state is None:
-            state = torch.zeros(b, cfg.slots, cfg.core, device=tokens.device)
-        x = torch.cat([self.state_in(state) + self.slot, self.embed(tokens)], dim=1)
-        x = x + self.position(torch.arange(cfg.slots + t, device=tokens.device))
-        for block in self.blocks:
-            x = block(x)
-        x = self.norm(x)[:, cfg.slots :]
-        return self.head(x), self.state_out(x)
+        if past is None:
+            if state is None:
+                state = torch.zeros(b, cfg.slots, cfg.core, device=tokens.device)
+            x = torch.cat([self.state_in(state) + self.slot, self.embed(tokens)], dim=1)
+            start, skip = 0, cfg.slots
+        else:
+            x = self.embed(tokens)
+            start, skip = past[0][0].shape[2], 0
+        x = x + self.position(torch.arange(start, start + x.shape[1], device=tokens.device))
+        cache = []
+        for i, block in enumerate(self.blocks):
+            x, kv = block(x, None if past is None else past[i])
+            cache.append(kv)
+        x = self.norm(x)[:, skip:]
+        return self.head(x), self.state_out(x), cache
 
     # --- growing ------------------------------------------------------------------------
 
@@ -146,12 +163,17 @@ class Cortex(nn.Module):
     ) -> tuple[list[int], list[float]]:
         """Continue the prompt. Returns the new tokens and the log-probability of each."""
         device = self.embed.weight.device
-        ids = list(prompt)
+        room = self.cfg.context - 1
+        ids = list(prompt)[-max(room - max_new, 1) :]
         out, logprobs = [], []
-        for _ in range(max_new):
-            window = ids[-self.cfg.context :]
-            logits, _ = self(torch.tensor([window], device=device), state)
-            logits = logits[0, -1].float()
+        logits_all, _, past = self.run(torch.tensor([ids], device=device), state)
+        logits = logits_all[0, -1].float()
+        for step in range(max_new):
+            if step:
+                if len(ids) >= room:
+                    break  # no room left to think in
+                logits_all, _, past = self.run(torch.tensor([[ids[-1]]], device=device), past=past)
+                logits = logits_all[0, -1].float()
             probs = F.softmax(logits / max(temperature, 1e-4), dim=-1)
             if top_k and top_k < probs.numel():
                 cutoff = torch.topk(probs, top_k).values[-1]

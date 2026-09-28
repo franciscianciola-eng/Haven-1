@@ -160,6 +160,10 @@ class OwnThinker(Thinker):
         with life.lock:
             state = torch.tensor(mind_state(life.mind), device=self.device).unsqueeze(0)
             history = life.conversation[-7:-1]
+        with self.model_lock:
+            heard = self.model.meaning([YOU, *self.tok.encode(text)], state).float().cpu().numpy()
+        with life.lock:
+            life.mind.understand(text, heard)  # what it made of what was said comes to mind first
         prompt = []
         for turn in history:
             prompt += [YOU if turn["who"] == "you" else HAVEN, *self.tok.encode(turn["text"])]

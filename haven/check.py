@@ -176,7 +176,7 @@ def indicators(mind: Mind, measured: dict) -> list[Indicator]:
             "RPT-2",
             "Organised, integrated perceptual representations",
             "The scene is seen as things of learned kinds at places, integrated into a map of beliefs.",
-            f"{len(m.vision.kinds.centers)} kinds learned; {pct(measured['purity'])} of confident recognitions "
+            f"{len(m.vision.kinds.alive())} kinds learned; {pct(measured['purity'])} of confident recognitions "
             f"match what is really there; {pct(measured['belief_accuracy'])} of {measured['believed_cells']} "
             "believed places are right",
         ),

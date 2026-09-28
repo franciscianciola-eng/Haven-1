@@ -46,7 +46,9 @@ def test_its_own_cortex_thinks_through_the_workspace(cortex_home, internet, monk
     life.conversation.append({"tick": 0, "who": "you", "text": "What are berries?"})
     answer, confidence = thinker.deliberate(life, "What are berries?")
     assert isinstance(answer, str) and 0.0 <= confidence <= 1.0
-    assert life.mind.thoughts and life.mind.thoughts[0].source == "thought"
+    heard, *thoughts = life.mind.thoughts
+    assert heard.source == "hearing" and heard.label.startswith("understanding")  # what was said comes to mind
+    assert thoughts and all(t.source == "thought" for t in thoughts)  # then its own inner speech
     life.mind.step()  # the thought competes for the workspace
     assert any(c.source == "thought" for c in [life.mind.workspace.content] if c) or life.mind.workspace.history
     thinker.remember({"you": "hi", "haven": "ba", "confidence": 0.1})

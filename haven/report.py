@@ -84,7 +84,7 @@ def readout(mind: Mind) -> list[str]:
 
 def kinds(mind: Mind) -> list[dict]:
     result = []
-    for k in range(len(mind.vision.kinds.centers)):
+    for k in mind.vision.kinds.alive():
         rgb = np.clip(mind.vision.coder.reconstruct(mind.vision.kinds.centers[k]), 0, 1)
         result.append(
             {

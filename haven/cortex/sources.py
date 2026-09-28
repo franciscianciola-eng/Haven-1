@@ -7,9 +7,11 @@ held-out text that is only used to test how well it understands.
 
 from __future__ import annotations
 
+import io
 import json
 import random
 import re
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -18,7 +20,9 @@ from ..web import Web, WebError
 URLS = {
     "tinystories": "https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt",
     "tinystories-valid": "https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-valid.txt",
-    "gutenberg": "https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt",
+    # Project Gutenberg asks programs to download from its mirrors, never from www.gutenberg.org.
+    "gutenberg": "https://aleph.pglaf.org",
+    "gutenberg-mirror": "https://mirrors.pglaf.org/gutenberg",
     "simplewiki": "https://simple.wikipedia.org/w/api.php",
     "wikipedia": "https://en.wikipedia.org/w/api.php",
     "squad-train": "https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v1.1.json",
@@ -93,7 +97,7 @@ def gutenberg(web: Web, cache: Path, books: tuple[int, ...], name: str, urls: di
         failures = []
         for book in books:
             try:
-                text = web.get(urls["gutenberg"].format(id=book), 4_000_000).decode("utf-8", "replace")
+                text = _book(web, book, urls)
             except WebError as error:
                 failures.append(str(error))
                 continue
@@ -106,6 +110,41 @@ def gutenberg(web: Web, cache: Path, books: tuple[int, ...], name: str, urls: di
         return Reading(train, held)
 
     return cached(cache, name, make)
+
+
+def gutenberg_path(book: int) -> str:
+    """Where a mirror keeps a book: #2591 is under 2/5/9/2591/, and #7 under 0/7/."""
+    digits = str(book)
+    folders = "0" if len(digits) == 1 else "/".join(digits[:-1])
+    return f"{folders}/{digits}/{digits}"
+
+
+def _book(web: Web, book: int, urls: dict) -> str:
+    """A book's plain text from a mirror, whichever of the usual files it has."""
+    mirrors = [urls["gutenberg"], *([urls["gutenberg-mirror"]] if urls.get("gutenberg-mirror") else [])]
+    for mirror in mirrors:
+        stem = f"{mirror.rstrip('/')}/{gutenberg_path(book)}"
+        for suffix, encoding in (("-0", "utf-8"), ("", "utf-8"), ("-8", "latin-1")):
+            for ext in (".txt", ".zip"):
+                try:
+                    body = web.get(stem + suffix + ext, 12_000_000)
+                except WebError:
+                    continue
+                if ext == ".zip":
+                    body = _unzip_text(body)
+                    if body is None:
+                        continue
+                return body.decode(encoding, "replace")
+    raise WebError(f"no mirror had book #{book}")
+
+
+def _unzip_text(body: bytes) -> bytes | None:
+    try:
+        with zipfile.ZipFile(io.BytesIO(body)) as archive:
+            name = next((n for n in archive.namelist() if n.lower().endswith(".txt")), None)
+            return archive.read(name) if name else None
+    except (zipfile.BadZipFile, OSError):
+        return None
 
 
 def _strip_gutenberg(text: str) -> str:

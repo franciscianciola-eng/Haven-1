@@ -139,6 +139,20 @@ class KindKnowledge:
         self.met[k] += 1
         self.valence_sum[k] += valence
 
+    def verdicts(self, k: int) -> tuple:
+        """What it has concluded about a kind (None where it hasn't found out yet)."""
+        return (
+            None if self.walk_tries[k] < 2 else self.solid(k) > 0.6,
+            None if self.eat_tries[k] < 2 else self.edible(k) > 0.5,
+            None if self.stepped[k] < 1 else self.painful(k) > 0.2,
+        )
+
+    def merge(self, keep: int, gone: int) -> None:
+        for name in self.FIELDS:
+            values = getattr(self, name)
+            values[keep] += values[gone]
+            values[gone] = 0.0
+
     def describe(self, k: int) -> list[str]:
         """What it has learned about a kind, in words, for readouts."""
         facts = []

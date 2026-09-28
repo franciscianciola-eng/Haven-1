@@ -129,7 +129,7 @@ class Prototypes:
             self.centers[index] += self.lr * weight * (z - self.centers[index])
             self.counts[index] += 1
             return index
-        if may_create and len(self.centers) < self.capacity:
+        if may_create and (len(self.centers) < self.capacity or (self.counts == 0).any()):
             return self._consider(z)
         return -1
 
@@ -140,12 +140,31 @@ class Prototypes:
                 candidate[1] += 1
                 if candidate[1] >= self.confirm:
                     del self.candidates[i]
+                    free = np.flatnonzero(self.counts == 0)
+                    if len(free):  # a place left by two kinds that were merged
+                        index = int(free[0])
+                        self.centers[index], self.counts[index] = candidate[0], float(candidate[1])
+                        return index
                     self.centers = np.vstack([self.centers, candidate[0]])
                     self.counts = np.append(self.counts, float(candidate[1]))
                     return len(self.centers) - 1
                 return -1
         self.candidates = [*self.candidates[-7:], [z.copy(), 1]]
         return -1
+
+    def merge(self, keep: int, gone: int) -> None:
+        """Two kinds turned out to be one: pool them, and free the other's place."""
+        total = self.counts[keep] + self.counts[gone]
+        if total:
+            self.centers[keep] = (
+                self.counts[keep] * self.centers[keep] + self.counts[gone] * self.centers[gone]
+            ) / total
+        self.counts[keep] = total
+        self.centers[gone] = 1e3  # nothing is near it any more
+        self.counts[gone] = 0.0
+
+    def alive(self) -> list[int]:
+        return [int(k) for k in np.flatnonzero(self.counts > 0)]
 
     def to_state(self) -> dict:
         return {

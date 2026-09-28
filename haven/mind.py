@@ -107,12 +107,14 @@ class Mind:
         self.world.feed()
 
     def think(self, text: str, meaning: np.ndarray | None, confidence: float) -> None:
-        """Inner speech from the language cortex, on its way into the workspace."""
-        quality = np.zeros(Q) if meaning is None else np.asarray(meaning, dtype=float)[:Q]
+        """Inner speech from the language cortex, on its way into the workspace.
+
+        `meaning` is the cortex's reading of its own words, in the workspace's layout.
+        """
         self.thoughts.append(
             Candidate(
                 "thought",
-                quality,
+                _quality(meaning),
                 salience=0.55 + 0.3 * confidence,
                 confidence=confidence,
                 label=f'thinking "{text[:80]}"',
@@ -120,6 +122,26 @@ class Mind:
                 extra={"text": text},
             )
         )
+
+    def understand(self, text: str, meaning: np.ndarray) -> None:
+        """What the language cortex made of something said to it: it comes to mind, and steers attention.
+
+        Saying "look at the berries" draws its attention to berry-like things, as a single known
+        word does.
+        """
+        quality = _quality(meaning)
+        self.thoughts.append(
+            Candidate(
+                "hearing",
+                quality,
+                salience=0.7,
+                label=f'understanding "{text[:80]}"',
+                key=("hearing", "understood", self.world.tick),
+                extra={"text": text},
+            )
+        )
+        if np.linalg.norm(quality) > 1e-6:
+            self.primed = (quality, -1, self.world.tick + 60)
 
     # --- living -----------------------------------------------------------------------
 
@@ -225,7 +247,7 @@ class Mind:
             features(focus, self.workspace.dwell, self.arousal, b.drives(), obs.light, self.goals.index(), heard)
         )
         if tick % 50 == 0:
-            learned = len(self.vision.kinds.centers) + len(self.lexicon.vocabulary()) + 0.3 * len(self.me.milestones)
+            learned = len(self.vision.kinds.alive()) + len(self.lexicon.vocabulary()) + 0.3 * len(self.me.milestones)
             self.me.reflect(self.model.agency.mean, len(self.memory.episodes), learned)
         self._tally(outcome)
 
@@ -277,6 +299,48 @@ class Mind:
             self.me.remedy("damage", "resting")
         if relief[3] > 0.001 and act == "rest":
             self.me.remedy("tiredness", "resting")
+
+    def _merge_kinds(self) -> None:
+        """In sleep, kinds that look alike and have turned out to behave alike become one kind.
+
+        The same wall seen in shade and in sun can at first be taken for two kinds of thing.
+        """
+        kinds, knowledge = self.vision.kinds, self.knowledge
+        merged = True
+        while merged:
+            merged = False
+            alive = kinds.alive()
+            for i, a in enumerate(alive):
+                for b in alive[i + 1 :]:
+                    if np.linalg.norm(kinds.centers[a] - kinds.centers[b]) > 1.5 * kinds.radius:
+                        continue
+                    va, vb = knowledge.verdicts(a), knowledge.verdicts(b)
+                    shared = [(x, y) for x, y in zip(va, vb, strict=True) if x is not None and y is not None]
+                    names = {self.lexicon.name_for(a), self.lexicon.name_for(b)} - {None}
+                    if not shared or any(x != y for x, y in shared) or len(names) > 1:
+                        continue
+                    keep, gone = (a, b) if kinds.counts[a] >= kinds.counts[b] else (b, a)
+                    self._merge(keep, gone)
+                    merged = True
+                    break
+                if merged:
+                    break
+
+    def _merge(self, keep: int, gone: int) -> None:
+        self.vision.kinds.merge(keep, gone)
+        self.knowledge.merge(keep, gone)
+        self.beliefs.kind[self.beliefs.kind == gone] = keep
+        for word in self.lexicon.words.values():
+            if gone in word.kinds:
+                word.kinds[keep] = word.kinds.get(keep, 0.0) + word.kinds.pop(gone)
+        if gone in self.lexicon.kind_freq:
+            self.lexicon.kind_freq[keep] = self.lexicon.kind_freq.get(keep, 0.0) + self.lexicon.kind_freq.pop(gone)
+        for episode in self.memory.episodes:
+            if episode.kind == gone:
+                episode.kind = keep
+        self.me.firsts.discard(f"kind:{gone}")
+        self.counts["merged"] = self.counts.get("merged", 0) + 1
+        self._note(self.world.tick, f"realized two kinds of things were one: {self._kind_words(keep)}")
 
     def _consolidate(self) -> None:
         """Sleep: replay stored experience so the world model and values keep learning from it."""
@@ -462,7 +526,7 @@ class Mind:
 
     def _ignited(self, content: Candidate, tick: int, pose: tuple[int, int, int]) -> None:
         """Something came to the fore."""
-        if content.source == "hearing":
+        if content.source == "hearing" and "word" in content.extra:
             form = content.extra["word"]
             referent = None
             if self.workspace.previous is not None:
@@ -669,6 +733,7 @@ class Mind:
         # Sleep comes with the dark when it settles down to rest, or anywhere when it's worn out.
         if self.rest_streak >= 5 and (drives[3] > 0.35 or (night and (in_nest or drives[3] > 0.1))):
             b.asleep = True
+            self._merge_kinds()
             self._note(tick, "fell asleep" + (" in its nest" if in_nest else ""))
             if in_nest:
                 self.me.milestone("first sleep", tick, "slept in its nest for the first time")
@@ -825,6 +890,13 @@ class Mind:
         self.queried = {k: int(v) for k, v in state["queried"].items()}
         self.daily = {k: [float(x) for x in v] for k, v in state["daily"].items()}
         self._today = {k: float(v) for k, v in state["today"].items()}
+
+
+def _quality(meaning: np.ndarray | None) -> np.ndarray:
+    if meaning is None:
+        return np.zeros(Q)
+    meaning = np.asarray(meaning, dtype=float)
+    return meaning[QUALITY] if len(meaning) == D else meaning[:Q]
 
 
 def need_words(need: int, level: float, cold: bool) -> str:

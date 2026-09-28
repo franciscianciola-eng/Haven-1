@@ -23,9 +23,9 @@ RPT-1  Algorithmic recurrence
        → recognition reshaped codes by 0.09 on average as they settled
 …
 HOT-2  Metacognitive monitoring of perceptual reliability
-       → its confidence separates right from wrong percepts with AUROC 0.68 (its own judgment), 0.95 against the truth
+       → its confidence separates right from wrong percepts with AUROC 0.86 (its own judgment), 0.88 against the truth
 AST-1  A predictive model of its own attention
-       → predicts the next focus 84% of the time, and where attention moves 64% (chance ≈ 12%)
+       → predicts the next focus 84% of the time, and where attention moves 63% (chance ≈ 12%)
 …
 ```
 
@@ -97,7 +97,7 @@ Each moment, Haven goes through one cycle:
 6. **Its beliefs are updated**: what is where, in proportion to how much it trusted each look.
 7. **Its needs compete to set its goal**, a planner searches its beliefs for a way to reach it, and memory is asked where it went well before.
 8. **It chooses an action**, imagines the outcome first, and holds back if what it imagines is bad enough to come to mind.
-9. **It acts, and feels the result**, and every part of the mind learns from what happened. While it sleeps, it replays stored experience to keep learning, and its dreams are made of that replay.
+9. **It acts, and feels the result**, and every part of the mind learns from what happened. While it sleeps, it replays stored experience to keep learning, and its dreams are made of that replay. Falling asleep is also when it notices that two kinds of things it had told apart (say, a wall in shade and in sun) look alike and behave alike, and merges them.
 
 Here is how each indicator property is built, and how `haven check` measures it (by letting a copy of Haven live a day with instruments attached, and comparing what it represents with what is really there):
 
@@ -118,7 +118,7 @@ Here is how each indicator property is built, and how `haven check` measures it 
 | AE-1 | Learning from feedback to pursue competing goals | Needs compete to set goals; an actor-critic learns from its valence; it learns what's edible, solid, painful and warm by dealing with things. | Goal switches, meals, injuries, faints, and mean valence by day. |
 | AE-2 | Modelling output–input contingencies (embodiment) | A copy of each motor command predicts its consequences (an efference copy); comparing that with the prediction for doing nothing gives a sense of agency. | Its sense of agency (0 would mean its actions explain nothing it sees). |
 
-In one 20-day test life, for example, it never fainted and was hurt 7 times in all (it learns to avoid thorns after a step or two); its confidence told right percepts from wrong ones with an AUROC of 0.95 against the truth; all 72 places it had beliefs about were right; and its attention schema predicted where its attention would move 64% of the time, against a chance level of about 12%.
+In one 20-day test life, for example, it never fainted and was hurt 6 times in all (it learns to avoid thorns after a step or two); its confidence told right percepts from wrong ones with an AUROC of 0.88 against the truth; 97% of the 72 places it had beliefs about were right; it merged look-alike kinds 10 times in its sleep; and its attention schema predicted where its attention would move 63% of the time, against a chance level of about 12%.
 
 ## What it finds out about itself
 
@@ -142,10 +142,10 @@ It studies one level at a time. Each level has its own reading and its own tests
 |---|---|---|---|
 | 1. First stories | Very simple stories for small children | [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) (Eldan & Li, 2023) | Fluency ≤ 1.4 bits per byte; pick the missing word ≥ 60% |
 | 2. Talking about itself | Its own states, put into words | Simulated lives of Haven itself | Says what state it's in ≥ 70%; words about a need bring that need to mind ≥ 60% |
-| 3. Children's books | Fairy tales, fables and children's classics | [Project Gutenberg](https://www.gutenberg.org) | Fluency ≤ 2.0; pick how a passage goes on ≥ 45% |
+| 3. Children's books | Fairy tales, fables and children's classics | [Project Gutenberg](https://www.gutenberg.org), from its mirrors | Fluency ≤ 2.0; pick how a passage goes on ≥ 45% |
 | 4. Simple facts | Short articles in plain words | [Simple English Wikipedia](https://simple.wikipedia.org) | Fluency ≤ 2.0; missing word ≥ 50% |
 | 5. Reading comprehension | Passages with questions | [SQuAD 1.1](https://rajpurkar.github.io/SQuAD-explorer/) (Rajpurkar et al., 2016) | Answers questions about a passage ≥ 45% |
-| 6. Literature | Novels written for adults | Project Gutenberg | Fluency ≤ 2.1; how a passage goes on ≥ 45% |
+| 6. Literature | Novels written for adults | Project Gutenberg, from its mirrors | Fluency ≤ 2.1; how a passage goes on ≥ 45% |
 | 7. Encyclopedia | Articles about everything | [English Wikipedia](https://en.wikipedia.org) | Fluency ≤ 2.1; missing word ≥ 50% |
 | 8. Reasoning with numbers | Math word problems worked step by step | [GSM8K](https://github.com/openai/grade-school-math) (Cobbe et al., 2021) | Picks the right answer ≥ 40% |
 
@@ -174,7 +174,7 @@ By default the size is chosen from your hardware. A level takes from about 1,500
 
 ### Thinking
 
-When you talk to Haven and it has a cortex, it thinks before it answers. It drafts three replies, reading its workspace tokens as it does. Its confidence comes from its own signals: how likely it found its own words, and how much its drafts agree. Each draft enters its workspace as a thought. If it isn't sure, it looks the subject up in the Simple English Wikipedia and thinks again with what it read. You'll see its answer with its confidence, for example `Haven: I'm hungry. I want to find food.   [its own cortex, confidence 64%]`.
+When you talk to Haven and it has a cortex, what its cortex makes of your words comes to its mind first, and draws its attention to what you talked about. Then it thinks before it answers. It drafts three replies, reading its workspace tokens as it does. Its confidence comes from its own signals: how likely it found its own words, and how much its drafts agree. Each draft enters its workspace as a thought. If it isn't sure, it looks the subject up in the Simple English Wikipedia and thinks again with what it read. You'll see its answer with its confidence, for example `Haven: I'm hungry. I want to find food.   [its own cortex, confidence 64%]`.
 
 It learns from what you say and what it reads: while it sleeps, its cortex goes over recent conversations and readings. You can also have it read about something, or ask it something and watch it think:
 
@@ -198,7 +198,7 @@ This is a real trade-off. The words then come from a model trained by someone el
 
 Everything it reads comes from the public sources in the table above, and from Wikipedia's API when it looks something up. No accounts or API keys are needed. Downloads are cached in `~/.haven/cortex/reading/`, so the internet is needed only the first time each level is prepared, and when it looks things up.
 
-It opens only public `http` and `https` addresses, never anything on your own network (redirects are checked too), caps the size of every download, asks each site for at most one thing per second, and identifies itself as Haven with a link to this project. It only reads; it never posts anything anywhere.
+Books come from Project Gutenberg's mirrors, never from www.gutenberg.org itself, since Project Gutenberg asks that programs not download from its main site. It opens only public `http` and `https` addresses, never anything on your own network (redirects are checked too), caps the size of every download, asks each site for at most one thing per second, and identifies itself as Haven with a link to this project. It only reads; it never posts anything anywhere.
 
 ## Commands
 
@@ -218,7 +218,7 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 
 ## Limits
 
-- Its world is tiny and its senses are simple: color and distance along five rays. It learns about sixteen kinds of things at most, and the same thing in shade and in sun can end up as two kinds.
+- Its world is tiny and its senses are simple: color and distance along five rays. It can keep sixteen kinds of things in mind at most, and the same thing in shade and in sun can count as two kinds until it works out, in its sleep, that they're one.
 - Its words from you are names and needs; anything more fluent comes from its language cortex, whose level depends on how much it has studied.
 - The sentences it learns for its own states at level 2 were written by people, describing states that its instruments measure. What it learns is to say the right one at the right time, not new ways of describing itself.
 - The indicator properties come from theories that may be wrong, and each is implemented in one simple way among many possible ones. None of this has been peer reviewed.

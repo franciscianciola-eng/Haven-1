@@ -10,13 +10,11 @@ from haven.world import BUSH, THORN
 
 def test_it_learns_to_live(grown):
     m = grown
-    assert len(m.vision.kinds.centers) >= 4  # kinds of things, found for itself
+    assert len(m.vision.kinds.alive()) >= 4  # kinds of things, found for itself
     assert m.counts["ate"] >= 1 and m.counts["fainted"] == 0
     assert m.counts["dreams"] >= 1  # it slept, and dreamed
     assert m.workspace.ignitions > 100
-    edible = [
-        k for k in range(len(m.vision.kinds.centers)) if m.knowledge.eat_tries[k] >= 2 and m.knowledge.edible(k) > 0.5
-    ]
+    edible = [k for k in m.vision.kinds.alive() if m.knowledge.eat_tries[k] >= 2 and m.knowledge.edible(k) > 0.5]
     assert edible, "it should have found out what is good to eat"
     assert m.me.alive > 0.3
 

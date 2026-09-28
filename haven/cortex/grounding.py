@@ -55,7 +55,7 @@ def mind_state(mind: Mind) -> np.ndarray:
         me.alive,
         min(mind.age / 12000, 1.0),
         min(len(mind.lexicon.vocabulary()) / 20, 1.0),
-        min(len(mind.vision.kinds.centers) / 16, 1.0),
+        min(len(mind.vision.kinds.alive()) / 16, 1.0),
         min(len(me.milestones) / 30, 1.0),
     ]
     state[3, : len(self_part)] = self_part
@@ -110,7 +110,10 @@ def describe(mind: Mind) -> tuple[str, dict]:
                 }.get(content.label, "I felt something.")
             )
         elif content.source == "hearing":
-            parts.append(f"I heard {content.label.removeprefix('the word ')}.")
+            if content.label.startswith("the word "):
+                parts.append(f"I heard {content.label.removeprefix('the word ')}.")
+            else:
+                parts.append("Someone is talking to me.")
         elif content.source in ("memory", "imagination"):
             parts.append(f"I'm {content.label}.")
     goal = mind.goals.current
