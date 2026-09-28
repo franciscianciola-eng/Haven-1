@@ -182,7 +182,7 @@ function render(s) {
   $("age").textContent = `${s.age_days} days old · day ${s.day + 1}, ${s.time_of_day}${s.paused ? " · paused" : ""}`;
   $("pause").textContent = s.paused ? "Resume" : "Pause";
   drawWorld(s); drawBeliefs(s);
-  $("where").textContent = s.body.asleep ? "Asleep." : `Trying to ${s.goal}${s.next ? `; next: ${s.next}` : ""}.`;
+  $("where").textContent = s.body.asleep ? "Asleep." : `Trying to ${s.goal_text}${s.next ? `; next: ${s.next}` : ""}.`;
   const w = s.workspace;
   $("focus").innerHTML = w ? `<span class="source">${esc(w.source)}</span>${esc(w.label)}` : '<span class="muted">nothing in particular</span>';
   const expected = Object.entries(s.attention.expected).sort((a, b) => b[1] - a[1]).map(([k, p]) => `${k} ${Math.round(p * 100)}%`).join(", ");

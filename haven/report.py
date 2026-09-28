@@ -16,21 +16,26 @@ from .mind import Mind, need_words
 from .workspace import SOURCES
 from .world import ACTIONS, BUSH, LAYOUT
 
+GOALS = {
+    "food": "find food",
+    "warmth": "get to a comfortable temperature",
+    "healing": "rest and heal",
+    "sleep": "get to its nest and sleep",
+    "explore": "explore",
+}
+
 
 def feeling_words(valence: float, arousal: float) -> str:
-    tone = (
-        "very good"
-        if valence > 0.5
-        else "good"
-        if valence > 0.1
-        else "bad"
-        if valence < -0.1
-        else "very bad"
-        if valence < -0.5
-        else "neutral"
-    )
-    if valence < -0.5:
+    if valence > 0.5:
+        tone = "very good"
+    elif valence > 0.1:
+        tone = "good"
+    elif valence < -0.5:
         tone = "very bad"
+    elif valence < -0.1:
+        tone = "bad"
+    else:
+        tone = "neutral"
     energy = "excited" if arousal > 0.6 else "alert" if arousal > 0.3 else "calm"
     return f"{tone}, {energy}"
 
@@ -64,13 +69,7 @@ def readout(mind: Mind) -> list[str]:
         + (f"; {', '.join(needs)}." if needs else "; its needs are met.")
     )
     if not b.asleep:
-        goal = {
-            "food": "find food",
-            "warmth": "get to a comfortable temperature",
-            "healing": "rest and heal",
-            "sleep": "get to its nest and sleep",
-            "explore": "explore",
-        }[mind.goals.current]
+        goal = GOALS[mind.goals.current]
         step = f" Next: {mind.suggestion}." if mind.suggestion else ""
         lines.append(f"Trying to {goal}.{step}")
         if (
@@ -170,6 +169,7 @@ def snapshot(mind: Mind) -> dict:
             "captured": schema.captured,
         },
         "goal": mind.goals.current,
+        "goal_text": GOALS[mind.goals.current],
         "next": mind.suggestion,
         "said": [{"tick": t, "text": text} for t, text in mind.said[-6:]][::-1],
         "log": [{"tick": t, "text": text} for t, text in mind.log[-14:]][::-1],
