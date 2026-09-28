@@ -22,6 +22,7 @@ import math
 import random
 import re
 from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 import torch
@@ -159,6 +160,19 @@ STOP = {
 }
 
 
+def balanced(moments: list[dict], n: int) -> list[dict]:
+    """Up to n moments with every need equally represented, so saying the same thing every time can't pass."""
+    groups: dict[str, list[dict]] = {}
+    for m in moments:
+        groups.setdefault(m["need"], []).append(m)
+    per = max(n // max(len(groups), 1), 1)
+    chosen = []
+    for group in groups.values():
+        step = max(len(group) // per, 1)
+        chosen += group[::step][:per]
+    return chosen[:n]
+
+
 def passed(level: Level, results: dict) -> bool:
     for test, (direction, mark) in level.tests.items():
         value = results.get(test)
@@ -241,65 +255,88 @@ def next_sentence_items(documents: list[str], n: int, rng: random.Random) -> lis
 # --- running tests ------------------------------------------------------------------------------
 
 
-def device_of(model: Cortex) -> torch.device:
-    return model.embed.weight.device
+class Reader(Protocol):
+    """What the tests need from a language cortex, whichever kind it is."""
+
+    def bits(self, text: str, max_tokens: int) -> tuple[float, int, int]:
+        """(negative log-likelihood in nats, bytes predicted, tokens predicted) for a text."""
+
+    def pick(self, prefix: str, choices: list[str]) -> int:
+        """Which choice it finds most likely to follow the prefix (judged per byte)."""
+
+    def describe(self, state: np.ndarray) -> str:
+        """What it says about itself, given only its state tokens."""
+
+    def meaning(self, text: str) -> np.ndarray:
+        """What reading a text brings to mind, in the workspace's layout."""
 
 
-@torch.no_grad()
-def fluency(model: Cortex, tok: Tokenizer, documents: list[str], max_tokens: int = 12000) -> float | None:
-    """Bits per byte on text it hasn't learned from: how well it predicts the next piece of text."""
-    model.eval()
-    device = device_of(model)
-    nll, count_bytes, seen = 0.0, 0, 0
-    window = model.cfg.context
-    for doc in documents:
-        ids = tok.encode(doc)[: window + 1]
+class ScratchReader:
+    """The reader interface for the cortex Haven grows from scratch."""
+
+    def __init__(self, model: Cortex, tok: Tokenizer):
+        self.model, self.tok = model, tok
+
+    @property
+    def device(self) -> torch.device:
+        return self.model.embed.weight.device
+
+    @torch.no_grad()
+    def bits(self, text: str, max_tokens: int) -> tuple[float, int, int]:
+        self.model.eval()
+        ids = self.tok.encode(text)[: min(self.model.cfg.context, max_tokens) + 1]
         if len(ids) < 2:
-            continue
-        x = torch.tensor([ids[:-1]], device=device)
-        y = torch.tensor([ids[1:]], device=device)
-        logits, _ = model(x)
-        nll += float(F.cross_entropy(logits[0].float(), y[0], reduction="sum"))
-        count_bytes += len(tok.decode(ids[1:]).encode("utf-8"))
-        seen += len(ids) - 1
+            return 0.0, 0, 0
+        logits, _ = self.model(torch.tensor([ids[:-1]], device=self.device))
+        target = torch.tensor(ids[1:], device=self.device)
+        nll = float(F.cross_entropy(logits[0].float(), target, reduction="sum"))
+        return nll, len(self.tok.decode(ids[1:]).encode("utf-8")), len(ids) - 1
+
+    @torch.no_grad()
+    def pick(self, prefix: str, choices: list[str]) -> int:
+        self.model.eval()
+        ids = self.tok.encode(prefix)[-(self.model.cfg.context // 2) :]
+        scores = self.model.score(ids, [self.tok.encode(c) for c in choices])
+        return int(np.argmax([s / max(len(c.encode("utf-8")), 1) for s, c in zip(scores, choices, strict=True)]))
+
+    @torch.no_grad()
+    def describe(self, state: np.ndarray) -> str:
+        self.model.eval()
+        tensor = torch.tensor(np.asarray(state, dtype=np.float32), device=self.device).unsqueeze(0)
+        tokens, _ = self.model.generate([HAVEN], tensor, max_new=40, temperature=0.0, stop=(END,))
+        return self.tok.decode(tokens)
+
+    @torch.no_grad()
+    def meaning(self, text: str) -> np.ndarray:
+        self.model.eval()
+        return self.model.meaning([HAVEN, *self.tok.encode(text)]).float().cpu().numpy()
+
+
+def fluency(reader: Reader, documents: list[str], max_tokens: int = 12000) -> float | None:
+    """Bits per byte on text it hasn't learned from: how well it predicts the next piece of text."""
+    nll, count_bytes, seen = 0.0, 0, 0
+    for doc in documents:
+        n, b, t = reader.bits(doc, max_tokens - seen)
+        nll, count_bytes, seen = nll + n, count_bytes + b, seen + t
         if seen >= max_tokens:
             break
-    if not count_bytes:
-        return None
-    return nll / count_bytes / math.log(2)
+    return nll / count_bytes / math.log(2) if count_bytes else None
 
 
-@torch.no_grad()
-def choose(model: Cortex, tok: Tokenizer, items: list[dict]) -> float | None:
+def choose(reader: Reader, items: list[dict]) -> float | None:
     """Accuracy on four-way choices, judged by the likelihood of each choice (per byte)."""
     if not items:
         return None
-    model.eval()
-    right = 0
-    for item in items:
-        prefix = tok.encode(item["prefix"])[-(model.cfg.context // 2) :]
-        conts = [tok.encode(c) for c in item["choices"]]
-        scores = model.score(prefix, conts)
-        per_byte = [s / max(len(c.encode("utf-8")), 1) for s, c in zip(scores, item["choices"], strict=True)]
-        right += int(np.argmax(per_byte)) == 0
-    return right / len(items)
+    return sum(reader.pick(item["prefix"], item["choices"]) == 0 for item in items) / len(items)
 
 
-def _state(item: dict, device: torch.device) -> torch.Tensor:
-    return torch.tensor(np.asarray(item["state"], dtype=np.float32), device=device).unsqueeze(0)
-
-
-@torch.no_grad()
-def self_report(model: Cortex, tok: Tokenizer, items: list[dict]) -> float | None:
+def self_report(reader: Reader, items: list[dict]) -> float | None:
     """Does what it says about itself match its actual state? (its need, and the color it's looking at)"""
     if not items:
         return None
-    model.eval()
-    device = device_of(model)
     checked, right = 0, 0
     for item in items:
-        tokens, _ = model.generate([HAVEN], _state(item, device), max_new=40, temperature=0.0, stop=(END,))
-        said = tok.decode(tokens).lower()
+        said = reader.describe(item["state"]).lower()
         need = item["need"]
         checked += 1
         right += (need in said) if need != "fine" else ("fine" in said or "comfortable" in said)
@@ -309,15 +346,16 @@ def self_report(model: Cortex, tok: Tokenizer, items: list[dict]) -> float | Non
     return right / checked
 
 
-@torch.no_grad()
-def understanding(model: Cortex, tok: Tokenizer, items: list[dict]) -> float | None:
+def understanding(reader: Reader, items: list[dict]) -> float | None:
     """Reading a description (with no state given) should bring the described need to mind."""
-    model.eval()
     scored = [i for i in items if need_index(i["need"]) is not None]
     if not scored:
         return None
-    right = 0
-    for item in scored:
-        meaning = model.meaning([HAVEN, *tok.encode(item["text"])]).float().cpu().numpy()
-        right += int(np.argmax(meaning[DRIVES])) == need_index(item["need"])
+    if hasattr(reader, "meanings"):  # read many at once when the cortex can
+        vectors = np.concatenate(
+            [reader.meanings([i["text"] for i in scored[j : j + 16]]) for j in range(0, len(scored), 16)]
+        )
+    else:
+        vectors = np.stack([reader.meaning(i["text"]) for i in scored])
+    right = sum(int(np.argmax(v[DRIVES])) == need_index(i["need"]) for v, i in zip(vectors, scored, strict=True))
     return right / len(scored)

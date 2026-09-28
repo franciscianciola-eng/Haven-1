@@ -24,6 +24,8 @@ from . import sources
 from .curriculum import (
     LEVELS,
     Level,
+    ScratchReader,
+    balanced,
     choose,
     cloze_items,
     fluency,
@@ -191,7 +193,7 @@ class Trainer:
             train_texts = [f"{m['text']}" for m in moments["train"]] + [m["answer"] for m in moments["train"]]
             data = {
                 "grounded": moments["train"],
-                "items": {"self-report": moments["held"][:60], "understanding": moments["held"][:200]},
+                "items": {"self-report": balanced(moments["held"], 60), "understanding": moments["held"][:200]},
             }
         else:
             reading = self.read(level)
@@ -219,42 +221,12 @@ class Trainer:
         return data
 
     def read(self, level: Level) -> sources.Reading:
-        s, web, cache, urls = level.source, self.web, self.cache, self.urls
-        if s == "tinystories":
-            return sources.tinystories(web, cache, self.scale["tinystories"], urls)
-        if s == "children":
-            return sources.gutenberg(web, cache, sources.CHILDREN, "children", urls)
-        if s == "classics":
-            return sources.gutenberg(web, cache, sources.CLASSICS, "classics", urls)
-        if s in ("simplewiki", "wikipedia"):
-            return sources.wiki(web, cache, urls[s], self.scale["articles"], s)
-        if s == "squad":
-            return sources.squad(web, cache, urls)
-        if s == "gsm8k":
-            return sources.gsm8k(web, cache, urls)
-        raise ValueError(f"unknown source {s}")
+        return read_level(level, self.web, self.cache, self.urls, self.scale)
 
     def grounded(self) -> dict:
         """Moments from simulated lives, each with its state tokens and words for it."""
-        if self._grounded is not None:
-            return self._grounded
-        path = self.cache / "grounded.npz"
-        if path.exists():
-            with np.load(path, allow_pickle=False) as npz:
-                meta = json.loads(str(npz["meta"]))
-                states = npz["states"]
-        else:
-            self.log("  living a few simulated lives to learn words for its own states…")
-            moments = gather(seed=101, days=4) + gather(seed=202, days=4) + gather(seed=303, days=2)
-            states = np.stack([m.pop("state") for m in moments]).astype(np.float32)
-            meta = moments
-            self.cache.mkdir(parents=True, exist_ok=True)
-            with open(path, "wb") as f:
-                np.savez_compressed(f, states=states, meta=np.array(json.dumps(meta)))
-        for m, state in zip(meta, states, strict=True):
-            m["state"] = state
-        cut = int(len(meta) * 0.8)  # the last simulated life is held out for testing
-        self._grounded = {"train": meta[:cut], "held": meta[cut:]}
+        if self._grounded is None:
+            self._grounded = simulated_moments(self.cache, self.log)
         return self._grounded
 
     def stream(self, number: int, texts: list[str]) -> np.ndarray:
@@ -420,18 +392,7 @@ class Trainer:
     # --- testing ---------------------------------------------------------------------------------------
 
     def evaluate(self, level: Level, data: dict) -> dict:
-        model, tok, items = self.model, self.tok, data["items"]
-        results = {}
-        for test in level.tests:
-            if test == "fluency":
-                results[test] = fluency(model, tok, data["held_out"])
-            elif test in ("cloze", "next sentence", "questions", "math"):
-                results[test] = choose(model, tok, items.get(test, [])[:120])
-            elif test == "self-report":
-                results[test] = self_report(model, tok, items["self-report"])
-            elif test == "understanding":
-                results[test] = understanding(model, tok, items["understanding"])
-        return {k: v for k, v in results.items() if v is not None}
+        return evaluate(ScratchReader(self.model, self.tok), level, data)
 
     def report(self) -> list[str]:
         """The report card."""
@@ -451,6 +412,64 @@ class Trainer:
                 + (f" — {describe(level, record['tests'])}" if record.get("tests") else "")
             )
         return lines
+
+
+def read_level(level: Level, web: Web, cache: Path, urls: dict, scale: dict) -> sources.Reading:
+    """A level's reading, from the internet the first time and from the cache after that."""
+    s = level.source
+    if s == "tinystories":
+        return sources.tinystories(web, cache, scale["tinystories"], urls)
+    if s == "children":
+        return sources.gutenberg(web, cache, sources.CHILDREN, "children", urls)
+    if s == "classics":
+        return sources.gutenberg(web, cache, sources.CLASSICS, "classics", urls)
+    if s in ("simplewiki", "wikipedia"):
+        return sources.wiki(web, cache, urls[s], scale["articles"], s)
+    if s == "squad":
+        return sources.squad(web, cache, urls)
+    if s == "gsm8k":
+        return sources.gsm8k(web, cache, urls)
+    raise ValueError(f"unknown source {s}")
+
+
+LIVES = ((101, 4.0), (202, 4.0), (303, 2.0))  # (seed, days): the last life is held out for testing
+
+
+def simulated_moments(cache: Path, log: Callable[[str], None], lives: tuple = LIVES) -> dict:
+    """Moments from simulated lives of Haven, each with its state tokens and words for it (cached)."""
+    path = cache / "grounded.npz"
+    if path.exists():
+        with np.load(path, allow_pickle=False) as npz:
+            meta = json.loads(str(npz["meta"]))
+            states = npz["states"]
+    else:
+        log("  living a few simulated lives to learn words for its own states…")
+        moments = [m for seed, days in lives for m in gather(seed=seed, days=days)]
+        states = np.stack([m.pop("state") for m in moments]).astype(np.float32)
+        meta = moments
+        cache.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            np.savez_compressed(f, states=states, meta=np.array(json.dumps(meta)))
+    for m, state in zip(meta, states, strict=True):
+        m["state"] = state
+    cut = int(len(meta) * 0.8)  # about the last simulated life is held out for testing
+    return {"train": meta[:cut], "held": meta[cut:]}
+
+
+def evaluate(reader, level: Level, data: dict, limit: int = 120) -> dict:
+    """Run a level's tests, on held-out material, with any kind of cortex."""
+    items = data["items"]
+    results = {}
+    for test in level.tests:
+        if test == "fluency":
+            results[test] = fluency(reader, data["held_out"], max_tokens=100 * limit)
+        elif test in ("cloze", "next sentence", "questions", "math"):
+            results[test] = choose(reader, items.get(test, [])[:limit])
+        elif test == "self-report":
+            results[test] = self_report(reader, items["self-report"][: max(limit // 2, 10)])
+        elif test == "understanding":
+            results[test] = understanding(reader, items["understanding"])
+    return {k: v for k, v in results.items() if v is not None}
 
 
 def describe(level: Level, results: dict) -> str:

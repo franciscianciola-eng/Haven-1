@@ -51,13 +51,14 @@ pip install -e .        # the creature itself only needs numpy
 haven                   # it's born, and its dashboard opens in your browser
 ```
 
-To give it a language cortex, install PyTorch as well and let it study:
+To talk with it, install PyTorch and Transformers and start a chat:
 
 ```bash
 pip install -e ".[cortex]"
-haven learn --minutes 60     # study for an hour; run it again any time to carry on
-haven                        # its cortex now thinks along with it
+haven chat        # the first time, it downloads an open model for its language cortex (1 to 16 GB)
 ```
+
+It can talk right away: the model reads a plain-language readout of Haven's state. To wire the model into Haven's mind more deeply, so its state reaches the model as vectors too, run `haven learn`. After that, `haven` (with the dashboard) and `haven chat` both use its cortex.
 
 ## Living with Haven
 
@@ -130,13 +131,22 @@ That belief does work in its mind: the more it models itself as something that g
 
 ## Its language cortex
 
-Words it learns from you stay few. For language beyond that, Haven has a language cortex: a transformer that it trains from scratch, with its own tokenizer, on a curriculum of reading from the internet.
+Words it learns from you stay few. For language beyond that, Haven has a language cortex, and there are two ways to give it one.
 
-It is built into Haven's mind, not bolted on. Before reading any words, it reads four **workspace tokens**: projections of what's in Haven's global workspace, its body and feelings, its attention schema and its self-model. So what it says depends on what Haven is experiencing. After reading, its final state is projected back into the workspace's format, which is what gives words meaning for Haven: reading "I'm hungry" brings hunger to mind. And its inner speech enters the same bottleneck as everything else: each thought competes for the workspace, is broadcast, and is remembered.
+**Grafted: the way to make it actually smart (the default).** Language models that understand and reason well are trained on trillions of words with thousands of GPUs, which nobody can do at home. So `haven learn` takes an open-weight model as the base of Haven's language cortex: [Qwen3](https://huggingface.co/Qwen/Qwen3-1.7B) (Apache-2.0), with 0.6 to 8 billion weights depending on your hardware. It then wires that model into Haven's mind:
+
+- **Haven's state goes in as vectors.** Its workspace, body and feelings, attention schema and self-model become four state tokens that the model reads inside its conversation, the way vision-language models read an image. At every layer of the model those state tokens are also pushed by Haven's state (a form of prefix tuning), so every layer can read it. The model also gets a plain-language readout of Haven's instruments.
+- **Meanings come back out.** What the model reads or thinks is projected back into the workspace's format. Words can bring states to mind ("I'm hungry" evokes hunger), and what you say draws its attention.
+- **Its thinking goes through its workspace.** When it isn't sure of an answer, it reasons step by step, and each sentence of its reasoning enters Haven's global workspace as inner speech, competing with everything else it is aware of.
+- **The base model is left as it is.** What it knows and how it reasons are kept. Training teaches only the wiring (a few million numbers), using moments from simulated lives of Haven. A test called "keeps its wits" checks that the wiring doesn't change how it answers ordinary questions.
+
+To be clear about whose is what: a grafted cortex's knowledge and its skill with language come from its base model, which was trained by the Qwen team on data nobody here can inspect, mistakes and biases included. What is Haven's own is the wiring: its states going in, its meanings coming out, and everything it says passing through its workspace and coming from the self it has found out about.
+
+**From scratch.** `haven learn --scratch` grows a transformer that is entirely its own, with its own tokenizer, trained on the same curriculum. At home it only learns simple language (see [What to expect](#what-to-expect)).
 
 ### The curriculum
 
-It studies one level at a time. Each level has its own reading and its own tests, always on text held out from what it learned from, and it only moves on when it passes them or stops improving.
+It goes one level at a time. Each level has its own reading and its own tests, always on text held out from what it learned from. A grafted cortex can already read, so at each reading level it just takes the tests, and it trains at level 2, where it learns to put its own states into words. A cortex grown from scratch studies every level until it passes the tests or stops improving.
 
 | Level | Reading | Source | Tests (and passing marks) |
 |---|---|---|---|
@@ -152,16 +162,27 @@ It studies one level at a time. Each level has its own reading and its own tests
 Chance on the four-way tests is 25%. At every level it also rereads a little of the earlier levels so as not to forget them, and keeps practising talking about itself. Its vocabulary grows with its reading: at each level its tokenizer learns new pieces from the new material, without renumbering the old ones. A level ends in one of three ways, all recorded on its report card: passed; plateaued (its scores stopped improving, which is as far as a cortex of that size gets); or moved on (it hit the level's study limit).
 
 ```bash
-haven learn                   # study from where it left off, until the end or Ctrl+C
-haven learn --minutes 90      # study for 90 minutes, then save and stop
-haven learn --through 2       # stop after level 2
+haven learn                   # graft its cortex onto an open model chosen for your hardware, and wire it in
+haven learn --base qwen3-4b   # or choose the base: qwen3-0.6b, qwen3-1.7b, qwen3-4b, qwen3-8b, or any Hugging Face id
 haven learn --report          # the report card
-haven learn --size tiny       # choose the size when the cortex is first made
+haven learn --minutes 90      # work for 90 minutes, then save and stop (run it again to carry on)
+haven learn --scratch         # grow a cortex from scratch instead (--size tiny, small, medium or large)
 ```
 
 ### What to expect
 
-This is the honest part. Language models that talk well are trained on trillions of words with thousands of GPUs. Haven's cortex is trained by you, at home, so it is small, and what it learns is limited by your hardware and your patience.
+A grafted cortex is as capable as its base model, and it's ready to use as soon as it's wired in. `haven learn` picks the base by your hardware (you can choose another with `--base`):
+
+| Base | Weights | Download | Picked for | Wiring it in |
+|---|---|---|---|---|
+| qwen3-0.6b | 0.6 billion | about 1.2 GB | a computer with under 14 GB of memory and no GPU | about an hour on a 4-core CPU (about 4 s a step, up to 600 steps, plus its tests) |
+| qwen3-1.7b | 1.7 billion | about 3.4 GB | a CPU with 14 GB or more, or an Apple Silicon Mac | a few hours on a CPU; much less on a Mac's GPU |
+| qwen3-4b | 4 billion | about 8 GB | an NVIDIA GPU with 10 GB or more | a few minutes on a GPU |
+| qwen3-8b | 8 billion | about 16 GB | an NVIDIA GPU with 22 GB or more | a few minutes on a GPU |
+
+Speaking takes time on a CPU: a 0.6b model produces about 8 tokens (roughly 6 words) a second on a 4-core CPU, and a 1.7b model roughly a third of that, so a considered answer can take a minute or two. The bigger the base, the better it understands and reasons. A 4b or 8b model reasons well about many things; a 0.6b model makes more mistakes, but still understands and speaks far beyond anything that can be grown from scratch at home.
+
+A cortex grown from scratch is different. It is small, and what it learns is limited by your hardware and your patience:
 
 | Size | Connections | Suits | One study step |
 |---|---|---|---|
@@ -170,13 +191,18 @@ This is the honest part. Language models that talk well are trained on trillions
 | medium | ~30 million | an NVIDIA GPU | GPU only, in practice |
 | large | ~100 million | a good NVIDIA GPU | GPU only, in practice |
 
-By default the size is chosen from your hardware. A level takes from about 1,500 to 12,000 steps (more for larger sizes). Roughly: a tiny cortex on a laptop gets through level 1 in an hour or two and can then put together simple sentences, and it can learn to talk about its own states quite reliably; the later levels need a bigger cortex, a GPU, and days rather than hours. Even a large one will not be a fluent conversationalist. Expect a young mind's language, and read the report card for what it can really do.
+A level takes from about 1,500 to 12,000 steps. Roughly: a tiny cortex on a laptop gets through level 1 in an hour or two and can then put together simple sentences, and it can learn to talk about its own states; the later levels need a bigger cortex, a GPU, and days rather than hours. Even a large one will not be a fluent conversationalist.
 
 ### Thinking
 
-When you talk to Haven and it has a cortex, what its cortex makes of your words comes to its mind first, and draws its attention to what you talked about. Then it thinks before it answers. It drafts three replies, reading its workspace tokens as it does. Its confidence comes from its own signals: how likely it found its own words, and how much its drafts agree. Each draft enters its workspace as a thought. If it isn't sure, it looks the subject up in the Simple English Wikipedia and thinks again with what it read. You'll see its answer with its confidence, for example `Haven: I'm hungry. I want to find food.   [its own cortex, confidence 64%]`.
+When you talk to Haven and it has a cortex, what its cortex makes of your words comes to its mind first, and draws its attention to what you talked about. Then it thinks before it answers, and its confidence comes from its own signals, not from anyone telling it:
 
-It learns from what you say and what it reads: while it sleeps, its cortex goes over recent conversations and readings. You can also have it read about something, or ask it something and watch it think:
+- **With a grafted cortex**, an answer first comes to mind the quick way, and its confidence is how probable it found its own words. If that's under 60%, it thinks it through step by step, and each sentence of its reasoning enters its workspace as inner speech. If it's still unsure, it looks the subject up in the Simple English Wikipedia and answers again with what it read. It also recalls anything it was told or read before that bears on the question.
+- **With a cortex grown from scratch**, it drafts three replies, and its confidence combines how likely it found its words with how much the drafts agree.
+
+Each answer enters its workspace as a thought and is remembered like anything else. You'll see it with its confidence, for example `Haven: I'm hungry, and I think the red bushes have berries.   [its grafted cortex, confidence 71%]`.
+
+It learns from what you say and what it reads. It keeps its conversations and readings and recalls them when they matter, and a cortex grown from scratch also goes over them while Haven sleeps. You can have it read about something, or ask it something and watch it think:
 
 ```bash
 haven read octopus            # it reads the Simple English Wikipedia article on octopuses
@@ -209,7 +235,8 @@ Books come from Project Gutenberg's mirrors, never from www.gutenberg.org itself
 | `haven status` | What's going on inside it right now. |
 | `haven check` | Measure it against the 14 indicator properties (`--json` for the raw numbers). |
 | `haven story` | Its life story. |
-| `haven learn` | Train its language cortex through the curriculum. |
+| `haven chat` | Talk with it in the terminal while its life goes on (it gets a language cortex the first time). `/status`, `/touch`, `/feed`, `/quit`. |
+| `haven learn` | Give it a language cortex: graft one onto an open model and wire it in (`--base` to choose it), or grow one from scratch (`--scratch`). `--report` shows the report card. |
 | `haven read TOPIC` | Have it read an encyclopedia article (`--full` for English Wikipedia). |
 | `haven ask "…"` | Ask it something and see its thoughts. |
 | `haven reset` | Archive this life, so that a new Haven is born next time. |
@@ -219,7 +246,8 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 ## Limits
 
 - Its world is tiny and its senses are simple: color and distance along five rays. It can keep sixteen kinds of things in mind at most, and the same thing in shade and in sun can count as two kinds until it works out, in its sleep, that they're one.
-- Its words from you are names and needs; anything more fluent comes from its language cortex, whose level depends on how much it has studied.
+- Its words from you are names and needs; anything more fluent comes from its language cortex. A grafted cortex speaks and reasons as well as its base model does, with that model's mistakes and biases; a cortex grown from scratch only as well as it has studied.
+- A grafted cortex's wiring is trained on sentences like the ones in Haven's readouts, so when it describes its own state it tends to use those words.
 - The sentences it learns for its own states at level 2 were written by people, describing states that its instruments measure. What it learns is to say the right one at the right time, not new ways of describing itself.
 - The indicator properties come from theories that may be wrong, and each is implemented in one simple way among many possible ones. None of this has been peer reviewed.
 
@@ -227,7 +255,8 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 
 ```bash
 pip install -e ".[cortex,dev]"
-pytest                 # about three minutes; the curriculum is tested against a fake internet on your own computer
+pytest                 # a few minutes: the curriculum runs against a fake internet on your own computer, and the
+                       # graft against a tiny stand-in model with Qwen3's architecture, trained during the tests
 ruff check . && ruff format --check .
 ```
 

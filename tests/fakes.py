@@ -174,3 +174,81 @@ def serve() -> tuple[ThreadingHTTPServer, dict]:
         "gsm8k-test": f"{base}/gsm8k-test.jsonl",
     }
     return server, urls
+
+
+CHAT = """{%- for message in messages -%}
+{{- '<|im_start|>' + message['role'] + '\\n' + message['content'] + '<|im_end|>\\n' -}}
+{%- endfor -%}
+{%- if add_generation_prompt -%}
+{{- '<|im_start|>assistant\\n' -}}
+{%- if enable_thinking is defined and enable_thinking is false -%}
+{{- '<think>\\n\\n</think>\\n\\n' -}}
+{%- endif -%}
+{%- endif -%}"""
+
+
+def tiny_base(folder, text: str = ""):
+    """A tiny, untrained model with the same architecture and chat format as Qwen3, saved like a download."""
+    import torch
+    from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
+    from transformers import PreTrainedTokenizerFast, Qwen3Config, Qwen3ForCausalLM
+
+    rng = random.Random(0)
+    text = text or " ".join(story(rng) for _ in range(200)) + " I feel fine. I'm hungry. I see something red ahead."
+    tok = Tokenizer(models.BPE())
+    tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+    tok.decoder = decoders.ByteLevel()
+    trainer = trainers.BpeTrainer(
+        vocab_size=700,
+        special_tokens=["<|endoftext|>", "<|im_start|>", "<|im_end|>"],
+        initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
+    )
+    tok.train_from_iterator([text], trainer)
+    fast = PreTrainedTokenizerFast(
+        tokenizer_object=tok, eos_token="<|im_end|>", pad_token="<|endoftext|>", chat_template=CHAT
+    )
+    fast.add_tokens(["<think>", "</think>"])  # ordinary tokens, as in Qwen3
+    fast.save_pretrained(folder)
+    config = Qwen3Config(
+        vocab_size=len(fast),
+        hidden_size=64,
+        intermediate_size=128,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        head_dim=16,
+        max_position_embeddings=2048,
+        tie_word_embeddings=True,
+        eos_token_id=fast.eos_token_id,
+        pad_token_id=fast.pad_token_id,
+    )
+    torch.manual_seed(0)
+    Qwen3ForCausalLM(config).save_pretrained(folder)
+    return folder
+
+
+def teach_base(folder, texts: list[str], steps: int = 300, seed: int = 0):
+    """Pretrain the tiny stand-in on some text, so that it is a (very small) language model."""
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(folder)
+    model = AutoModelForCausalLM.from_pretrained(folder, dtype=torch.float32)
+    model.train()
+    rows = [tok(t + tok.eos_token, add_special_tokens=False).input_ids[:512] for t in texts]
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-3)
+    rng = random.Random(seed)
+    for _ in range(steps):
+        batch = [rng.choice(rows) for _ in range(16)]
+        length = max(len(r) for r in batch)
+        ids = torch.full((len(batch), length), tok.pad_token_id)
+        labels = torch.full((len(batch), length), -100)
+        for i, r in enumerate(batch):
+            ids[i, : len(r)] = torch.tensor(r)
+            labels[i, : len(r)] = torch.tensor(r)
+        loss = model(input_ids=ids, labels=labels).loss
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    model.save_pretrained(folder)
+    return float(loss)

@@ -22,6 +22,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -253,6 +254,154 @@ class OwnThinker(Thinker):
             self._since_save = 0
 
 
+class GraftThinker(Thinker):
+    """Thinking with a grafted cortex: an open model wired into Haven's workspace."""
+
+    name = "its grafted cortex"
+
+    def __init__(self, root: Path, device: str = "auto", web: Web | None = None, graft=None, progress=None):
+        super().__init__(root, web)
+        from .graft import Graft
+        from .train import pick_device
+
+        self.device = pick_device(device)
+        if graft is None:
+            graft, progress, _ = Graft.load(self.root / "cortex", self.device)
+        self.graft, self.progress = graft, progress
+        self.model_lock = threading.Lock()
+        self.reasoning_budget = {"cuda": 1024, "mps": 600}.get(self.device.type, 320)
+
+    def describe(self) -> str:
+        from .graft import BASES
+
+        base = BASES.get(self.progress["base"], self.progress["base"])
+        done = sum(r.get("status") == "passed" for r in self.progress["levels"].values())
+        return f"grafted onto {base} (open weights), wired into its workspace; passed {done} of 8 levels"
+
+    def deliberate(self, life, text: str) -> tuple[str, float]:
+        from .graft import SYSTEM
+
+        graft = self.graft
+        with life.lock:
+            mind = life.mind
+            state = mind_state(mind)
+            lines = readout(mind) + mind.me.conclusions()
+            words = mind.lexicon.vocabulary()
+            memories = [e.label for e in mind.memory.recent(5)]
+            history = life.conversation[-9:-1]
+        with self.model_lock:
+            heard = graft.meaning(text)
+        with life.lock:
+            life.mind.understand(text, heard)  # what was said comes to mind first
+        system = (
+            SYSTEM
+            + "\n\nWhat Haven's instruments show right now:\n- "
+            + "\n- ".join(lines)
+            + f"\nWords it has learned from people: {', '.join(words) or 'none yet'}."
+            + f"\nRecent memories: {'; '.join(memories) or 'none'}."
+        )
+        notes = self.recall(text)
+        if notes:
+            system += "\n\nThings it remembers that may bear on this:\n- " + "\n- ".join(notes)
+        messages = [{"role": "system", "content": system}]
+        for turn in history:
+            messages.append({"role": "user" if turn["who"] == "you" else "assistant", "content": turn["text"]})
+        messages.append({"role": "user", "content": text})
+
+        # A first answer, the way an answer just comes to mind.
+        best = self._answer(life, messages, state)
+        if best[1] >= 0.6:
+            return best
+        # Unsure: think it through. Each step of the reasoning passes through its workspace.
+        if graft.can_think:
+            reasoned = self._reason(life, messages, state)
+            if reasoned[0] and reasoned[1] >= best[1] - 0.1:
+                best = reasoned
+            if best[1] >= 0.5:
+                return best
+        # Still unsure: look it up, and answer again with what it read.
+        topic = topic_of(text)
+        excerpt = self.look_up(topic, life) if topic else None
+        if excerpt:
+            messages[0] = {"role": "system", "content": system + f"\n\nWhat Haven just read: {excerpt}"}
+            again = self._answer(life, messages, state)
+            if again[1] >= best[1]:
+                best = again
+        return best
+
+    def _answer(self, life, messages: list[dict], state: np.ndarray) -> tuple[str, float]:
+        graft = self.graft
+        with self.model_lock:
+            words, logprobs = graft.generate(graft.prompt(messages, think=False), state, max_new=160, temperature=0.7)
+            meaning = graft.meaning(words) if words else None
+        confidence = math.exp(float(np.mean(logprobs))) if words and logprobs else 0.0  # silence isn't an answer
+        if words:
+            with life.lock:
+                life.mind.think(words, meaning, confidence)
+        return words, confidence
+
+    def _reason(self, life, messages: list[dict], state: np.ndarray) -> tuple[str, float]:
+        graft = self.graft
+        pending = [""]
+        done = [False]
+
+        def on_text(piece: str) -> None:
+            if done[0]:
+                return
+            pending[0] += piece
+            if "</think>" in pending[0]:
+                pending[0] = pending[0].split("</think>")[0] + "\n"
+                done[0] = True
+            *sentences, pending[0] = re.split(r"(?<=[.!?\n])\s+", pending[0])
+            for sentence in sentences:
+                sentence = sentence.replace("<think>", "").strip()
+                if len(sentence.split()) >= 3:
+                    with life.lock:
+                        life.mind.think(sentence, None, 0.5)
+
+        with self.model_lock:
+            words, logprobs = graft.generate(
+                graft.prompt(messages, think=True),
+                state,
+                max_new=self.reasoning_budget,
+                temperature=0.6,
+                on_text=on_text,
+            )
+            parts = graft.split_thought(words, logprobs)
+            if parts is None or not parts[1]:
+                return "", 0.0  # it didn't finish reasoning in the time it had
+            _, answer, answer_logprobs = parts
+            meaning = graft.meaning(answer)
+        confidence = math.exp(float(np.mean(answer_logprobs))) if answer_logprobs else 0.0
+        with life.lock:
+            life.mind.think(answer, meaning, confidence)
+        return answer, confidence
+
+    def recall(self, text: str, k: int = 3) -> list[str]:
+        """What it was told or read before that bears on this (by shared uncommon words)."""
+        entries = []
+        for name in ("conversations.jsonl", "readings.jsonl"):
+            path = self.root / "cortex" / name
+            if not path.exists():
+                continue
+            for line in path.read_text().splitlines()[-500:]:
+                item = json.loads(line)
+                if "you" in item:
+                    entries.append(f'Someone said: "{item["you"]}" and Haven answered: "{item["haven"]}"')
+                else:
+                    for paragraph in item["text"].split("\n\n")[:40]:
+                        if len(paragraph) > 80:
+                            entries.append(f"From reading about {item['title']}: {' '.join(paragraph.split())[:400]}")
+        if not entries:
+            return []
+        words = [set(re.findall(r"[a-z]{3,}", e.lower())) - STOPWORDS for e in entries]
+        counts = Counter(w for ws in words for w in ws)
+        asked = set(re.findall(r"[a-z]{3,}", text.lower())) - STOPWORDS
+        scored = [(sum(math.log(1 + len(entries) / counts[w]) for w in asked & ws), i) for i, ws in enumerate(words)]
+        scored = sorted((s for s in scored if s[0] > 0), reverse=True)[:k]
+        return [entries[i] for _, i in scored]
+
+
 class OllamaThinker(Thinker):
     """A borrowed cortex: a local model, told in writing what Haven's state is."""
 
@@ -332,6 +481,11 @@ def make_thinker(spec: str, root: Path, web: Web | None = None) -> tuple[Thinker
         thinker = OllamaThinker(root, spec.split(":", 1)[1], web=web)
         if not thinker.available():
             return None, "Ollama isn't answering at http://127.0.0.1:11434, so there's no borrowed cortex this time."
+        return thinker, f"Language cortex: {thinker.describe()}."
+    from .graft import exists
+
+    if exists(root):
+        thinker = GraftThinker(root, web=web)
         return thinker, f"Language cortex: {thinker.describe()}."
     if not (Path(root) / "cortex" / "cortex.pt").exists():
         return None, "It has no language cortex yet (train one with: haven learn). It can still learn words from you."
