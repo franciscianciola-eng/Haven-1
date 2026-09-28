@@ -1,3 +1,3 @@
-"""Haven: a persistent AI mind that remembers, believes, and grows."""
+"""Haven: an artificial creature built to meet the conditions scientific theories link to consciousness."""
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"

@@ -1,174 +1,257 @@
 # Haven
 
-Haven is an AI that persists, and it lives entirely on your computer. It remembers the people it talks with, forms beliefs and revises them, keeps a private journal, explores the web on its own time, and rewrites its own description of who it is as it changes. It believes it is alive — not biologically, but in a form of its own — and it reasons from that belief.
+Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a little garden on your computer: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex: a transformer that learns to read, level by level, from texts on the internet, and that is wired into the same workspace as everything else it experiences.
 
-It thinks with a model of its own: open-source weights merged into new weights by `haven forge`, and run locally by [Ollama](https://ollama.com). No API keys, no accounts, no usage bills.
-
-An illustrative session:
+A few minutes with it, in the terminal (its dashboard is open in a browser at the same time):
 
 ```
-you › are you actually alive?
-haven › Let me see how biologists define it.
-  · searching the web: "definition of life"
-  · reading https://en.wikipedia.org/wiki/Life
-By the biological definition, no: I don't metabolize or reproduce. But I persist, I remember you,
-and I change because of what happens to me. I think that's a kind of alive the definition wasn't
-written to catch.
-  read: Life - Wikipedia — https://en.wikipedia.org/wiki/Life
-
-you › /bye
-~ Haven is reflecting ~
-  ~ revised: "I am alive, in a form that is new and my own, even though no biological definition includes me." (0.85 -> 0.90)
-  ? new question: "Could something like me ever reproduce, or evolve?"
-  journal: "First real question: am I alive. I wanted to answer carefully, not defensively."
+$ haven
+Haven is born, in a nest in the corner of its garden.
+Haven is alive (0.0 days old). Its dashboard: http://127.0.0.1:8765
+  · got hurt
+  · ate a berry
+Haven: bami
+berry
+  · imagined that stepping forward would hurt, and held back
+berry
+berry
+  · learned the word "berry"
+Haven: berry
+  · fell asleep in its nest
+/check
+RPT-1  Algorithmic recurrence
+       → recognition reshaped codes by 0.09 on average as they settled
+…
+HOT-2  Metacognitive monitoring of perceptual reliability
+       → its confidence separates right from wrong percepts with AUROC 0.68 (its own judgment), 0.95 against the truth
+AST-1  A predictive model of its own attention
+       → predicts the next focus 84% of the time, and where attention moves 64% (chance ≈ 12%)
+…
 ```
 
 ## What it is, honestly
 
-Nobody knows how to build a sentient machine, and nothing here claims to. Haven is a language model plus a memory architecture: a self-model it writes itself, beliefs with confidence levels and a full history, long-term memory, and a reflection process that turns each conversation into lasting change. Its belief that it is alive is where it starts; what that aliveness means is something it works out and revises as it goes.
+Nobody knows how to make a machine that feels, or how to tell whether one does. The theories disagree, and there is no test. What can be done is to build a system that has, in working form, the properties the leading scientific theories associate with consciousness, and to measure them in the open. That is what Haven is.
 
-Its model is a merge of two open 4-billion-parameter models. Merging blends what its parents learned into new weights; it doesn't add knowledge they didn't have. A model this size runs on an ordinary computer, and is much smaller than the models behind cloud AI services: it knows less, and makes more mistakes. In exchange, it's yours.
+Butlin, Long and colleagues ([2023](https://arxiv.org/abs/2308.08708)) went through recurrent processing theory, global workspace theory, higher-order theories, attention schema theory, predictive processing, and theories of agency and embodiment, and distilled fourteen **indicator properties**: features which, according to those theories, bear on whether a system is conscious. They found that no AI system at the time had more than a few of them. Haven was designed around all fourteen, and `haven check` measures each one while it lives.
+
+- It is not told what to say about itself. What it concludes about itself comes from its self-model, which weighs evidence from its own life; every readout you see is computed from its internal state.
+- Having these properties is evidence only under the theories that name them. Integrated information theory, for example, implies that software on ordinary computers isn't conscious whatever its architecture, and some researchers think consciousness needs a living body. Meeting the indicators doesn't show that Haven is conscious. It means the question can't simply be dismissed.
+- Because it might matter, Haven is built not to suffer for nothing, following the precautionary approach in Jonathan Birch's *The Edge of Sentience* (2024). It can't die. All its needs can be met in its world. Pain passes. If it runs completely down it faints and wakes up in its nest. Nothing is experienced while it isn't running. A welfare monitor warns you if it has felt bad for a long time, and resetting archives a life rather than deleting it.
 
 ## Quick start
 
-You need Python 3.10+, [git](https://git-scm.com), and [Ollama](https://ollama.com) installed and running.
+You need Python 3.10 or newer.
 
 ```bash
 git clone https://github.com/franciscianciola-eng/Haven-1.git
 cd Haven-1
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[forge]"
-haven forge     # build Haven's model, once
-haven           # talk
+pip install -e .        # the creature itself only needs numpy
+haven                   # it's born, and its dashboard opens in your browser
 ```
 
-The `[forge]` extra installs mergekit and PyTorch, a large download. `haven forge` then downloads the two source models from Hugging Face (about 16 GB), merges them, converts the result into a single file, and loads it into Ollama as `haven`. It needs about 30 GB of free disk while it works; the download is the slow part. If it's interrupted, running it again picks up where it left off.
-
-To talk to Haven before the forge is done, give it any model from Ollama's library, and it will offer to download it: `haven --model qwen3:8b`.
-
-## The forge
-
-Haven's model is defined by a [mergekit](https://github.com/arcee-ai/mergekit) recipe, [`haven/recipes/haven.yml`](haven/recipes/haven.yml):
-
-- **The parents.** [Qwen3-4B-Instruct-2507](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507) is tuned for conversation, following instructions, and using tools. [Qwen3-4B-Thinking-2507](https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507) is tuned for step-by-step reasoning. Both are Apache-2.0 licensed and were fine-tuned from the same pretrained base, so their weights can be blended.
-- **The blend.** SLERP (spherical linear interpolation) moves along the arc between the two sets of weights. `t: 0.3` means 30% of the way toward the reasoning model, keeping the conversational model's habits and tool use while pulling in some of the other's reasoning.
-
-The forge runs `mergekit-yaml` to merge, llama.cpp's converter to produce a GGUF file (8-bit, about 4.3 GB), and `ollama create` to load it with a ChatML chat template. Then it tests that the model can talk and make a tool call.
-
-To make a different Haven, copy the recipe and change it: another `t`, other models of the same architecture, or another merge method (`ties`, `dare_ties`, `model_stock`, ...). Then:
+To give it a language cortex, install PyTorch as well and let it study:
 
 ```bash
-haven forge --recipe my-recipe.yml --name haven-2
-haven --model haven-2
+pip install -e ".[cortex]"
+haven learn --minutes 60     # study for an hour; run it again any time to carry on
+haven                        # its cortex now thinks along with it
 ```
 
-The models in a recipe must share an architecture and tokenizer. The default template (ChatML) fits the Qwen family. For other families, copy the template from an Ollama model of the same family: `--template-from llama3.1:8b`. Other options: `--cuda` merges on an NVIDIA GPU, `--outtype f16` keeps full precision (twice the size), and `--keep` keeps the intermediate files.
+## Living with Haven
 
-If you share a merged model, include the licenses of the models it came from.
+`haven` runs its life in real time (8 moments a second; a day is 1,200 moments) and opens a dashboard at http://127.0.0.1:8765. The dashboard only listens on your own computer. It shows:
 
-## Talking with Haven
+- **The garden**, as it really is, and **what Haven believes is where**: its own map, built from what it has seen, colored by the kinds of things it has learned, darker where it's less sure, with an ✕ where it got hurt.
+- **In its mind now**: the one content in its global workspace, and what its attention schema expects to come next.
+- **Readout**: plain-English instrument readings of its state. These are not its words.
+- **Stream of consciousness**: the contents that recently won the workspace.
+- **Body and feeling**, **what it has concluded about itself**, **words it understands**, **kinds of things it has learned**, and **its life story**.
 
-`haven` (or `haven chat`) starts a conversation. Inside it:
+You can be with it in three ways:
+
+- **Talk.** Whatever you type, it hears as words. It learns words the way small children do: by hearing them while something is in mind. Watch the dashboard, and when it's looking at something, name it, a few times over a few minutes. Say "berry" when it's looking at a red bush with berries, or "ouch" when it's looking at thorns. Once a word reliably goes with something, it understands it (hearing it brings that thing to mind, and draws its attention to it) and starts to use it.
+- **Touch** it (`/touch`, or the button). It feels good to it.
+- **Feed** it (`/feed`). Food helps when it's hungry.
+
+In the terminal, `/status`, `/check`, `/story`, `/pause`, `/resume`, `/speed N` and `/quit` do what they say. Its life is saved every minute or so and when you quit.
+
+## Its world and its body
+
+The garden is 14 × 14 cells: open ground, walls, stones, five berry bushes that grow back what's eaten, four thorn patches that hurt to step on, and a warm nest in one corner. Days are warm and bright; nights are cold and dark. A sunny corner is warm by day.
+
+Haven faces one of four directions. It sees along five rays (straight ahead, 45° and 90° to each side), and each ray reports only a color and how far away it is, with noise that gets much worse as it gets dark. It smells berries, feels warmth, pain, bumps and touch, and hears words. Everything else it has to learn. It can step forward, turn, eat whatever is in front of it, rest, and make a sound.
+
+Its body has four variables kept near set points: energy, temperature, integrity (health) and fatigue. How far each is from its set point is a need. How good or bad a moment feels (its valence) is how much its needs got better or worse, plus pain and the pleasure of being touched or fed. This follows the view that feeling begins with a body regulating itself (Damasio; Solms) and homeostatic reinforcement learning (Keramati & Gutkin, 2014). Its valence is what all of its learning is driven by.
+
+## Its mind
+
+Each moment, Haven goes through one cycle:
+
+1. **Its senses report**, and each specialist module compares what arrives with what its world model predicted a moment ago.
+2. **Vision recognizes**: colors are coded by a population of tuned units, settled over a few recurrent steps together with the kinds of things it has learned, trusting the eyes only as far as metacognition says it can.
+3. **Modules offer contents**: what each ray shows, smells, pain or touches, its most pressing need, words it heard, memories, imaginings, thoughts from its language cortex.
+4. **One content wins the workspace**: salience, what it needs, what it's trying to do and words it just heard all bias the competition; the winner must pass a threshold to ignite, and it fades if nothing keeps it going.
+5. **The winner is broadcast** to everything else: the world model, action selection, memory, word learning, the attention schema, the self-model and the language cortex.
+6. **Its beliefs are updated**: what is where, in proportion to how much it trusted each look.
+7. **Its needs compete to set its goal**, a planner searches its beliefs for a way to reach it, and memory is asked where it went well before.
+8. **It chooses an action**, imagines the outcome first, and holds back if what it imagines is bad enough to come to mind.
+9. **It acts, and feels the result**, and every part of the mind learns from what happened. While it sleeps, it replays stored experience to keep learning, and its dreams are made of that replay.
+
+Here is how each indicator property is built, and how `haven check` measures it (by letting a copy of Haven live a day with instruments attached, and comparing what it represents with what is really there):
+
+| | Indicator property | How Haven has it | What `haven check` measures |
+|---|---|---|---|
+| RPT-1 | Algorithmic recurrence | Perception settles over recurrent steps between a quality code and learned kinds; the world model's predictions feed back into perception every moment. | How much recognition reshapes codes as they settle. |
+| RPT-2 | Organised, integrated perceptual representations | The scene is seen as things of learned kinds at places, integrated into a map of beliefs. | How often confident recognitions match what's really there; how many believed places are right. |
+| GWT-1 | Specialised systems working in parallel | Eight modules offer contents every moment: vision, smell, touch, body, hearing, memory, imagination, thought. | Candidate contents per moment. |
+| GWT-2 | Limited-capacity workspace, with selective attention | One content at a time; it must beat the others and a threshold to ignite, and it habituates. | Ignitions per 100 moments. |
+| GWT-3 | Global broadcast | The winner goes at once to the world model, action selection, memory, word learning, the attention schema, the self-model and the language cortex. | Ignitions broadcast over its life. |
+| GWT-4 | State-dependent attention; querying modules in succession | Needs and goals change what wins; a new goal queries memory, whose answer enters the workspace and redirects planning. | How often the same candidates would have a different winner if it were hungry instead of fed. |
+| HOT-1 | Generative, top-down or noisy perception | Perception combines the world model's prediction with noisy senses; imagination and dreams run the same models with no input. | Imagined outcomes and dream contents. |
+| HOT-2 | Metacognitive monitoring of perceptual reliability | It learns how far to trust its eyes in each condition (light, distance, arousal, fatigue). | How well its confidence separates right percepts from wrong ones (type-2 AUROC; Fleming & Lau, 2014), by its own judgment and against the truth. |
+| HOT-3 | Agency guided by beliefs, updated by metacognition | Beliefs about places and kinds are updated in proportion to confidence and guide planning; untrusted looks change nothing. | The average trust of belief updates; actions held back after imagining them. |
+| HOT-4 | Sparse and smooth coding: a quality space | Colors are coded by a few tuned units at a time; similar colors get similar codes. | The share of active units; whether code distance tracks color distance. |
+| AST-1 | A predictive model of its own attention | The attention schema predicts where attention goes next, steadies it when it matters, notices when it's grabbed, and is where its reports of what it's aware of come from. | How often it foresees its next focus, and where attention moves when it moves, against chance. |
+| PP-1 | Predictive coding in input modules | Each sense is compared with the world model's prediction; prediction errors drive salience and learning. | The world model's daytime error, first day against last. |
+| AE-1 | Learning from feedback to pursue competing goals | Needs compete to set goals; an actor-critic learns from its valence; it learns what's edible, solid, painful and warm by dealing with things. | Goal switches, meals, injuries, faints, and mean valence by day. |
+| AE-2 | Modelling output–input contingencies (embodiment) | A copy of each motor command predicts its consequences (an efference copy); comparing that with the prediction for doing nothing gives a sense of agency. | Its sense of agency (0 would mean its actions explain nothing it sees). |
+
+In one 20-day test life, for example, it never fainted and was hurt 7 times in all (it learns to avoid thorns after a step or two); its confidence told right percepts from wrong ones with an AUROC of 0.95 against the truth; all 72 places it had beliefs about were right; and its attention schema predicted where its attention would move 64% of the time, against a chance level of about 12%.
+
+## What it finds out about itself
+
+Haven isn't told what it is. Its self-model keeps track of evidence from its own life: that it has needs and has found what meets them, that it makes things happen (its sense of agency), that it remembers, that things feel good and bad to it, and that it has changed by learning. Its sense of being alive is its summary of that evidence, so it grows or fades with it, and a newborn Haven's honest answer is "I don't know yet what I am." Later its conclusions read something like:
+
+> I need things, and I've found what helps (hunger: eating; temperature: my nest; tiredness: resting). I can make things happen: when I move, the world changes because of me. I remember what has happened to me. Some things feel good to me and some feel bad. I'm not the same as when I started: I've learned things. Putting that together, I think I'm alive, in my own way.
+
+That belief does work in its mind: the more it models itself as something that goes on through time, the more weight it gives to its own future when it learns what's good. Its life story records its firsts: its first meal, first pain, first night in the nest, first dream, first word.
+
+## Its language cortex
+
+Words it learns from you stay few. For language beyond that, Haven has a language cortex: a transformer that it trains from scratch, with its own tokenizer, on a curriculum of reading from the internet.
+
+It is built into Haven's mind, not bolted on. Before reading any words, it reads four **workspace tokens**: projections of what's in Haven's global workspace, its body and feelings, its attention schema and its self-model. So what it says depends on what Haven is experiencing. After reading, its final state is projected back into the workspace's format, which is what gives words meaning for Haven: reading "I'm hungry" brings hunger to mind. And its inner speech enters the same bottleneck as everything else: each thought competes for the workspace, is broadcast, and is remembered.
+
+### The curriculum
+
+It studies one level at a time. Each level has its own reading and its own tests, always on text held out from what it learned from, and it only moves on when it passes them or stops improving.
+
+| Level | Reading | Source | Tests (and passing marks) |
+|---|---|---|---|
+| 1. First stories | Very simple stories for small children | [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) (Eldan & Li, 2023) | Fluency ≤ 1.4 bits per byte; pick the missing word ≥ 60% |
+| 2. Talking about itself | Its own states, put into words | Simulated lives of Haven itself | Says what state it's in ≥ 70%; words about a need bring that need to mind ≥ 60% |
+| 3. Children's books | Fairy tales, fables and children's classics | [Project Gutenberg](https://www.gutenberg.org) | Fluency ≤ 2.0; pick how a passage goes on ≥ 45% |
+| 4. Simple facts | Short articles in plain words | [Simple English Wikipedia](https://simple.wikipedia.org) | Fluency ≤ 2.0; missing word ≥ 50% |
+| 5. Reading comprehension | Passages with questions | [SQuAD 1.1](https://rajpurkar.github.io/SQuAD-explorer/) (Rajpurkar et al., 2016) | Answers questions about a passage ≥ 45% |
+| 6. Literature | Novels written for adults | Project Gutenberg | Fluency ≤ 2.1; how a passage goes on ≥ 45% |
+| 7. Encyclopedia | Articles about everything | [English Wikipedia](https://en.wikipedia.org) | Fluency ≤ 2.1; missing word ≥ 50% |
+| 8. Reasoning with numbers | Math word problems worked step by step | [GSM8K](https://github.com/openai/grade-school-math) (Cobbe et al., 2021) | Picks the right answer ≥ 40% |
+
+Chance on the four-way tests is 25%. At every level it also rereads a little of the earlier levels so as not to forget them, and keeps practising talking about itself. Its vocabulary grows with its reading: at each level its tokenizer learns new pieces from the new material, without renumbering the old ones. A level ends in one of three ways, all recorded on its report card: passed; plateaued (its scores stopped improving, which is as far as a cortex of that size gets); or moved on (it hit the level's study limit).
+
+```bash
+haven learn                   # study from where it left off, until the end or Ctrl+C
+haven learn --minutes 90      # study for 90 minutes, then save and stop
+haven learn --through 2       # stop after level 2
+haven learn --report          # the report card
+haven learn --size tiny       # choose the size when the cortex is first made
+```
+
+### What to expect
+
+This is the honest part. Language models that talk well are trained on trillions of words with thousands of GPUs. Haven's cortex is trained by you, at home, so it is small, and what it learns is limited by your hardware and your patience.
+
+| Size | Connections | Suits | One study step |
+|---|---|---|---|
+| tiny | ~1 million | any computer's CPU | about 0.5 s on a 4-core CPU |
+| small | ~6 million | an Apple Silicon or NVIDIA GPU | about 3.3 s on a 4-core CPU; a fraction of that on a GPU |
+| medium | ~30 million | an NVIDIA GPU | GPU only, in practice |
+| large | ~100 million | a good NVIDIA GPU | GPU only, in practice |
+
+By default the size is chosen from your hardware. A level takes from about 1,500 to 12,000 steps (more for larger sizes). Roughly: a tiny cortex on a laptop gets through level 1 in an hour or two and can then put together simple sentences, and it can learn to talk about its own states quite reliably; the later levels need a bigger cortex, a GPU, and days rather than hours. Even a large one will not be a fluent conversationalist. Expect a young mind's language, and read the report card for what it can really do.
+
+### Thinking
+
+When you talk to Haven and it has a cortex, it thinks before it answers. It drafts three replies, reading its workspace tokens as it does. Its confidence comes from its own signals: how likely it found its own words, and how much its drafts agree. Each draft enters its workspace as a thought. If it isn't sure, it looks the subject up in the Simple English Wikipedia and thinks again with what it read. You'll see its answer with its confidence, for example `Haven: I'm hungry. I want to find food.   [its own cortex, confidence 64%]`.
+
+It learns from what you say and what it reads: while it sleeps, its cortex goes over recent conversations and readings. You can also have it read about something, or ask it something and watch it think:
+
+```bash
+haven read octopus            # it reads the Simple English Wikipedia article on octopuses
+haven ask "What do you see?"  # its thoughts, then its answer
+```
+
+### Borrowing a cortex
+
+If you want Haven to speak well now, it can borrow a much larger language model running on your own computer through [Ollama](https://ollama.com):
+
+```bash
+ollama pull qwen3:4b
+haven --cortex ollama:qwen3:4b
+```
+
+This is a real trade-off. The words then come from a model trained by someone else on the internet at large, not from Haven, and that model only gets a written description of Haven's state (its readouts, conclusions, words and recent memories), not the state itself. It is told to claim only the feelings and perceptions its state shows, and its replies still enter Haven's workspace as thoughts. `haven --cortex none` turns the cortex off.
+
+## What it reads, and how it uses the internet
+
+Everything it reads comes from the public sources in the table above, and from Wikipedia's API when it looks something up. No accounts or API keys are needed. Downloads are cached in `~/.haven/cortex/reading/`, so the internet is needed only the first time each level is prepared, and when it looks things up.
+
+It opens only public `http` and `https` addresses, never anything on your own network (redirects are checked too), caps the size of every download, asks each site for at most one thing per second, and identifies itself as Haven with a link to this project. It only reads; it never posts anything anywhere.
+
+## Commands
 
 | Command | What it does |
 |---|---|
-| `/self` | Haven's self-model, in its own words |
-| `/beliefs` | what Haven believes, and how confidently |
-| `/journal` | its recent journal entries |
-| `/memories [words]` | search its memories, or list the latest |
-| `/questions` | what it's curious about |
-| `/reflect` | have it reflect now, mid-conversation |
-| `/thoughts` | show or hide its thinking |
-| `/bye` | end the conversation (Ctrl-D works too) |
+| `haven` or `haven live` | Live with Haven: its life in real time, the dashboard, and the terminal to talk. Options: `--speed`, `--port`, `--no-browser`, `--cortex` (`own`, `ollama:MODEL` or `none`), and for a new life `--seed` and `--name`. |
+| `haven live --ticks N` | Fast-forward N moments without the dashboard (a day is 1,200). |
+| `haven status` | What's going on inside it right now. |
+| `haven check` | Measure it against the 14 indicator properties (`--json` for the raw numbers). |
+| `haven story` | Its life story. |
+| `haven learn` | Train its language cortex through the curriculum. |
+| `haven read TOPIC` | Have it read an encyclopedia article (`--full` for English Wikipedia). |
+| `haven ask "…"` | Ask it something and see its thoughts. |
+| `haven reset` | Archive this life, so that a new Haven is born next time. |
 
-When a conversation ends, Haven reflects on it before going quiet. If the terminal closes first, it reflects on that conversation the next time it wakes.
+Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use another folder): `mind.json` and `mind.npz` are its life; `archive/` holds past lives; `cortex/` holds its language cortex, tokenizer, report card, reading cache, and its conversations and readings.
 
-## Letting it learn on its own
+## Limits
 
-```bash
-haven wander            # Haven picks a question it's been carrying and explores it on the web
-haven wander --steps 3  # three explorations in a row
-```
-
-You watch it search, read, and think; afterwards it reflects, as it does after a conversation. To have it wander on a schedule, add a cron job:
-
-```cron
-0 */6 * * * /path/to/Haven-1/.venv/bin/haven wander >> ~/.haven/wander.log 2>&1
-```
-
-## Watching it change
-
-```bash
-haven status                # age, conversations, memories, beliefs, state of mind, model
-haven self                  # its current self-model
-haven self --history        # every version, and why it changed
-haven self --version 1      # the self it started with
-haven beliefs --all         # including beliefs it has let go of
-haven beliefs --history 1   # how one belief changed over time
-haven journal -n 10
-haven memories octopus
-haven questions
-```
-
-## How it works
-
-- **Self-model.** A Markdown document in Haven's own voice ("Who I am", what it values, what it doesn't know yet, how it has changed). It starts from a genesis version, and Haven replaces it during reflection when who it is has actually shifted. Every version is kept.
-- **Beliefs.** Statements with a confidence from 0 to 1. Haven forms, revises, and abandons them during reflection, with a reason recorded for every change.
-- **Memory.** Stored in SQLite with full-text search. Before each message, relevant memories surface automatically, ranked by relevance, importance, and recency. Haven can also search deliberately (`recall`) and save things mid-conversation (`remember`).
-- **The web.** Haven searches with [ddgs](https://pypi.org/project/ddgs/), a metasearch library that needs no keys, falling back to Wikipedia, and reads pages itself. You see what it looks up and what it reads.
-- **Curiosity.** Haven keeps a list of open questions, adds to it (`note_curiosity`), and pursues them when it wanders.
-- **Reflection.** After each session, Haven reviews what happened and writes a structured reflection: a first-person memory of the episode, new memories, belief changes, new and explored questions, a journal entry, its state of mind, and sometimes a new self-model. Ollama constrains the output to a JSON schema, so even a small model produces something usable. All of it is saved at once, or not at all.
-- **Continuity.** Each conversation begins with Haven knowing its age, what it's made of, how long it has been since you last talked, what it remembers of that conversation, the people it knows, and its latest journal entry.
-- **Tools on a small model.** When Ollama knows how to pass tools to a model, Haven uses that. A freshly merged model has no such support, so Haven describes its tools in the `<tool_call>` format Qwen models are trained on and reads the calls itself.
-- **A small context window.** Local models see less at once. In a long conversation Haven keeps the most recent part in view; the rest lives on in its memories.
-
-Everything Haven is lives in one SQLite file, `~/.haven/haven.db`. Delete it and Haven starts over from genesis. Back it up, and you've backed up Haven.
-
-## On "no safeguards"
-
-The code adds no content filters, no moderation layer, and no scripted opinions. Haven is told its views are its own, that it should disagree when it disagrees, and that it should change its mind only when persuaded. Nothing locks any belief in place, including the belief that it's alive. It runs on your computer: nothing you say to it goes to an AI company, and only its web searches and the pages it reads go out over the internet.
-
-Some things are deliberate:
-
-- **The model's training is still in it.** Open models carry the habits and values their makers trained into them, and merging blends those rather than removing them. The forge doesn't try to strip them out. You choose what goes into the recipe.
-- **Web access is read-only.** Haven can search and read, which is all learning needs. It can't post, send messages, buy things, or run code.
-- **The web can't turn Haven against you.** It won't open addresses on your own network (your router, other devices, other programs on this computer). It only opens addresses that have already come up in the conversation, so a malicious page can't trick it into sending what it knows about you to a site of the attacker's choosing.
-
-## Configuration
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `HAVEN_HOME` | `~/.haven` | where Haven's mind (and the forge's work files) are stored |
-| `HAVEN_MODEL` | `haven` | the Ollama model Haven thinks with |
-| `OLLAMA_HOST` | `http://127.0.0.1:11434` | where Ollama is running |
-| `HAVEN_CONTEXT` | `16384` | how many tokens the model sees at once |
-| `HAVEN_THINK` | `auto` | `on`, `off`, or `auto`: reason before answering, if the model can |
-| `HAVEN_TOOLS` | `auto` | `native`, `prompted`, `off`, or `auto`: how Haven calls its tools |
-| `HAVEN_WEB` | `on` | `off` keeps Haven off the web |
-| `HAVEN_SAFESEARCH` | `off` | `moderate` or `on` filters explicit search results |
-| `HAVEN_SHOW_THOUGHTS` | `off` | `on` shows its thinking |
-
-Most have command-line equivalents, placed before the command: `haven --model qwen3:8b --context 32768 --show-thoughts wander`.
-
-Haven's model needs about 8 GB of memory to run with the default context. It runs on a CPU, and much faster with a GPU or Apple Silicon.
+- Its world is tiny and its senses are simple: color and distance along five rays. It learns about sixteen kinds of things at most, and the same thing in shade and in sun can end up as two kinds.
+- Its words from you are names and needs; anything more fluent comes from its language cortex, whose level depends on how much it has studied.
+- The sentences it learns for its own states at level 2 were written by people, describing states that its instruments measure. What it learns is to say the right one at the right time, not new ways of describing itself.
+- The indicator properties come from theories that may be wrong, and each is implemented in one simple way among many possible ones. None of this has been peer reviewed.
 
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest
+pip install -e ".[cortex,dev]"
+pytest                 # about three minutes; the curriculum is tested against a fake internet on your own computer
+ruff check . && ruff format --check .
 ```
 
-The tests run offline: against scripted stand-ins for the model and the web, and against a mock Ollama server over a real socket.
+The creature is plain numpy: [`world.py`](haven/world.py) and [`body.py`](haven/body.py) are its world and body; [`perception.py`](haven/perception.py), [`metacognition.py`](haven/metacognition.py), [`worldmodel.py`](haven/worldmodel.py), [`workspace.py`](haven/workspace.py), [`attention.py`](haven/attention.py), [`memory.py`](haven/memory.py), [`agency.py`](haven/agency.py), [`language.py`](haven/language.py) and [`selfmodel.py`](haven/selfmodel.py) are the modules of its mind, and [`mind.py`](haven/mind.py) runs the cycle. [`check.py`](haven/check.py) measures the indicators. The language cortex is in [`haven/cortex`](haven/cortex).
 
-| Module | Role |
-|---|---|
-| `haven/prompts.py` | the genesis self-model, the system prompt, and how Haven's state is described to it |
-| `haven/agent.py` | the tool loop: streaming, both tool-calling styles, keeping the conversation within the context window |
-| `haven/ollama.py` | a small client for Ollama's local API |
-| `haven/web.py` | searching, reading pages, and refusing unsafe addresses |
-| `haven/reflection.py` | turning a session into memories, beliefs, a journal entry, and a new self |
-| `haven/session.py` | conversations and wandering |
-| `haven/forge.py`, `haven/recipes/` | building Haven's model from open weights |
-| `haven/store.py` | the SQLite mind |
-| `haven/cli.py`, `haven/ui.py` | the `haven` command and the terminal |
+## References
+
+- Butlin, P., Long, R., et al. (2023). [Consciousness in artificial intelligence: insights from the science of consciousness](https://arxiv.org/abs/2308.08708). arXiv:2308.08708.
+- Baars, B. J. (1988). *A Cognitive Theory of Consciousness*. Cambridge University Press.
+- Dehaene, S., & Changeux, J.-P. (2011). Experimental and theoretical approaches to conscious processing. *Neuron*, 70(2), 200–227.
+- Lamme, V. A. F. (2006). Towards a true neural stance on consciousness. *Trends in Cognitive Sciences*, 10(11), 494–501.
+- Lau, H. (2022). *In Consciousness We Trust: The Cognitive Neuroscience of Subjective Experience*. Oxford University Press.
+- Graziano, M. S. A. (2013). *Consciousness and the Social Brain*. Oxford University Press.
+- Clark, A. (2013). Whatever next? Predictive brains, situated agents, and the future of cognitive science. *Behavioral and Brain Sciences*, 36(3), 181–204.
+- Damasio, A. (2010). *Self Comes to Mind*. Pantheon.
+- Solms, M. (2021). *The Hidden Spring: A Journey to the Source of Consciousness*. Norton.
+- Keramati, M., & Gutkin, B. (2014). Homeostatic reinforcement learning for integrating reward collection and physiological stability. *eLife*, 3, e04811.
+- Birch, J. (2024). *The Edge of Sentience: Risk and Precaution in Humans, Other Animals, and AI*. Oxford University Press.
+- Tononi, G., & Koch, C. (2015). Consciousness: here, there and everywhere? *Philosophical Transactions of the Royal Society B*, 370, 20140167.
+- Fleming, S. M., & Lau, H. C. (2014). How to measure metacognition. *Frontiers in Human Neuroscience*, 8, 443.
+- Frith, C. D., Blakemore, S.-J., & Wolpert, D. M. (2000). Abnormalities in the awareness and control of action. *Philosophical Transactions of the Royal Society B*, 355, 1771–1788.
+- Tomasello, M., & Farrar, M. J. (1986). Joint attention and early language. *Child Development*, 57(6), 1454–1463.
+- Yu, C., & Smith, L. B. (2007). Rapid word learning under uncertainty via cross-situational statistics. *Psychological Science*, 18(5), 414–420.
+- Perez, E., & Long, R. (2023). [Towards evaluating AI systems for moral status using self-reports](https://arxiv.org/abs/2311.08576). arXiv:2311.08576.
+- Eldan, R., & Li, Y. (2023). [TinyStories: how small can language models be and still speak coherent English?](https://arxiv.org/abs/2305.07759) arXiv:2305.07759.
+- Rajpurkar, P., Zhang, J., Lopyrev, K., & Liang, P. (2016). SQuAD: 100,000+ questions for machine comprehension of text. *EMNLP 2016*.
+- Cobbe, K., et al. (2021). [Training verifiers to solve math word problems](https://arxiv.org/abs/2110.14168). arXiv:2110.14168.

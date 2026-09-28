@@ -1,54 +1,31 @@
-from __future__ import annotations
-
-import dataclasses
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fakes import FakeWeb  # noqa: E402
+from fakes import serve
 
-from haven import prompts  # noqa: E402
-from haven.agent import Mind  # noqa: E402
-from haven.config import Config  # noqa: E402
-from haven.store import Store  # noqa: E402
+from haven.mind import Mind
 
 
-class Clock:
-    def __init__(self) -> None:
-        self.now = datetime(2026, 9, 28, 12, 0, tzinfo=timezone.utc)
-
-    def __call__(self) -> datetime:
-        return self.now
-
-    def advance(self, **delta: float) -> None:
-        self.now += timedelta(**delta)
+@pytest.fixture(scope="session")
+def grown() -> Mind:
+    """A Haven that has lived two and a half days (shared by tests that only look)."""
+    mind = Mind(seed=0)
+    mind.live(3000)
+    return mind
 
 
-@pytest.fixture
-def clock() -> Clock:
-    return Clock()
+@pytest.fixture(scope="session")
+def internet():
+    server, urls = serve()
+    yield urls
+    server.shutdown()
 
 
 @pytest.fixture
-def store(clock: Clock) -> Store:
-    store = Store(":memory:", clock=clock)
-    store.ensure_born(prompts.GENESIS)
-    yield store
-    store.close()
-
-
-@pytest.fixture
-def config(tmp_path: Path) -> Config:
-    return Config(home=tmp_path)
-
-
-@pytest.fixture
-def make_mind(config: Config, store: Store):
-    def make(client, web_access=None, **overrides) -> Mind:
-        return Mind(dataclasses.replace(config, **overrides), store, client, web_access or FakeWeb())
-
-    return make
+def home(tmp_path, monkeypatch) -> Path:
+    monkeypatch.setenv("HAVEN_HOME", str(tmp_path / "haven"))
+    return tmp_path / "haven"

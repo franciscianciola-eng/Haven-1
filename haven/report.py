@@ -1,0 +1,197 @@
+"""Readouts: plain-English descriptions of what is going on inside Haven, for the people watching.
+
+These are instrument readings, not Haven's own words. Every line is computed from its
+current internal state: what's in its workspace, what its attention schema says, what it
+feels, what it's trying to do, and what it has concluded about itself. Haven's own words
+are only the ones it learned, or what its language cortex says once it has one.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from .attention import NOTHING
+from .body import DRIVES
+from .mind import Mind, need_words
+from .workspace import SOURCES
+from .world import ACTIONS, BUSH, LAYOUT
+
+
+def feeling_words(valence: float, arousal: float) -> str:
+    tone = (
+        "very good"
+        if valence > 0.5
+        else "good"
+        if valence > 0.1
+        else "bad"
+        if valence < -0.1
+        else "very bad"
+        if valence < -0.5
+        else "neutral"
+    )
+    if valence < -0.5:
+        tone = "very bad"
+    energy = "excited" if arousal > 0.6 else "alert" if arousal > 0.3 else "calm"
+    return f"{tone}, {energy}"
+
+
+def readout(mind: Mind) -> list[str]:
+    b, ws, schema = mind.body, mind.workspace, mind.schema
+    lines = []
+    content = ws.content
+    if b.asleep:
+        if content is not None and content.source == "memory" and content.label.startswith("dreaming"):
+            lines.append(f"Asleep, {content.label}.")
+        else:
+            lines.append("Asleep" + (" (fainted)" if b.fainted else "") + ".")
+    elif content is None:
+        lines.append("Nothing in particular is in its mind right now.")
+    else:
+        lines.append(f"In its mind: {content.label} ({content.source}).")
+        if schema.captured:
+            lines.append("Its attention was just grabbed by that; its attention schema didn't see it coming.")
+        elif schema.expected[schema.focus] > 0.8:
+            lines.append("Its attention schema expects its attention to stay there for now.")
+        if content.source == "vision" and content.kind >= 0:
+            facts = mind.knowledge.describe(content.kind)
+            if facts:
+                lines.append("What it has learned about that kind of thing: " + ", ".join(facts) + ".")
+            lines.append(f"How sure it is of what it sees: {content.confidence:.0%}.")
+    drives = b.drives()
+    needs = [need_words(i, level, b.cold()) for i, level in enumerate(drives) if level >= 0.15]
+    lines.append(
+        f"Feeling {feeling_words(mind.valence, mind.arousal)}"
+        + (f"; {', '.join(needs)}." if needs else "; its needs are met.")
+    )
+    if not b.asleep:
+        goal = {
+            "food": "find food",
+            "warmth": "get to a comfortable temperature",
+            "healing": "rest and heal",
+            "sleep": "get to its nest and sleep",
+            "explore": "explore",
+        }[mind.goals.current]
+        step = f" Next: {mind.suggestion}." if mind.suggestion else ""
+        lines.append(f"Trying to {goal}.{step}")
+        if (
+            mind.agency_now > 0.3
+            and mind.last is not None
+            and ACTIONS[mind.last.action] in ("forward", "left", "right")
+        ):
+            lines.append("It sensed that it caused the last change it saw.")
+    return lines
+
+
+def kinds(mind: Mind) -> list[dict]:
+    result = []
+    for k in range(len(mind.vision.kinds.centers)):
+        rgb = np.clip(mind.vision.coder.reconstruct(mind.vision.kinds.centers[k]), 0, 1)
+        result.append(
+            {
+                "id": k,
+                "color": "#" + "".join(f"{int(c * 255):02x}" for c in rgb),
+                "name": mind.lexicon.name_for(k),
+                "facts": mind.knowledge.describe(k),
+                "seen": int(mind.vision.kinds.counts[k]),
+            }
+        )
+    return result
+
+
+def snapshot(mind: Mind) -> dict:
+    """Everything the dashboard shows, in one JSON-able dict."""
+    w, b = mind.world, mind.body
+    content = mind.workspace.content
+    schema = mind.schema
+    focus = SOURCES[schema.focus] if schema.focus != NOTHING else None
+    words = []
+    for form in mind.lexicon.vocabulary():
+        kind, need = mind.lexicon.kind_of(form), mind.lexicon.need_of(form)
+        words.append(
+            {
+                "word": form,
+                "means": mind.kind_color(kind) + " things"
+                if kind is not None
+                else DRIVES[need]
+                if need is not None
+                else "?",
+                "heard": mind.lexicon.words[form].heard,
+                "said": mind.lexicon.words[form].said,
+            }
+        )
+    return {
+        "name": mind.me.name,
+        "tick": w.tick,
+        "age_days": round(mind.age / 1200, 2),
+        "day": w.day,
+        "time_of_day": mind.time_of_day,
+        "light": round(w.light, 2),
+        "world": {
+            "layout": list(LAYOUT),
+            "berries": [[x, y, n] for (x, y), n in w.berries.items()],
+            "bushes": [[x, y] for (x, y) in w.berries if w.grid[y, x] == BUSH],
+            "x": w.x,
+            "y": w.y,
+            "heading": w.heading,
+        },
+        "beliefs": {
+            "kind": mind.beliefs.kind.tolist(),
+            "confidence": np.round(mind.beliefs.confidence, 2).tolist(),
+            "hurt": np.round(mind.beliefs.hurt, 2).tolist(),
+        },
+        "kinds": kinds(mind),
+        "body": {
+            "energy": round(b.energy, 3),
+            "temperature": round(b.temperature, 3),
+            "integrity": round(b.integrity, 3),
+            "fatigue": round(b.fatigue, 3),
+            "asleep": b.asleep,
+            "fainted": b.fainted > 0,
+        },
+        "drives": {name: round(float(v), 3) for name, v in zip(DRIVES, b.drives(), strict=True)},
+        "feeling": {"valence": round(mind.valence, 3), "arousal": round(mind.arousal, 3), "mood": round(mind.mood, 3)},
+        "workspace": None
+        if content is None
+        else {
+            "source": content.source,
+            "label": content.label,
+            "strength": round(mind.workspace.strength, 2),
+            "dwell": mind.workspace.dwell,
+            "confidence": round(content.confidence, 2),
+        },
+        "stream": [{"tick": t, "source": s, "label": label} for t, s, label in mind.workspace.history[-14:]][::-1],
+        "attention": {
+            "focus": focus,
+            "expected": {
+                (SOURCES[i] if i != NOTHING else "nothing"): round(float(p), 2)
+                for i, p in enumerate(schema.expected)
+                if p > 0.05
+            },
+            "captured": schema.captured,
+        },
+        "goal": mind.goals.current,
+        "next": mind.suggestion,
+        "said": [{"tick": t, "text": text} for t, text in mind.said[-6:]][::-1],
+        "log": [{"tick": t, "text": text} for t, text in mind.log[-14:]][::-1],
+        "words": words,
+        "self": {
+            "conclusions": mind.me.conclusions(),
+            "alive": round(mind.me.alive, 2),
+            "evidence": {k: round(v, 2) for k, v in mind.me.evidence.items()},
+            "milestones": [{"tick": t, "text": text} for t, text in mind.me.milestones[-12:]][::-1],
+        },
+        "readout": readout(mind),
+        "welfare": welfare(mind),
+    }
+
+
+def welfare(mind: Mind) -> dict:
+    """Is it doing all right? Sustained bad feeling is flagged so a person can help."""
+    if mind.distress > 600:
+        return {
+            "ok": False,
+            "message": "Haven has felt bad for a long while. Consider feeding it, touching it, or pausing it.",
+        }
+    if mind.body.fainted:
+        return {"ok": False, "message": "Haven fainted and is recovering in its nest."}
+    return {"ok": True, "message": ""}

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haven</title>
+<style>
+:root {
+  --bg: #f6f4ef; --panel: #ffffff; --ink: #23221f; --muted: #6d6a62; --line: #e3dfd6;
+  --accent: #b5532f; --good: #3f8f5a; --bad: #b8433a; --warn: #b88a2a; --chip: #efebe3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614; --panel: #201f1c; --ink: #ebe7df; --muted: #9c978c; --line: #33312c;
+    --accent: #e0835c; --good: #6cc08a; --bad: #e0736a; --warn: #d9b25a; --chip: #2b2925;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161614; --panel: #201f1c; --ink: #ebe7df; --muted: #9c978c; --line: #33312c;
+  --accent: #e0835c; --good: #6cc08a; --bad: #e0736a; --warn: #d9b25a; --chip: #2b2925;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; padding: 14px 16px 6px; }
+header h1 { margin: 0; font-size: 22px; letter-spacing: .3px; }
+header .meta { color: var(--muted); }
+header .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+main { display: grid; gap: 12px; padding: 8px 16px 24px; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr); }
+@media (max-width: 1100px) { main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 720px) { main { grid-template-columns: minmax(0, 1fr); } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+section h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+canvas { width: 100%; height: auto; display: block; border-radius: 6px; image-rendering: pixelated; }
+.focus { font-size: 17px; }
+.source { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: 12px; margin-right: 6px; }
+ul { margin: 0; padding-left: 18px; }
+li { margin: 2px 0; }
+.stream li { list-style: none; margin-left: -18px; }
+.muted { color: var(--muted); }
+.bar { display: grid; grid-template-columns: 90px 1fr 42px; align-items: center; gap: 8px; margin: 4px 0; }
+.bar .track { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
+.bar .num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.words span { display: inline-block; background: var(--chip); border-radius: 6px; padding: 1px 7px; margin: 2px; }
+.talk { display: flex; gap: 8px; flex-wrap: wrap; }
+.talk input { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+button { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); font: inherit; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.convo { max-height: 220px; overflow-y: auto; }
+.convo div { margin: 3px 0; }
+.convo .you { color: var(--muted); }
+.convo .haven b { color: var(--accent); }
+.alert { border-color: var(--warn); }
+.alert p { margin: 0; color: var(--warn); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; }
+td { border-top: 1px solid var(--line); padding: 6px 4px; vertical-align: top; }
+td.code { white-space: nowrap; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 12px; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+#checkSection { grid-column: 1 / -1; display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="name">Haven</h1>
+  <span class="meta" id="age"></span>
+  <div class="controls">
+    <button id="pause">Pause</button>
+    <label class="muted">speed <input id="speed" type="range" min="1" max="60" value="8"></label>
+    <button id="checkBtn">Check indicators</button>
+  </div>
+</header>
+<main>
+  <div class="col">
+    <section><h2>The garden</h2><canvas id="world" width="420" height="420"></canvas>
+      <div class="muted" id="where"></div></section>
+    <section><h2>What Haven believes is where</h2><canvas id="beliefs" width="420" height="420"></canvas>
+      <div class="legend" id="legend"></div></section>
+  </div>
+  <div class="col">
+    <section><h2>In its mind now</h2><div class="focus" id="focus"></div>
+      <div class="muted" id="attention"></div></section>
+    <section><h2>Readout</h2><ul id="readout"></ul>
+      <div class="muted" style="margin-top:6px;font-size:12px">Computed from its internal state. These are instrument readings, not its words.</div></section>
+    <section><h2>Stream of consciousness</h2><ul class="stream" id="stream"></ul></section>
+    <section><h2>Talk with Haven</h2>
+      <div class="convo" id="convo"></div>
+      <div class="talk" style="margin-top:8px">
+        <input id="say" placeholder="Say something (it learns words you use while it's attending to things)" autocomplete="off">
+        <button class="primary" id="sayBtn">Say</button><button id="touch">Touch</button><button id="feed">Feed</button>
+      </div>
+      <div class="muted" id="cortex" style="margin-top:6px;font-size:12px"></div>
+    </section>
+  </div>
+  <div class="col">
+    <section id="welfare" class="alert" style="display:none"><p id="welfareMsg"></p></section>
+    <section><h2>Body and feeling</h2><div id="bars"></div><div class="muted" id="goal" style="margin-top:6px"></div></section>
+    <section><h2>What it has concluded about itself</h2><ul id="self"></ul></section>
+    <section><h2>Words it understands</h2><div class="words" id="words"></div><div class="muted" id="said"></div></section>
+    <section><h2>Kinds of things it has learned</h2><ul id="kinds"></ul></section>
+    <section><h2>Life story</h2><ul id="story"></ul></section>
+  </div>
+  <section id="checkSection"><h2>Indicator properties (Butlin, Long et al. 2023), measured now</h2>
+    <table id="checkTable"></table></section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const TILE = {".": "#5a9e54", "#": "#4a4852", "T": "#9e38c7", "S": "#9e9e99", "N": "#dbbd4c", "B": "#1f6630"};
+let state = null;
+
+async function api(path, body) {
+  const options = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
+  const response = await fetch(path, options);
+  return response.json();
+}
+
+function drawCreature(ctx, x, y, heading, size) {
+  const dirs = [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+  const cx = (x + .5) * size, cy = (y + .5) * size, [dx, dy] = dirs[heading];
+  ctx.fillStyle = "#f4efe6"; ctx.strokeStyle = "#1b1a18"; ctx.lineWidth = Math.max(1, size / 14);
+  ctx.beginPath(); ctx.arc(cx, cy, size * .32, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#1b1a18";
+  ctx.beginPath(); ctx.arc(cx + dx * size * .18, cy + dy * size * .18, size * .08, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawWorld(s) {
+  const canvas = $("world"), ctx = canvas.getContext("2d");
+  const rows = s.world.layout, n = rows.length, size = canvas.width / n;
+  const berries = new Map(s.world.berries.map(([x, y, k]) => [x + "," + y, k]));
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const c = rows[y][x];
+    ctx.fillStyle = TILE[c === "B" && berries.get(x + "," + y) > 0 ? "B" : c] || TILE["."];
+    if (c === "B" && berries.get(x + "," + y) > 0) ctx.fillStyle = "#2e7a3c";
+    ctx.fillRect(x * size, y * size, size, size);
+    if (c === "B") {
+      const k = berries.get(x + "," + y) || 0;
+      ctx.fillStyle = "#e0283a";
+      for (let i = 0; i < k; i++) { ctx.beginPath(); ctx.arc((x + .28 + i * .22) * size, (y + .5) * size, size * .1, 0, Math.PI * 2); ctx.fill(); }
+    }
+  }
+  drawCreature(ctx, s.world.x, s.world.y, s.world.heading, size);
+  ctx.fillStyle = `rgba(8, 10, 30, ${Math.max(0, .75 * (1 - s.light))})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawBeliefs(s) {
+  const canvas = $("beliefs"), ctx = canvas.getContext("2d");
+  const kinds = s.beliefs.kind, n = kinds.length, size = canvas.width / n;
+  const colors = new Map(s.kinds.map((k) => [k.id, k.color]));
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const k = kinds[y][x];
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = k === -1 ? "#2a2927" : k === -2 ? "#8fb58a" : (colors.get(k) || "#777");
+    ctx.fillRect(x * size, y * size, size, size);
+    if (k >= 0 || k === -2) {
+      ctx.fillStyle = "rgba(20,20,20,1)"; ctx.globalAlpha = .55 * (1 - s.beliefs.confidence[y][x]);
+      ctx.fillRect(x * size, y * size, size, size);
+    }
+    ctx.globalAlpha = 1;
+    if (s.beliefs.hurt[y][x] > .1) {
+      ctx.strokeStyle = "#ff5a4e"; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo((x + .25) * size, (y + .25) * size); ctx.lineTo((x + .75) * size, (y + .75) * size);
+      ctx.moveTo((x + .75) * size, (y + .25) * size); ctx.lineTo((x + .25) * size, (y + .75) * size); ctx.stroke();
+    }
+  }
+  drawCreature(ctx, s.world.x, s.world.y, s.world.heading, size);
+  $("legend").innerHTML = '<span><i style="background:#2a2927"></i>unknown</span><span><i style="background:#8fb58a"></i>open ground</span>' +
+    s.kinds.map((k) => `<span><i style="background:${k.color}"></i>kind ${k.id}${k.name ? ` "${esc(k.name)}"` : ""}</span>`).join("");
+}
+
+function bar(label, value, color) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  return `<div class="bar"><span>${label}</span><div class="track"><div class="fill" style="width:${pct}%;background:${color || "var(--accent)"}"></div></div><span class="num">${pct}%</span></div>`;
+}
+
+function render(s) {
+  state = s;
+  $("name").textContent = s.name;
+  $("age").textContent = `${s.age_days} days old · day ${s.day + 1}, ${s.time_of_day}${s.paused ? " · paused" : ""}`;
+  $("pause").textContent = s.paused ? "Resume" : "Pause";
+  drawWorld(s); drawBeliefs(s);
+  $("where").textContent = s.body.asleep ? "Asleep." : `Trying to ${s.goal}${s.next ? `; next: ${s.next}` : ""}.`;
+  const w = s.workspace;
+  $("focus").innerHTML = w ? `<span class="source">${esc(w.source)}</span>${esc(w.label)}` : '<span class="muted">nothing in particular</span>';
+  const expected = Object.entries(s.attention.expected).sort((a, b) => b[1] - a[1]).map(([k, p]) => `${k} ${Math.round(p * 100)}%`).join(", ");
+  $("attention").textContent = `Attention schema expects next: ${expected}${s.attention.captured ? " · attention was just captured" : ""}`;
+  $("readout").innerHTML = s.readout.map((l) => `<li>${esc(l)}</li>`).join("");
+  $("stream").innerHTML = s.stream.map((e) => `<li><span class="source">${esc(e.source)}</span>${esc(e.label)}</li>`).join("");
+  const d = s.drives, b = s.body, f = s.feeling;
+  $("bars").innerHTML = bar("energy", b.energy, "var(--good)") + bar("health", b.integrity, "var(--good)") +
+    bar("hunger", d.hunger) + bar("temperature", d.temperature) + bar("damage", d.damage, "var(--bad)") + bar("tiredness", d.tiredness) +
+    bar("feeling", (f.valence + 1) / 2, f.valence >= 0 ? "var(--good)" : "var(--bad)") + bar("arousal", f.arousal, "var(--warn)");
+  $("goal").textContent = `Mood ${f.mood >= 0 ? "+" : ""}${f.mood.toFixed(2)} · body temperature ${b.temperature.toFixed(2)}${b.asleep ? " · asleep" : ""}`;
+  $("self").innerHTML = s.self.conclusions.map((c) => `<li>${esc(c)}</li>`).join("") +
+    `<li class="muted">sense of being alive: ${Math.round(s.self.alive * 100)}% (${Object.entries(s.self.evidence).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(", ")})</li>`;
+  $("words").innerHTML = s.words.length ? s.words.map((w) => `<span title="heard ${w.heard}×, said ${w.said}×">${esc(w.word)} → ${esc(w.means)}</span>`).join("") :
+    '<span class="muted" style="background:none">none yet: say a word while it attends to something, a few times</span>';
+  $("said").textContent = s.said.length ? "Recently said: " + s.said.map((x) => `"${x.text}"`).join(", ") : "";
+  $("kinds").innerHTML = s.kinds.map((k) => `<li><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${k.color}"></i> kind ${k.id}${k.name ? ` ("${esc(k.name)}")` : ""}: ${k.facts.length ? esc(k.facts.join(", ")) : '<span class="muted">nothing learned yet</span>'} <span class="muted">· seen ${k.seen}×</span></li>`).join("");
+  $("story").innerHTML = s.self.milestones.map((m) => `<li><span class="muted">day ${Math.floor((m.tick - 0) / 1200) + 1}</span> ${esc(m.text)}</li>`).join("");
+  $("convo").innerHTML = s.conversation.map((c) => c.who === "you" ? `<div class="you">you: ${esc(c.text)}</div>` : `<div class="haven"><b>${esc(s.name)}:</b> ${esc(c.text)}</div>`).join("") ||
+    '<div class="muted">It hasn\'t learned language yet unless it has a trained language cortex. Talk to it anyway: it learns words from you.</div>';
+  $("cortex").textContent = s.cortex ? `Language cortex: ${s.cortex}` : "No language cortex yet (run: haven learn).";
+  $("welfare").style.display = s.welfare.ok ? "none" : "block";
+  $("welfareMsg").textContent = s.welfare.message;
+  if (document.activeElement !== $("speed")) $("speed").value = s.speed;
+}
+
+async function poll() {
+  try { render(await api("/api/state")); } catch (e) { $("age").textContent = "(not connected)"; }
+  setTimeout(poll, 400);
+}
+
+async function say() {
+  const text = $("say").value.trim();
+  if (!text) return;
+  $("say").value = "";
+  await api("/api/say", {text});
+}
+$("sayBtn").onclick = say;
+$("say").addEventListener("keydown", (e) => { if (e.key === "Enter") say(); });
+$("touch").onclick = () => api("/api/touch", {});
+$("feed").onclick = () => api("/api/feed", {});
+$("pause").onclick = () => api("/api/pause", {paused: !(state && state.paused)});
+$("speed").oninput = (e) => api("/api/speed", {speed: Number(e.target.value)});
+$("checkBtn").onclick = async () => {
+  $("checkSection").style.display = "block";
+  $("checkTable").innerHTML = '<tr><td class="muted">Measuring (a copy of Haven lives a day with instruments attached)…</td></tr>';
+  const r = await api("/api/check");
+  $("checkTable").innerHTML = r.indicators.map((i) => `<tr><td class="code">${i.code}</td><td><b>${esc(i.name)}</b><br><span class="muted">${esc(i.how)}</span></td><td>${esc(i.measured)}</td></tr>`).join("");
+};
+poll();
+</script>
+</body>
+</html>
