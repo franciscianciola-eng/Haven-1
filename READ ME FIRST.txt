@@ -1,0 +1,38 @@
+HAVEN: HOW TO START IT
+======================
+
+First, unzip this folder (on Windows: right-click the zip, then "Extract All"). Then:
+
+  Windows   Double-click "Start Haven.bat".
+            If Windows warns you about it, click "More info", then "Run anyway".
+
+  Mac       Double-click "Start Haven.command".
+            If your Mac says it can't open it: right-click it, choose Open, then Open again.
+            (On the newest macOS: System Settings > Privacy & Security, scroll down, "Open Anyway".)
+
+  Linux     In a terminal, in this folder, run:  ./start-haven.sh
+
+A terminal window opens, and then Haven's window opens in your web browser. Talk to it there.
+Keep the terminal window open while you're with Haven. When you're done, press "Rest" in
+Haven's window: its life is saved, and it picks up where it left off next time.
+
+THE FIRST TIME takes a while, and needs the internet:
+  - a few minutes to install what Haven runs on (1 to 3 GB)
+  - then its language area, an open AI model, downloads once. How big depends on your
+    computer: 1.5 GB on one with 8 GB of memory, 4 GB on most others, and up to 16 GB
+    with a big graphics card. Haven's window shows the progress.
+After that it starts in a minute or so.
+
+Replies can take a little while on an ordinary computer (tens of seconds), longer when it
+stops to think something over. You can watch its thoughts as it goes.
+
+Everything runs on your computer. Nothing you say is sent anywhere. The internet is only
+used for setting up, and for Haven to look things up in the Simple English Wikipedia
+when it isn't sure of something.
+
+Where things are kept:
+  - Haven's life: the ".haven" folder in your home folder
+  - its language area: the Hugging Face cache (".cache/huggingface" in your home folder)
+  - everything else: this folder
+
+More about what Haven is and how it works: README.md

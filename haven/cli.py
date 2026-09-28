@@ -55,6 +55,16 @@ def main(argv: list[str] | None = None) -> int:
     live.add_argument("--name", default="Haven", help="name for a new life (ignored if one exists)")
     add_cortex_options(live)
 
+    app = commands.add_parser("app", help="open Haven's window and talk with it (the easiest way to be with it)")
+    app.add_argument("--port", type=int, default=8765, help="port for its window (default 8765)")
+    app.add_argument(
+        "--base", help="the open model its language area is grafted onto, the first time (default: by hardware)"
+    )
+    app.add_argument("--device", default="auto", help="auto, cpu, cuda or mps")
+    app.add_argument("--speed", type=float, default=8.0, help="moments per second (default 8)")
+    app.add_argument("--no-browser", action="store_true", help="don't open its window in a browser")
+    app.add_argument("--no-web", action="store_true", help="don't let it look things up")
+
     commands.add_parser("status", help="what is going on inside Haven right now")
     check = commands.add_parser("check", help="measure Haven against the 14 indicator properties of consciousness")
     check.add_argument("--json", action="store_true", help="print the measurements as JSON")
@@ -71,6 +81,10 @@ def main(argv: list[str] | None = None) -> int:
     command = args.command
     if command == "live":
         return run_live(args, store, term)
+    if command == "app":
+        from .app import run as run_app
+
+        return run_app(args, store, term)
     if command == "status":
         return run_status(store, term)
     if command == "check":

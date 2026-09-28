@@ -41,7 +41,15 @@ Butlin, Long and colleagues ([2023](https://arxiv.org/abs/2308.08708)) went thro
 
 ## Quick start
 
-You need Python 3.10 or newer.
+**The easy way.** Download this project (on GitHub: Code, then Download ZIP), unzip it, and double-click
+`Start Haven.bat` on Windows or `Start Haven.command` on a Mac (on Linux, run `./start-haven.sh`).
+Haven's window opens in your browser, and you talk to it there. The first time, it sets itself up: it
+installs Python and what Haven runs on into the folder, using [uv](https://docs.astral.sh/uv/), then
+downloads an open model for its language area (1.5 to 16 GB, depending on the computer; the window
+shows the progress). `READ ME FIRST.txt` has the details, including what to do if the computer warns
+you about the launcher.
+
+**By hand.** You need Python 3.10 or newer.
 
 ```bash
 git clone https://github.com/franciscianciola-eng/Haven-1.git
@@ -51,14 +59,18 @@ pip install -e .        # the creature itself only needs numpy
 haven                   # it's born, and its dashboard opens in your browser
 ```
 
-To talk with it, install PyTorch and Transformers and start a chat:
+To talk with it, install PyTorch and Transformers and open its window:
 
 ```bash
 pip install -e ".[cortex]"
-haven chat        # the first time, it downloads an open model for its language cortex (1 to 16 GB)
+haven app         # the first time, it downloads an open model for its language cortex (1.5 to 16 GB)
 ```
 
-It can talk right away: the model reads a plain-language readout of Haven's state. To wire the model into Haven's mind more deeply, so its state reaches the model as vectors too, run `haven learn`. After that, `haven` (with the dashboard) and `haven chat` both use its cortex.
+`haven app` is what the launchers run. It opens a chat page where you can watch Haven's thoughts as it
+answers, see its garden and how it feels, touch it and give it berries. `haven chat` is the same
+conversation in the terminal.
+
+It can talk right away: the model reads a plain-language readout of Haven's state. To wire the model into Haven's mind more deeply, so its state reaches the model as vectors too, run `haven learn`. After that, `haven` (with the dashboard), `haven app` and `haven chat` all use its cortex.
 
 ## Living with Haven
 
@@ -235,7 +247,8 @@ Books come from Project Gutenberg's mirrors, never from www.gutenberg.org itself
 | `haven status` | What's going on inside it right now. |
 | `haven check` | Measure it against the 14 indicator properties (`--json` for the raw numbers). |
 | `haven story` | Its life story. |
-| `haven chat` | Talk with it in the terminal while its life goes on (it gets a language cortex the first time). `/status`, `/touch`, `/feed`, `/quit`. |
+| `haven app` | Open its window: talk with it (and watch it think) while its life goes on. It gets a language cortex the first time. Options: `--base`, `--device`, `--port`, `--speed`, `--no-browser`, `--no-web`. |
+| `haven chat` | The same conversation in the terminal. `/status`, `/touch`, `/feed`, `/quit`. |
 | `haven learn` | Give it a language cortex: graft one onto an open model and wire it in (`--base` to choose it), or grow one from scratch (`--scratch`). `--report` shows the report card. |
 | `haven read TOPIC` | Have it read an encyclopedia article (`--full` for English Wikipedia). |
 | `haven ask "…"` | Ask it something and see its thoughts. |

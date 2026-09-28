@@ -23,7 +23,19 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         pass  # quiet: the terminal is for talking with Haven
 
+    def _trusted(self) -> bool:
+        """Only pages this computer serves itself may use Haven's page, not other websites (even ones that point
+        their name at this computer), so nothing else can talk to Haven or read its state."""
+        host = (self.headers.get("Host") or "").strip().lower()
+        name = host[1:].partition("]")[0] if host.startswith("[") else host.partition(":")[0]
+        if name not in ("127.0.0.1", "localhost", "::1"):
+            self._json({"error": "not from this computer"}, HTTPStatus.FORBIDDEN)
+            return False
+        return True
+
     def do_GET(self) -> None:
+        if not self._trusted():
+            return
         if self.path in ("/", "/index.html"):
             page = resources.files("haven").joinpath("dashboard.html").read_bytes()
             self._send(HTTPStatus.OK, page, "text/html; charset=utf-8")
@@ -37,15 +49,30 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
-    def do_POST(self) -> None:
+    def _body(self) -> dict | None:
+        """The JSON a request brought, or None (having answered it) if it's too long or not JSON."""
+        if not self._trusted():
+            return None
+        if "application/json" not in (self.headers.get("Content-Type") or ""):  # other sites can't send this
+            self._json({"error": "send JSON"}, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+            return None
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_BODY:
             self._json({"error": "too long"}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
-            return
+            return None
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
             self._json({"error": "not JSON"}, HTTPStatus.BAD_REQUEST)
+            return None
+        if not isinstance(body, dict):
+            self._json({"error": "not a JSON object"}, HTTPStatus.BAD_REQUEST)
+            return None
+        return body
+
+    def do_POST(self) -> None:
+        body = self._body()
+        if body is None:
             return
         life = self.life
         if self.path == "/api/say":

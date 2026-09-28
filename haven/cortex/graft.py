@@ -99,7 +99,23 @@ def ram_gb() -> float:
     try:
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
     except (AttributeError, ValueError, OSError):
-        return 8.0
+        pass
+    try:  # Windows
+        import ctypes
+
+        class Memory(ctypes.Structure):
+            _fields_ = [("length", ctypes.c_ulong), ("load", ctypes.c_ulong)] + [
+                (name, ctypes.c_ulonglong)
+                for name in ("total", "free", "paged", "paged_free", "virtual", "virtual_free", "extended")
+            ]
+
+        memory = Memory()
+        memory.length = ctypes.sizeof(Memory)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
+            return memory.total / 2**30
+    except (AttributeError, OSError):
+        pass
+    return 8.0
 
 
 def pick_base(device: torch.device) -> str:
@@ -114,6 +130,66 @@ def pick_base(device: torch.device) -> str:
 
 def dtype_for(device: torch.device) -> torch.dtype:
     return {"cuda": torch.bfloat16, "mps": torch.float16}.get(device.type, torch.float32)
+
+
+FILES = ["*.json", "*.safetensors", "*.txt"]  # what loading a model needs (not its README, or other formats)
+
+
+def download(name: str, progress: Callable[[int, int | None], None] | None = None) -> None:
+    """Fetch an open model's files from Hugging Face, once (they're kept in its cache on this computer).
+
+    `progress` hears (bytes so far, bytes in all) every half second while it downloads.
+    """
+    repo = BASES.get(name, name)
+    if Path(repo).is_dir():
+        return
+    from huggingface_hub import constants, snapshot_download
+
+    try:
+        planned = snapshot_download(repo, allow_patterns=FILES, dry_run=True)
+        total = sum(f.file_size or 0 for f in planned) or None
+        if all(f.is_cached for f in planned):
+            return
+    except TypeError:  # an older huggingface_hub, without dry runs
+        total = None
+    except Exception as error:  # noqa: BLE001  offline, perhaps: fine if it's already here
+        try:
+            snapshot_download(repo, allow_patterns=FILES, local_files_only=True)
+            return
+        except Exception:  # noqa: BLE001
+            raise OSError(f"couldn't download {repo} ({error}). Is this computer online?") from error
+    folder = Path(constants.HF_HUB_CACHE) / ("models--" + repo.replace("/", "--")) / "blobs"
+    chunks = Path(getattr(constants, "HF_XET_CACHE", Path(constants.HF_HOME) / "xet"))
+    already = on_disk(chunks)
+    stop = threading.Event()
+
+    def watch() -> None:
+        while not stop.wait(0.5):
+            done = max(on_disk(folder), on_disk(chunks) - already)  # however the bytes are arriving
+            progress(min(done, total) if total else done, total)
+
+    if progress is not None:
+        threading.Thread(target=watch, name="haven-download", daemon=True).start()
+    try:
+        snapshot_download(repo, allow_patterns=FILES)
+    finally:
+        stop.set()
+    if progress is not None and total:
+        progress(total, total)
+
+
+def on_disk(folder: Path) -> int:
+    """Bytes actually written under a folder (a file that's still downloading counts for what it has so far)."""
+    total = 0
+    for root, _, files in os.walk(folder):
+        for file in files:
+            try:
+                info = os.lstat(os.path.join(root, file))
+            except OSError:
+                continue
+            blocks = getattr(info, "st_blocks", None)
+            total += info.st_size if blocks is None else min(info.st_size, blocks * 512)
+    return total
 
 
 def load_base(name: str, device: torch.device):

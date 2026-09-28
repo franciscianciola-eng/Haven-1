@@ -15,6 +15,7 @@ reach the model only as a written description of its state rather than as its st
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import re
@@ -23,6 +24,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +52,13 @@ def agreement(texts: list[str]) -> float:
     return float(np.mean([len(a & b) / max(len(a | b), 1) for a, b in pairs]))
 
 
+def spoken(text: str) -> str:
+    """Just the words it says: without reasoning a model left in them (Qwen3 marks it with ordinary text)."""
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[1]
+    return text.split("<think>", 1)[0].strip()
+
+
 def topic_of(text: str) -> str | None:
     """What a question is about: a name if there is one, else its most specific word."""
     names = re.findall(r"(?<!^)(?<![.?!] )\b([A-Z][a-z]+(?: [A-Z][a-z]+)*)", text)
@@ -68,9 +77,17 @@ class Thinker:
         self.root = Path(root)
         self.web = web
         self.busy = threading.Lock()
+        # Someone following along as it answers (the app): hears ("draft" | "words" | "pondering" | "thought" |
+        # "reading" | "read", text) as a reply takes shape.
+        self.listener: Callable[[str, str], None] | None = None
 
     def describe(self) -> str:
         return self.name
+
+    def _tell(self, kind: str, text: str = "") -> None:
+        if self.listener is not None:
+            with contextlib.suppress(Exception):  # a broken listener mustn't stop a thought
+                self.listener(kind, text)
 
     def respond_later(self, life, text: str) -> None:
         if self.busy.locked():
@@ -101,6 +118,7 @@ class Thinker:
         """Read about something in the Simple English Wikipedia. Returns a short excerpt."""
         if self.web is None:
             return None
+        self._tell("reading", topic)
         try:
             found = sources.article(self.web, sources.URLS["simplewiki"], topic)
         except WebError:
@@ -114,6 +132,7 @@ class Thinker:
             f.write(json.dumps({"title": title, "text": text[:20000], "time": time.time()}) + "\n")
         if life is not None:
             life._emit("event", f"read about {title} to answer that")
+        self._tell("read", title)
         first = " ".join(text.split())[:700]
         return f"{title}: {first.rsplit('. ', 1)[0]}."
 
@@ -275,8 +294,14 @@ class GraftThinker(Thinker):
         from .graft import BASES
 
         base = BASES.get(self.progress["base"], self.progress["base"])
+        if not self.graft.wired:
+            return f"{base} (open weights), reading a description of Haven's state until `haven learn` wires it in"
         done = sum(r.get("status") == "passed" for r in self.progress["levels"].values())
         return f"grafted onto {base} (open weights), wired into its workspace; passed {done} of 8 levels"
+
+    def _words(self) -> Callable[[str], None] | None:
+        """Where the words of a reply go as they come, if someone is following along."""
+        return None if self.listener is None else (lambda piece: self._tell("words", piece))
 
     def deliberate(self, life, text: str) -> tuple[str, float]:
         from .graft import SYSTEM
@@ -331,8 +356,12 @@ class GraftThinker(Thinker):
 
     def _answer(self, life, messages: list[dict], state: np.ndarray) -> tuple[str, float]:
         graft = self.graft
+        self._tell("draft")
         with self.model_lock:
-            words, logprobs = graft.generate(graft.prompt(messages, think=False), state, max_new=160, temperature=0.7)
+            words, logprobs = graft.generate(
+                graft.prompt(messages, think=False), state, max_new=160, temperature=0.7, on_text=self._words()
+            )
+            words = spoken(words)
             meaning = graft.meaning(words) if words else None
         confidence = math.exp(float(np.mean(logprobs))) if words and logprobs else 0.0  # silence isn't an answer
         if words:
@@ -344,13 +373,17 @@ class GraftThinker(Thinker):
         graft = self.graft
         pending = [""]
         done = [False]
+        self._tell("pondering")
 
         def on_text(piece: str) -> None:
             if done[0]:
+                self._tell("words", piece)  # the answer it reasoned its way to
                 return
             pending[0] += piece
+            after = ""
             if "</think>" in pending[0]:
-                pending[0] = pending[0].split("</think>")[0] + "\n"
+                pending[0], _, after = pending[0].partition("</think>")
+                pending[0] += "\n"
                 done[0] = True
             *sentences, pending[0] = re.split(r"(?<=[.!?\n])\s+", pending[0])
             for sentence in sentences:
@@ -358,6 +391,11 @@ class GraftThinker(Thinker):
                 if len(sentence.split()) >= 3:
                     with life.lock:
                         life.mind.think(sentence, None, 0.5)
+                    self._tell("thought", sentence)
+            if done[0]:
+                self._tell("draft")
+                if after.strip():
+                    self._tell("words", after.lstrip())
 
         with self.model_lock:
             words, logprobs = graft.generate(
@@ -371,6 +409,9 @@ class GraftThinker(Thinker):
             if parts is None or not parts[1]:
                 return "", 0.0  # it didn't finish reasoning in the time it had
             _, answer, answer_logprobs = parts
+            answer = spoken(answer)
+            if not answer:
+                return "", 0.0
             meaning = graft.meaning(answer)
         confidence = math.exp(float(np.mean(answer_logprobs))) if answer_logprobs else 0.0
         with life.lock:

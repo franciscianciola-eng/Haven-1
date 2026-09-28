@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "haven"
-version = "0.3.0"
+version = "0.4.0"
 description = "An artificial creature built from scratch to meet the conditions scientific theories link to consciousness, with a language cortex it trains itself."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,7 +21,7 @@ haven = "haven.cli:main"
 packages = ["haven", "haven.cortex"]
 
 [tool.setuptools.package-data]
-haven = ["dashboard.html"]
+haven = ["dashboard.html", "app.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
