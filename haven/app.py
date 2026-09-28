@@ -167,11 +167,11 @@ class Chat:
                 self.log(f"Haven couldn't put a thought into words: {error}")
             finally:
                 thinker.listener = None
-        with self._lock:
-            turn.update(reply=answer, confidence=round(confidence, 3), draft="", phase="done", done=True)
-        if answer:
+        if answer:  # said and remembered before the page hears it's done, so what it sees next includes it
             life.reply(answer, "")
             thinker.remember({"you": text, "haven": answer, "confidence": confidence, "time": time.time()})
+        with self._lock:
+            turn.update(reply=answer, confidence=round(confidence, 3), draft="", phase="done", done=True)
 
     def _follow(self, turn: dict):
         """What the page sees of a reply taking shape."""

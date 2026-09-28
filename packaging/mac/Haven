@@ -148,7 +148,7 @@ if url="$(awake)"; then  # already awake: just open its window
   exit 0
 fi
 
-build="$(cat "$SOURCE/BUILD" 2>/dev/null)"
+build="$(cat "$SOURCE/../build-id" 2>/dev/null)"
 if [ -x "$APP/venv/bin/python" ] && [ -n "$build" ] && [ "$(cat "$APP/installed" 2>/dev/null)" = "$build" ]; then
   wake
   if url="$(waiting)"; then

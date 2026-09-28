@@ -7,10 +7,12 @@ per second. No API keys are needed for anything Haven reads.
 
 from __future__ import annotations
 
+import functools
 import http.client
 import ipaddress
 import json
 import socket
+import ssl
 import threading
 import time
 import urllib.error
@@ -40,7 +42,7 @@ class Web:
         self._check(url)
         self._wait_turn(url)
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
-        handlers = [_CheckedRedirects(self)]
+        handlers = [_CheckedRedirects(self), urllib.request.HTTPSHandler(context=tls())]
         if self.allow_private:
             handlers.append(urllib.request.ProxyHandler({}))
         opener = urllib.request.build_opener(*handlers)
@@ -87,6 +89,20 @@ class Web:
                 raise WebError("only http and https addresses can be opened")
             return
         check_address(url)
+
+
+@functools.cache
+def tls() -> ssl.SSLContext:
+    """How it checks that a website is the one it asked for: against this computer's certificates, and certifi's
+    too where it's installed (some Pythons, like the ones uv installs on a Mac, can't find the computer's)."""
+    context = ssl.create_default_context()
+    try:
+        import certifi
+
+        context.load_verify_locations(certifi.where())
+    except (ImportError, OSError):
+        pass
+    return context
 
 
 class _CheckedRedirects(urllib.request.HTTPRedirectHandler):

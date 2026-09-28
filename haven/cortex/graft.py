@@ -129,7 +129,16 @@ def pick_base(device: torch.device) -> str:
 
 
 def dtype_for(device: torch.device) -> torch.dtype:
-    return {"cuda": torch.bfloat16, "mps": torch.float16}.get(device.type, torch.float32)
+    if device.type == "cuda":
+        return torch.bfloat16
+    if device.type == "mps":  # bfloat16, as Qwen3 was trained, where the Mac has it: float16 can overflow
+        try:
+            one = torch.ones(2, 2, device=device, dtype=torch.bfloat16)
+            (one @ one).cpu()
+            return torch.bfloat16
+        except (RuntimeError, TypeError):
+            return torch.float16
+    return torch.float32
 
 
 FILES = ["*.json", "*.safetensors", "*.txt"]  # what loading a model needs (not its README, or other formats)

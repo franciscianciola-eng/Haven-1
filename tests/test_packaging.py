@@ -22,8 +22,11 @@ def test_mac_app(tmp_path):
     z = zipfile.ZipFile(make_app.build(tmp_path / "Haven-for-Mac.zip"))
     names = set(z.namelist())
     code = "Haven.app/Contents/Resources/haven/"
-    assert {code + "pyproject.toml", code + "README.md", code + "haven/app.html", code + "BUILD"} <= names
+    assert {code + "pyproject.toml", code + "README.md", code + "haven/app.html"} <= names
+    assert "Haven.app/Contents/Resources/build-id" in names
     assert not any("/tests/" in n for n in names)
+    top = {n[len(code) :].split("/")[0].lower() for n in names if n.startswith(code) and n != code}
+    assert not top & {"build", "dist", "haven.egg-info"}  # what installing makes (a Mac's disk ignores case)
     info = plistlib.loads(z.read("Haven.app/Contents/Info.plist"))
     assert info["CFBundleExecutable"] == "Haven" and info["CFBundleIconFile"] == "Haven" and info["LSUIElement"]
     launcher = z.getinfo("Haven.app/Contents/MacOS/Haven")

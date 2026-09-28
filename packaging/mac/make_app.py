@@ -76,7 +76,8 @@ def build(out: Path) -> Path:
         z.writestr(entry(contents + "Resources/Haven.icns", 0o100644), (HERE / "Haven.icns").read_bytes())
         for f in files:
             z.writestr(entry(contents + "Resources/haven/" + f, 0o100644), (ROOT / f).read_bytes())
-        z.writestr(entry(contents + "Resources/haven/BUILD", 0o100644), stamp + "\n")
+        # Beside Haven's code, not in it: a Mac's disk doesn't tell BUILD from the build/ folder installing makes.
+        z.writestr(entry(contents + "Resources/build-id", 0o100644), stamp + "\n")
     return out
 
 
