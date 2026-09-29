@@ -224,10 +224,12 @@ class Thinker:
             if not told:
                 told.add(0)
                 return [f"I read about {title}: {library.sentence(title, 0)}"]
+            first = min(told)  # what it told them, and what it read next (as it practised it)
             index = next((i for i in range(len(library.docs[title])) if i not in told), None)
             if index is not None:
                 told.add(index)
-            return [more_note(title, None if index is None else library.sentence(title, index))]
+            more = more_note(title, None if index is None else library.sentence(title, index))
+            return [f"I read about {title}: {library.sentence(title, first)}", more]
         if about_them(text) or mentioned(text):  # about them, or about its valley: not what it read
             return []
         if about_haven(text) and not library.title_for(text):  # about it ("who made you?"), not something it read
