@@ -769,6 +769,7 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
   function frame(now) {
     if (!running) return;
     requestAnimationFrame(frame);
+    if (now - last < 1000 / 31) return; // 30 frames a second is plenty, and easier on a laptop's battery
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     const t = now / 1000;

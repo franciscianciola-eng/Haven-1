@@ -707,6 +707,7 @@ def knowledge(mind: Mind) -> str:
 def first_person(milestone: str, name: str) -> str:
     text = milestone.replace(f"{name} came into the world", "came into the world").replace("it knows", "I know")
     text = text.replace(" its ", " my ").replace(": of ", ": ").replace("itself", "myself")
+    text = text.replace("made it sick", "made me sick")
     return f"I {text}."
 
 
@@ -715,10 +716,19 @@ def memory(mind: Mind) -> str:
     return first_person(stones[-1][1], mind.me.name) if stones else ""
 
 
+ROUTINE = ("noticed a new kind of thing", "heard a word for the first time", "realized two kinds")
+
+
 def story(mind: Mind) -> str:
+    """Its life in a few sentences: how it began, and the latest of its firsts that matter most."""
     stones = mind.me.milestones
-    chosen = [stones[0], *stones[1:][-3:]] if stones else []
-    return " ".join(first_person(text, mind.me.name) for _, text in chosen)
+    if not stones:
+        return ""
+    rest = stones[1:]
+    notable = [m for m in rest if not m[1].startswith(ROUTINE)]
+    others = [m for m in rest if m not in notable]
+    chosen = notable[-3:] if len(notable) >= 3 else sorted(notable + others[len(others) - (3 - len(notable)) :])
+    return " ".join(first_person(text, mind.me.name) for _, text in [stones[0], *chosen])
 
 
 def known_words(words: list[str]) -> str:

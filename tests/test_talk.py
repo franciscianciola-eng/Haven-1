@@ -143,3 +143,13 @@ def test_it_is_born_having_read_a_little_book(tmp_path):
     read = Thinker(tmp_path).readings()
     assert ("Moon", "The Moon is the Earth's only natural satellite.") in read
     assert best_reading("tell me about dinosaurs", read)[0] == "Dinosaur"
+
+
+def test_its_story_tells_its_firsts_that_matter(lived):
+    from haven.cortex.talk import story
+
+    told = story(lived)
+    assert told.startswith("I came into the world") and told.count(".") <= 4
+    notable = [t for _, t in lived.me.milestones[1:] if not t.startswith("noticed a new kind")]
+    if len(notable) >= 3:
+        assert "noticed a new kind" not in told
