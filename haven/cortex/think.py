@@ -239,12 +239,12 @@ class OwnThinker(Thinker):
 
         found = []
         with self.model_lock:
-            for _ in range(drafts):
+            for i in range(drafts):  # its most careful draft first, then freer ones
                 tokens, logprobs = self.model.generate(
                     prompt[-(self.model.cfg.context - 100) :],
                     state,
                     max_new=100,
-                    temperature=0.6,
+                    temperature=0.0 if i == 0 else 0.6,
                     stop=(END, YOU),
                 )
                 words = self.tok.decode(tokens).strip()

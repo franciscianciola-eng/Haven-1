@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 
 import torch
 
-from haven.cortex import starter
+from haven.cortex import starter, talk
 from haven.cortex.curriculum import LEVELS, ScratchReader, _plain
 from haven.cortex.train import Trainer, conversation_items, describe
 
@@ -35,11 +35,15 @@ def main() -> None:
     parser.add_argument("--threads", type=int, default=0)
     parser.add_argument("--out", default=str(starter.FOLDER), help="where to save the finished cortex")
     parser.add_argument(
+        "--emphasis", type=float, default=0.0, help="extra practice (0 to 1) at answers recalled word for word"
+    )
+    parser.add_argument(
         "--lr", type=float, help="learning rate (default: the size's own; lower it to carry on training)"
     )
     args = parser.parse_args()
     if args.threads:
         torch.set_num_threads(args.threads)
+    talk.EMPHASIS = args.emphasis
     torch.manual_seed(0)
     scale = {"pieces": 6.0, "batch": 32, **({"lr": args.lr} if args.lr else {})}
     trainer = Trainer(Path(args.work), size=args.size, device="cpu", scale=scale)  # carries on from the work folder

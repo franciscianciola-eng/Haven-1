@@ -1401,13 +1401,21 @@ def _thing_turn(moment: dict, rng: random.Random) -> Turn:
     return Turn(question, thing_answer(kind, name, thing["stats"], thing["where"]), f"thing {kind}")
 
 
+# Kinds of questions whose answers are long, word-for-word recollections: more practice with these when set above 0.
+EMPHASIS = 0.0
+RECALLED = ("day", "world", "words", "story", "can", "learned", "remember", "likes", "danger", "eat")
+
+
 def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> tuple[str, list[Turn]]:
     """A short conversation at one moment of a life: what comes to mind first, and what's said, turn by turn."""
     known, answer = moment["memo"], moment["answers"]
     person = person_name(rng) if rng.random() < 0.35 else None
     earlier = [a_fact(rng) for _ in range(rng.choice((0, 0, 1, 2, 3)))]
     told = [second_person(said) for said, _ in earlier]
-    read = [(title, text) for _, title, text in rng.sample(READINGS, rng.choice((0, 0, 0, 1, 2)))]
+    read = [
+        (title, text)
+        for _, title, text in rng.sample(READINGS, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))
+    ]
     said: list[Turn] = []
     if person is None and rng.random() < 0.2:  # they say who they are first
         for _ in range(5):
@@ -1421,7 +1429,7 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     for _ in range(turns or rng.choice((1, 1, 2, 3))):
         roll = rng.random()
         if roll < 0.40:
-            intent = rng.choice(list(QUESTIONS))
+            intent = rng.choice(RECALLED if rng.random() < EMPHASIS else list(QUESTIONS))
             reply = answer[intent]
             if person and intent in ("hello", "bye"):
                 reply = reply.replace("Hi!", f"Hi, {person}!").replace("Bye!", f"Bye, {person}!")
