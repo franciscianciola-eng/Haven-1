@@ -2244,7 +2244,10 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
                 break
         else:
             person = None
-    for _ in range(turns or rng.choice((1, 1, 2, 3))):
+    wanted = len(said) + (turns or rng.choice((1, 1, 2, 3)))
+    for _ in range(4 * wanted + 8):  # (a try can come to nothing: then it tries something else)
+        if len(said) >= wanted:
+            break
         roll = rng.random()
         if roll < 0.26:
             intent = rng.choice(RECALLED if rng.random() < EMPHASIS else list(QUESTIONS))

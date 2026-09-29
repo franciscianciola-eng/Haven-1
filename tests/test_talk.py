@@ -136,6 +136,8 @@ def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(live
             if turn.kind == "what it doesn't know":
                 assert turn.answer == DONT_KNOW
     assert {"request", "more", "a word", "sums", "lately", "a fact", "what they told it", "what it was taught"} <= kinds
+    for _ in range(500):  # a conversation always has the turns asked for, even when a try comes to nothing
+        assert conversation(moment, rng, turns=1)[1]
 
 
 def test_the_mind_keeps_names_and_facts(lived):
