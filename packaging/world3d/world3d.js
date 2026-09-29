@@ -646,19 +646,32 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       const t = view.cells.get(`${x},${y}`);
       if (t) t.userData.apples.forEach((apple, i) => { apple.visible = i < count; });
     }
+    const now = performance.now();
     for (const [x, y, grown] of world.mushrooms) {
       const m = view.cells.get(`${x},${y}`);
-      if (m) m.visible = !!grown;
+      if (!m) continue;
+      if (grown && !m.visible && view.lastTick >= 0) m.userData.popAt = now; // it grew back
+      m.visible = !!grown;
     }
-    while (view.apples.length < world.apples.length) {
-      const a = fallenApple();
-      scene.add(a);
-      view.apples.push(a);
+    // Apples on the ground: the ones still lying there stay put; new ones fall from the tree.
+    const lying = new Map();
+    for (const a of view.apples) if (a.visible) lying.set(a.userData.key, [...(lying.get(a.userData.key) || []), a]);
+    const kept = new Set();
+    for (const [x, y] of world.apples) {
+      const key = `${x},${y}`;
+      let a = lying.get(key)?.shift();
+      if (!a) {
+        a = view.apples.find((b) => !b.visible && !kept.has(b)) || fallenApple();
+        if (!view.apples.includes(a)) { scene.add(a); view.apples.push(a); }
+        place(a, x, y).position.x += 0.18 * (hash(x, y, view.apples.indexOf(a)) - 0.5);
+        a.userData.key = key;
+        a.userData.ground = a.position.y;
+        a.userData.fallAt = view.lastTick >= 0 ? now : -1e9;
+      }
+      a.visible = true;
+      kept.add(a);
     }
-    view.apples.forEach((a, i) => {
-      a.visible = i < world.apples.length;
-      if (a.visible) place(a, world.apples[i][0], world.apples[i][1]).position.x += 0.18 * (hash(i, 3) - 0.5);
-    });
+    for (const a of view.apples) if (!kept.has(a)) a.visible = false;
     view.ballAt = spot(...world.ball);
     world.butterflies.forEach(([x, y], i) => {
       const b = view.butterflies[i];
@@ -686,7 +699,14 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     view.heading = world.heading;
     view.asleep = world.asleep;
     if (world.tick !== view.lastTick) {
-      if (view.lastTick >= 0) for (const kind of world.did || []) if (kind !== "bumped") effect(kind, view.haven.position.clone().add(new Vector3(0, 0.75, 0)));
+      if (view.lastTick >= 0) {
+        for (const kind of world.did || []) if (kind !== "bumped") effect(kind, view.haven.position.clone().add(new Vector3(0, 0.75, 0)));
+        if ((world.did || []).some((kind) => kind === "shook" || kind === "ate" || kind === "smelled")) {
+          const [dx, dy] = DIRS[world.heading];
+          const touched = view.cells.get(`${world.x + dx},${world.y + dy}`);
+          if (touched) touched.userData.wobbleAt = now; // the tree it shook, the bush it ate from
+        }
+      }
       view.lastTick = world.tick;
     }
     view.voice = world.voice && world.voice.ago < 3 * view.speed ? world.voice.text : null;
@@ -814,6 +834,26 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       b.userData.wings[0].rotation.z = flap;
       b.userData.wings[1].rotation.z = -flap;
     });
+
+    // A tree it shook, or a bush it ate from, sways; mushrooms that grew back pop up; new apples fall.
+    for (const thing of view.cells.values()) {
+      const wobble = (now - (thing.userData.wobbleAt ?? -1e9)) / 1000;
+      if (wobble < 1.2) {
+        thing.rotation.z = Math.sin(wobble * 22) * 0.07 * (1 - wobble / 1.2);
+        thing.rotation.x = Math.cos(wobble * 19) * 0.04 * (1 - wobble / 1.2);
+      } else if (thing.userData.wobbleAt) {
+        thing.rotation.z = thing.rotation.x = 0;
+        thing.userData.wobbleAt = undefined;
+      }
+      const pop = (now - (thing.userData.popAt ?? -1e9)) / 400;
+      if (pop < 1) thing.scale.setScalar(Math.max(0.05, Math.sin(pop * Math.PI * 0.5) * 1.1));
+      else if (thing.userData.popAt) { thing.scale.setScalar(1); thing.userData.popAt = undefined; }
+    }
+    for (const a of view.apples) {
+      const fall = (now - (a.userData.fallAt ?? -1e9)) / 500;
+      if (fall < 1) a.position.y = a.userData.ground + 1.7 * (1 - fall * fall);
+      else if (a.userData.fallAt > 0) { a.position.y = a.userData.ground; a.userData.fallAt = -1e9; }
+    }
 
     // The bell swings when it has just been rung.
     if (view.bell) {
