@@ -187,8 +187,6 @@ def visit(mind: Mind, rng: np.random.Generator) -> None:
 
 def gather(seed: int, days: float, every: int = 7, company: bool = True) -> list[dict]:
     """Live a simulated life and note down the moments: state tokens, words for them, and what it would answer."""
-    from .talk import answers, memo, recall
-
     mind = Mind(seed)
     rng = np.random.default_rng(seed)
     moments = []
@@ -200,19 +198,34 @@ def gather(seed: int, days: float, every: int = 7, company: bool = True) -> list
         needy = dominant_need(mind) != "fine" or (mind.workspace.content and mind.workspace.content.source != "vision")
         if tick % (2 if needy else every):
             continue
-        text, facts = describe(mind)
-        known = memo(mind)
-        moments.append(
-            {
-                "state": mind_state(mind),
-                "text": text,
-                "memo": known,
-                "notes": recall(known, ""),
-                "answers": answers(mind),
-                **facts,
-            }
-        )
+        moments.append(moment_of(mind))
     return moments
+
+
+def moment_of(mind: Mind) -> dict:
+    """A moment of a life, to learn from: its state, the words for it, what it knows, and what it would answer."""
+    from .talk import answers, memo, recall
+
+    text, facts = describe(mind)
+    known = memo(mind)
+    return {
+        "state": mind_state(mind),
+        "text": text,
+        "memo": known,
+        "notes": recall(known, ""),
+        "answers": answers(mind),
+        "body": body_now(mind),
+        **facts,
+    }
+
+
+def body_now(mind: Mind) -> dict:
+    """How its body is, as far as whether it would do what it's asked goes."""
+    return {
+        "drives": [round(float(d), 3) for d in mind.body.drives()],
+        "asleep": bool(mind.body.asleep),
+        "cold": bool(mind.body.cold()),
+    }
 
 
 def need_index(word: str) -> int | None:

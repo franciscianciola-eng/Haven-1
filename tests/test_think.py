@@ -49,7 +49,6 @@ def test_its_own_cortex_thinks_through_the_workspace(cortex_home, internet, monk
     life.mind.step()  # the thought competes for the workspace
     assert any(c.source == "thought" for c in [life.mind.workspace.content] if c) or life.mind.workspace.history
     thinker.remember({"you": "hi", "haven": "ba", "confidence": 0.1})
-    thinker.consolidate(steps=2)  # sleep-learning from the conversation doesn't break anything
 
 
 def test_no_cortex_yet(tmp_path, monkeypatch):
@@ -66,3 +65,26 @@ def test_it_notices_when_its_words_go_round_in_circles():
     assert repeats("I can climb the hill and climb the hill and swim", "I can climb the hill and swim")
     story = "I noticed a new kind of thing: a stone. I noticed a new kind of thing: a flower."
     assert not repeats(story, f"I remember: {story}")  # saying again what came to mind isn't going in circles
+
+
+def test_it_learns_from_its_day_in_its_sleep_and_keeps_it_only_if_it_helps(cortex_home, monkeypatch):
+    import torch
+
+    from haven.cortex import sleep
+
+    monkeypatch.setattr(sleep, "STEPS", 3)
+    thinker, _ = make_thinker("own", cortex_home, web=Web(delay=0, allow_private=True))
+    life = Life(Mind(seed=2), None)
+    events = []
+    life.listeners.append(lambda kind, text: events.append(text))
+    assert thinker.sleep_on_it(life) is None  # nothing to go over yet
+    for _ in range(45):
+        life.mind.live(10)
+        thinker.notice(life.mind)
+    before = {k: v.clone() for k, v in thinker.model.state_dict().items()}
+    report = thinker.sleep_on_it(life)
+    assert report["moments"] == 45 and report["steps"] == 3 and set(report["after"]) == {"own day", "other lives"}
+    changed = any(not torch.equal(before[k], v) for k, v in thinker.model.state_dict().items())
+    assert changed == report["kept"]
+    assert (cortex_home / "cortex" / "nights.jsonl").exists() and "in its sleep" in events[-1]
+    assert not thinker.day  # a new day starts

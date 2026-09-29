@@ -12,6 +12,10 @@ from .report import snapshot
 from .store import Store
 
 AUTOSAVE = 600  # ticks between saves
+QUIET = 180.0  # seconds nobody has said anything before Haven reads about something out of curiosity
+CURIOUS_EVERY = 900.0  # seconds, at least, between the things it reads out of curiosity
+SLEEP_EVERY = 1800.0  # seconds, at least, between nights it learns from its day (its days are short)
+NOTICE = 25  # ticks between the moments of its day it notes down, to learn from
 
 
 def open_mind(store: Store, seed: int | None = None, name: str = "Haven") -> Mind:
@@ -44,6 +48,9 @@ class Life:
         self._since_save = 0
         self._seen_log = mind.log[-1] if mind.log else None
         self._seen_said = mind.said[-1] if mind.said else None
+        self._last_words = self._last_wonder = time.monotonic() - CURIOUS_EVERY  # when it last talked, and read
+        self._last_night = time.monotonic()  # when it last learned in its sleep
+        self._learning = threading.Lock()
 
     # --- running --------------------------------------------------------------------
 
@@ -81,17 +88,51 @@ class Life:
                 self._announce()
                 asleep = self.mind.body.asleep
                 tick = self.mind.tick
+                if self.thinker is not None and not asleep and tick % NOTICE == 0:
+                    self.thinker.notice(self.mind)
             if self._since_save >= AUTOSAVE:
                 self.save()
             if asleep and tick % 200 == 0:
-                self._consolidate()
+                self._sleep_on_it()
+            elif not asleep and tick % 50 == 0:
+                self._wonder()
 
-    def _consolidate(self) -> None:
-        """While Haven sleeps, its language cortex goes over what it heard and read."""
-        thinker = self.thinker
-        if thinker is None or thinker.busy.locked():
+    def _sleep_on_it(self) -> None:
+        """While Haven sleeps (at most every so often), its language cortex goes over moments of its day."""
+        thinker, now = self.thinker, time.monotonic()
+        if thinker is None or now - self._last_night < SLEEP_EVERY or self._learning.locked():
             return
-        threading.Thread(target=thinker.consolidate, name="haven-sleep-learning", daemon=True).start()
+        self._last_night = now
+        threading.Thread(target=self._learn_in_sleep, name="haven-sleep-learning", daemon=True).start()
+
+    def _learn_in_sleep(self) -> None:
+        with self._learning:
+            try:
+                self.thinker.sleep_on_it(self)
+            except Exception as error:  # noqa: BLE001  learning going wrong mustn't end a life
+                self._emit("event", f"couldn't learn in its sleep ({error})")
+
+    def _wonder(self) -> None:
+        """When nobody has said anything for a while, Haven now and then reads about something it's curious about
+        (if it's allowed to use the internet)."""
+        thinker, now = self.thinker, time.monotonic()
+        if thinker is None or thinker.web is None or thinker.busy.locked():
+            return
+        if now - self._last_words < QUIET or now - self._last_wonder < CURIOUS_EVERY:
+            return
+        self._last_wonder = now
+        threading.Thread(target=self._read_for_fun, name="haven-curious", daemon=True).start()
+
+    def _read_for_fun(self) -> None:
+        thinker = self.thinker
+        if not thinker.busy.acquire(blocking=False):
+            return  # it's answering someone
+        try:
+            thinker.read_for_fun(self)
+        except Exception as error:  # noqa: BLE001  a failed reading mustn't end a life
+            self._emit("event", f"couldn't read ({error})")
+        finally:
+            thinker.busy.release()
 
     def save(self) -> None:
         if self.store is None:
@@ -104,6 +145,7 @@ class Life:
     # --- the person ------------------------------------------------------------------
 
     def say(self, text: str) -> list[str]:
+        self._last_words = time.monotonic()
         with self.lock:
             words = self.mind.hear(text)
             self.conversation = [*self.conversation[-99:], {"tick": self.mind.tick, "who": "you", "text": text}]
@@ -121,6 +163,7 @@ class Life:
 
     def reply(self, text: str, source: str) -> None:
         """Something Haven says in words, from its language cortex."""
+        self._last_words = time.monotonic()
         with self.lock:
             self.mind.world.voice = (self.mind.tick, text)
             self.mind.said = [*self.mind.said[-49:], (self.mind.tick, text)]

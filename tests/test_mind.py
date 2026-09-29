@@ -81,6 +81,46 @@ def test_saving_and_loading_continue_the_same_life(grown):
     assert original.log == restored.log
 
 
+def test_it_does_what_it_is_asked(grown):
+    for do, thing, action, did in (
+        ("ring the bell", "bell", "use", "rang"),
+        ("push the ball", "ball", "use", "pushed"),
+        ("eat some berries", "bush", "eat", "ate"),
+        ("go to the pond", "pond", "go", None),
+    ):
+        mind = copy.deepcopy(grown)
+        before = mind.counts.get(did, 0)
+        mind.take_errand(do, thing, action)
+        for _ in range(300):
+            mind.step()
+            if mind.errand is None:
+                break
+        assert mind.log[-1][1] == f"did what it was asked: {do}", (do, mind.log[-4:])
+        assert did is None or mind.counts[did] > before
+        assert mind.counts["errands"] == 1 and "errand" in mind.me.firsts
+
+
+def test_it_goes_to_sleep_when_asked_and_keeps_errands_when_saved(grown):
+    mind = copy.deepcopy(grown)
+    mind.take_errand("go to sleep", "nest", "sleep", 3)
+    restored = Mind(seed=4)
+    restored.load_state(mind.to_state())
+    assert restored.errand["do"] == "go to sleep"
+    for _ in range(300):
+        restored.step()
+        if restored.errand is None:
+            break
+    assert restored.body.asleep and restored.log[-1][1] == "did what it was asked: go to sleep"
+
+
+def test_it_gives_up_on_an_errand_when_something_else_matters_more(grown):
+    mind = copy.deepcopy(grown)
+    mind.take_errand("ring the bell", "bell", "use")
+    mind.body.energy = 0.05  # suddenly starving
+    mind.step()
+    assert mind.errand is None and mind.log[-1][1].startswith("stopped trying to ring the bell: it was")
+
+
 def test_it_learns_words_from_a_person():
     mind = Mind(seed=0)
     mind.live(2400)

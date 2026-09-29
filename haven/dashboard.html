@@ -206,7 +206,7 @@ function render(s) {
   $("said").textContent = s.said.length ? "Recently said: " + s.said.map((x) => `"${x.text}"`).join(", ") : "";
   $("kinds").innerHTML = s.kinds.map((k) => `<li><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${k.color}"></i> kind ${k.id}${k.name ? ` ("${esc(k.name)}")` : ""}: ${k.facts.length ? esc(k.facts.join(", ")) : '<span class="muted">nothing learned yet</span>'} <span class="muted">· seen ${k.seen}×</span></li>`).join("");
   $("things").innerHTML = s.things.length ? s.things.map((t) => `<li>${esc(t)}</li>`).join("") : '<li class="muted">It hasn\'t come across anything yet.</li>';
-  $("you").innerHTML = (s.you.name ? `<li>Your name is ${esc(s.you.name)}.</li>` : "") + s.you.told.map((f) => `<li>You told it that ${esc(f)}.</li>`).join("") ||
+  $("you").innerHTML = (s.you.name ? `<li>Your name is ${esc(s.you.name)}.</li>` : "") + s.you.told.map((f) => `<li>You told it that ${esc(f)}.</li>`).join("") + (s.you.taught || []).map((f) => `<li>You taught it that ${esc(f)}.</li>`).join("") ||
     '<li class="muted">Nothing yet. Tell it your name, or something about yourself.</li>';
   $("story").innerHTML = s.self.milestones.map((m) => `<li><span class="muted">day ${Math.floor((m.tick - 0) / 1200) + 1}</span> ${esc(m.text)}</li>`).join("");
   $("convo").innerHTML = s.conversation.map((c) => c.who === "you" ? `<div class="you">you: ${esc(c.text)}</div>` : `<div class="haven"><b>${esc(s.name)}:</b> ${esc(c.text)}</div>`).join("") ||

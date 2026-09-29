@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .agency import EFFECTS, ActorCritic, BeliefMap, Goals, KindKnowledge, Planner, goal_cells, reflexes
+from .agency import EFFECTS, ActorCritic, BeliefMap, Goals, KindKnowledge, Planner, frontier, goal_cells, reflexes
 from .attention import GOALS, NOTHING, AttentionSchema, features
 from .body import WEIGHTS, Body
 from .language import Lexicon, sound
@@ -56,6 +56,8 @@ VERBS = {
 }
 EVENTS = ("ate", "drank", "rang", "pushed", "smelled", "shook", "warmed", "sick", "climbed")
 DOINGS = ("ate", "sick", "drank", "rang", "pushed", "smelled", "shook", "warmed")  # what can happen with a thing
+MOVING = ("ball", "butterfly")  # things that don't stay where it saw them
+NAP = 60  # ticks it sleeps, at least, when it goes to sleep because someone asked it to
 
 
 def name_of(world: World, x: int, y: int) -> str | None:
@@ -121,6 +123,7 @@ class Mind:
         self.log: list[tuple[int, str]] = []
         self.said: list[tuple[int, str]] = []
         self.rest_streak = 0
+        self.nap = 0  # how much longer it naps, when it went to sleep because it was asked
         self.scent = 0.0
         self.scent_change = 0.0
         self.distress = 0  # ticks of sustained low mood, watched for its welfare
@@ -131,6 +134,8 @@ class Mind:
         self.kind_names: dict[int, dict[str, float]] = {}  # which of its own kinds of things those were
         self.person: str | None = None  # the name of the person who talks with it, once they've said it
         self.told: list[tuple[int, str]] = []  # what people have told it, in its words ("you like pizza")
+        self.lessons: list[tuple[int, str]] = []  # what people have taught it about the world ("frogs can jump")
+        self.errand: dict | None = None  # something it said it would do for someone, while it's doing it
         self._target_now: np.ndarray | None = None
         self.counts = dict.fromkeys(("vetoes", "recalls", "dreams", "imagined", "hurt", "fainted", *EVENTS), 0)
         self.daily: dict[str, list[float]] = {"model_error": [], "valence": [], "ate": []}
@@ -262,8 +267,11 @@ class Mind:
         self.target = goal_cells(
             goal, pose, self.beliefs, self.knowledge, b.cold(), b.temperature, self._remembered_place, tick, skip
         )
+        arrived_as = goal
+        if self.errand is not None:
+            arrived_as = self._keep_errand(goal, pose, drives, tick, percepts) or goal
         suggestion = self.planner.next_action(pose, self.target, self.beliefs, self.knowledge, tick)
-        self.suggestion = suggestion = suggestion or self._arrived(goal, pose, percepts, drives)
+        self.suggestion = suggestion = suggestion or self._arrived(arrived_as, pose, percepts, drives)
         state = self._state(broadcast, obs, drives, suggestion)
         if self.last is not None:
             last = self.last
@@ -668,6 +676,99 @@ class Mind:
 
     # --- deciding and acting -------------------------------------------------------------
 
+    # --- doing what it's asked -------------------------------------------------------------------
+
+    def take_errand(self, do: str, thing: str, action: str, need: int | None = None) -> None:
+        """Someone asked it to do something, and it said it would ("ring the bell": the bell, by using it).
+
+        `need` is the need doing it meets, if any (a drink when it's hot): that need being pressing doesn't stop it.
+        """
+        self.errand = {"do": do, "thing": thing, "action": action, "need": need, "since": self.world.tick}
+        self._note(self.world.tick, f"set off to {do}, as it was asked")
+
+    def _errand_done(self, text: str) -> None:
+        errand, self.errand = self.errand, None
+        self._note(self.world.tick, text)
+        if text.startswith("did what"):
+            self.counts["errands"] = self.counts.get("errands", 0) + 1
+            self.me.milestone("errand", self.world.tick, f"did what someone asked, for the first time: {errand['do']}")
+
+    def places_of(self, name: str) -> list[tuple[int, int]]:
+        """Where it believes things of a name are: places of its own kinds it knows by that name, and where it last
+        saw one."""
+        seen = self.things.get(name, {})
+        spot = (int(seen["x"]), int(seen["y"])) if "x" in seen else None
+        if name in MOVING:
+            return [spot] if spot else []
+        kinds = [k for k in self.vision.kinds.alive() if self.kind_name(k) == name]
+        cells = [(int(x), int(y)) for y, x in zip(*np.nonzero(np.isin(self.beliefs.kind, kinds)))] if kinds else []
+        if spot is not None:
+            cells += self._region(spot)  # where it saw one, and what's joined to it and looks the same (a pond)
+        return list(dict.fromkeys(cells))
+
+    def _region(self, spot: tuple[int, int], most: int = 40) -> list[tuple[int, int]]:
+        kind = int(self.beliefs.kind[spot[1], spot[0]])
+        region, todo = [spot], [spot]
+        while kind >= 0 and todo and len(region) < most:
+            x, y = todo.pop()
+            for near in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if near not in region and self.beliefs.inside(*near) and self.beliefs.kind[near[1], near[0]] == kind:
+                    region.append(near)
+                    todo.append(near)
+        return region
+
+    def _keep_errand(
+        self, goal: str, pose: tuple[int, int, int], drives: np.ndarray, tick: int, percepts: list
+    ) -> str | None:
+        """Go on with what it was asked to do (unless a need has become too pressing, or it can't find the way).
+
+        Sets where it's heading, and returns the goal to act on when it gets there.
+        """
+        errand = self.errand
+        need = int(np.argmax(drives))
+        if drives[need] >= 0.7 and need != errand.get("need"):
+            self._errand_done(
+                f"stopped trying to {errand['do']}: it was {need_words(need, float(drives[need]), self.body.cold())}"
+            )
+            return None
+        if tick - errand["since"] > 480:
+            self._errand_done(f"gave up trying to {errand['do']}")
+            return None
+        if errand["action"] == "sleep" or errand["thing"] == "nest":
+            nest = self.places_of("nest")  # its nest, or else the warmest place it knows
+            self.target = (
+                ("enter", nest)
+                if nest
+                else goal_cells(
+                    "sleep", pose, self.beliefs, self.knowledge, True, 0.0, self._remembered_place, tick, set()
+                )
+            )
+            if errand["action"] == "go" and (pose[0], pose[1]) in self.target[1]:
+                self._errand_done(f"did what it was asked: {errand['do']}")
+                return None
+            return "sleep" if errand["action"] == "sleep" else goal
+        x, y, _ = pose
+        thing, seen = errand["thing"], self.things.get(errand["thing"])
+        if thing in MOVING and seen is not None:  # things that move: where it sees it now, if it does
+            spotted = [p.cell for p in percepts if p.cell is not None and name_of(self.world, *p.cell) == thing]
+            if spotted:
+                seen["x"], seen["y"] = spotted[0]
+            elif "x" in seen and abs(seen["x"] - x) + abs(seen["y"] - y) <= 1:
+                del seen["x"], seen["y"]  # it isn't where it last saw it
+        places = self.places_of(thing)
+        if not places and thing in MOVING and seen is not None:
+            self.target = ("enter", frontier(self.beliefs, pose, tick))  # it looks for it
+            return goal
+        if not places:
+            self._errand_done(f"couldn't {errand['do']}: it didn't know where to go")
+            return None
+        near = sorted(places, key=lambda c: abs(c[0] - x) + abs(c[1] - y))[:6]
+        self.target = ("enter" if errand["thing"] == "hill" else "face", near)
+        if errand["action"] == "go" and min(abs(c[0] - x) + abs(c[1] - y) for c in near) <= 1:
+            self._errand_done(f"did what it was asked: {errand['do']}")
+            return None
+        return {"eat": "food", "use": "play"}.get(errand["action"], goal)
+
     def _arrived(self, goal: str, pose: tuple[int, int, int], percepts: list, drives: np.ndarray) -> str | None:
         mode, cells = self.target
         x, y, _ = pose
@@ -834,6 +935,10 @@ class Mind:
                 if content is not None:
                     self._remember(content, tick, pose, event)
         self._experience(target, name, outcome, seen_kind, tick)
+        if self.errand is not None and self.errand["action"] == name and name in ("use", "eat"):
+            what = "pond" if target == WATER else NAMES.get(target)
+            if what == self.errand["thing"] and (name == "use" or outcome.ate):  # a tree with no apples was shaken too
+                self._errand_done(f"did what it was asked: {self.errand['do']}")
         if outcome.climbed and w.level(w.x, w.y) >= 3:
             self._did("climbed", "climbed to the top of the hill")
             self.me.milestone("hilltop", tick, "climbed to the top of the hill for the first time")
@@ -870,7 +975,8 @@ class Mind:
                 b.fainted -= 1
                 return
             stirred = obs.pain > 0 or obs.touch > 0 or bool(obs.words) or drives[0] > 0.75 or drives[1] > 0.75
-            rested = obs.light > 0.35 and drives[3] < 0.1
+            rested = obs.light > 0.35 and drives[3] < 0.1 and self.nap <= 0
+            self.nap -= 1
             if stirred or rested:
                 b.asleep = False
                 self._note(tick, "woke up")
@@ -878,10 +984,16 @@ class Mind:
         self.rest_streak = self.rest_streak + 1 if action == "rest" else 0
         night = obs.light < 0.3
         # Sleep comes with the dark when it settles down to rest, or anywhere when it's worn out.
-        if self.rest_streak >= 5 and (drives[3] > 0.35 or (night and (in_nest or drives[3] > 0.1))):
+        _, cells = self.target
+        there = in_nest or not cells or (self.world.x, self.world.y) in cells  # where it was asked to sleep
+        asked = self.errand is not None and self.errand["action"] == "sleep" and there
+        if self.rest_streak >= 5 and (drives[3] > 0.35 or (night and (in_nest or drives[3] > 0.1)) or asked):
             b.asleep = True
+            self.nap = NAP if asked else 0  # asked to sleep when it isn't tired: a nap
             self._merge_kinds()
             self._note(tick, "fell asleep" + (" in its nest" if in_nest else ""))
+            if self.errand is not None and self.errand["action"] == "sleep":
+                self._errand_done("did what it was asked: go to sleep")
             if in_nest:
                 self.me.milestone("first sleep", tick, "slept in its nest for the first time")
                 if self.workspace.content is not None:
@@ -1042,6 +1154,8 @@ class Mind:
             "kind_names": {str(k): v for k, v in self.kind_names.items()},
             "person": self.person,
             "told": [list(item) for item in self.told],
+            "lessons": [list(item) for item in self.lessons],
+            "errand": self.errand,
         }
 
     def load_state(self, state: dict) -> None:
@@ -1103,6 +1217,8 @@ class Mind:
         self.kind_names = {int(k): {n: float(c) for n, c in v.items()} for k, v in state.get("kind_names", {}).items()}
         self.person = state.get("person")
         self.told = [(int(t), str(text)) for t, text in state.get("told", [])]
+        self.lessons = [(int(t), str(text)) for t, text in state.get("lessons", [])]
+        self.errand = state.get("errand")
 
 
 MOVED = "moved to a new, bigger world: a valley with a hill, a pond, trees, and things to use"

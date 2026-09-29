@@ -179,7 +179,11 @@ def snapshot(mind: Mind) -> dict:
         "welfare": welfare(mind),
         "today": mind.today,
         "things": things(mind),
-        "you": {"name": mind.person, "told": [fact for _, fact in mind.told[-12:]][::-1]},
+        "you": {
+            "name": mind.person,
+            "told": [fact for _, fact in mind.told[-12:]][::-1],
+            "taught": [lesson for _, lesson in mind.lessons[-12:]][::-1],
+        },
     }
 
 

@@ -266,7 +266,7 @@ A reading level takes from about 1,500 to 12,000 steps: hours on a computer's pr
 When you talk to Haven, what its cortex makes of your words comes to its mind first, and draws its attention to what you talked about. Then it answers from what it was experiencing when you spoke:
 
 - It drafts three replies. What it says is the one it found likeliest; the others pass by as thoughts (the app shows them under "How it got there"). Its confidence combines how likely it found its words with how much the drafts agree.
-- If it doesn't know about something, it says so, and (unless you turn that off) reads about it in the Simple English Wikipedia and tells you what it read.
+- If it doesn't know about something, it says so, and (unless you turn that off) reads about it in the Simple English Wikipedia and tells you what it read. Everything it reads it keeps, so next time the answer comes to mind straight away.
 
 What it says enters its workspace as a thought and is remembered like anything else. You can have it read about something, or ask it something and watch it think:
 
@@ -274,6 +274,17 @@ What it says enters its workspace as a thought and is remembered like anything e
 haven read octopus            # it reads the Simple English Wikipedia article on octopuses
 haven ask "What do you see?"  # its thoughts, then its answer
 ```
+
+### What it learns as it lives
+
+Haven keeps learning after it's born, from you, from what it reads, and from its own days:
+
+- **Ask it to do things in its valley.** "Ring the bell", "go eat some berries", "push the ball", "drink from the pond", "go to the hill", "go to sleep". If it knows where to go, and nothing more pressing is on its mind, it says it will, then walks over and does it (you can watch in the 3D view; the app notes when it sets off and when it's done). If it has never seen what you asked about, or it's too hungry or cold, it tells you so.
+- **Tell it about yourself, or teach it about the world.** "I have a dog named Rex", "the capital of Peru is Lima", "frogs can jump very far". It remembers, and when you ask later ("What's my dog called?", "What's the capital of Peru?", "What do you know about me?") it tells you what you told it. "No, ..." puts it right.
+- **It keeps what it reads.** It keeps the start of every article it reads, sentence by sentence, and when you ask a question, the sentence that answers it comes to mind ("Who wrote Romeo and Juliet?"). Ask "tell me more" to hear the next thing it read, "what have you read lately?", or "tell me something interesting".
+- **It reads out of curiosity.** When nobody has said anything for a few minutes, it now and then (at most every 15 minutes) reads about something it's curious about: things you mentioned, things it has met in its valley, or what something it read says a thing is. It reads only if it's allowed to use the internet.
+- **It works out sums** ("what's 12 times 7?").
+- **It learns in its sleep.** While it's awake, it notes down moments of its day: its state, what it knows, and what it would truthfully answer. While it sleeps (at most every half hour), a copy of its language cortex practises conversations about those moments. The copy and the cortex it has then take the same two tests, one on moments of its day it didn't practise and one on other lives, and it keeps the copy only if it does at least as well on its day and no worse on other lives. How each night went is written to `~/.haven/cortex/nights.jsonl`.
 
 ## What it reads, and how it uses the internet
 

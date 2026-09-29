@@ -1,6 +1,7 @@
 """What comes to Haven's mind when someone talks with it, and the answers it learns to give."""
 
 import random
+import re
 
 import pytest
 
@@ -105,20 +106,36 @@ def test_it_knows_the_things_it_has_met(lived):
 def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(lived):
     moment = {"memo": memo(lived), "answers": answers(lived)}
     rng = random.Random(0)
-    for _ in range(300):
+    kinds = set()
+    for _ in range(600):
         thought, turns = conversation(moment, rng)
+        kinds |= {turn.kind for turn in turns}
         for turn in turns:
             if turn.kind == "their name" and turn.answer.startswith(("Your name is", "Nice to meet you")):
                 assert turn.answer.split()[-1].strip(".!") in thought
-            if turn.kind == "what they told it" and turn.answer.startswith("You told me that"):
+            if turn.kind == "what they told it" and "You told me that" in turn.answer:
+                told = turn.answer.split("You told me that ", 1)[1].removesuffix(".")
+                for fact in re.split(r",(?: and)? that ", told):  # everything it knows about them, or one thing
+                    assert f"You told me that {fact}." in thought
+            if turn.kind == "what it was taught":
                 assert turn.answer in thought
+            if turn.kind == "request":
+                assert "You asked me to " in thought
+            if turn.kind == "more" and turn.answer.startswith("It also says: "):
+                assert turn.answer.removeprefix("It also says: ") in thought
             if turn.kind == "being told":
                 assert turn.answer.removeprefix("Okay, I'll remember that ").rstrip(".") in thought
-            if turn.kind == "what it read":
+            if turn.kind in ("what it read", "a fact"):
                 title = turn.answer.removeprefix("I read about ").split(". It says: ")[0]
                 assert f"I read about {title}:" in thought
+            if turn.kind == "sums":
+                worked, result = turn.answer.removesuffix(".").rsplit(" is ", 1)
+                assert f"I worked it out: {worked[0].lower()}{worked[1:]} is {result}." in thought
+            if turn.kind == "lately":
+                assert turn.answer.replace("I read about", "Lately I read about") in thought
             if turn.kind == "what it doesn't know":
                 assert turn.answer == DONT_KNOW
+    assert {"request", "more", "a word", "sums", "lately", "a fact", "what they told it", "what it was taught"} <= kinds
 
 
 def test_the_mind_keeps_names_and_facts(lived):
@@ -153,3 +170,58 @@ def test_its_story_tells_its_firsts_that_matter(lived):
     notable = [t for _, t in lived.me.milestones[1:] if not t.startswith("noticed a new kind")]
     if len(notable) >= 3:
         assert "noticed a new kind" not in told
+
+
+def test_it_reads_about_what_it_is_curious_about(tmp_path, internet, monkeypatch):
+    from haven.cortex import sources
+    from haven.cortex.library import topics_in
+    from haven.cortex.think import Thinker
+    from haven.life import Life
+    from haven.web import Web
+
+    assert topics_in("I went to Paris with Maria last summer") == ["Paris"]  # not people's names
+    assert topics_in("My favorite food is sushi and I have a dog named Rex.") == ["sushi", "food", "dog"]
+    monkeypatch.setitem(sources.URLS, "simplewiki", internet["simplewiki"])
+    mind = Mind(seed=1)
+    mind.person = "Sam"
+    mind.things = {"butterfly": {"seen": 3}, "bell": {"seen": 9, "rang": 2}}
+    life = Life(mind, None)
+    life.conversation = [{"tick": 0, "who": "you", "text": "Hi, I'm Sam. I live in Boston and I love chess."}]
+    thinker = Thinker(tmp_path, web=Web(delay=0, allow_private=True))
+    events = []
+    life.listeners.append(lambda kind, text: events.append(text))
+    assert thinker.wonder(life) == "Boston"  # chess it has read about already, in its little book
+    assert [thinker.read_for_fun(life) for _ in range(3)] == ["Boston", "Bell", "Butterfly"]
+    assert "read about Boston, out of curiosity" in events
+    assert thinker.library.find("Tell me about Boston") == ("Boston", 0)
+    assert Thinker(tmp_path).library.sources["Bell"] == "curious"  # it keeps what it read
+
+    life.thinker, before = thinker, life._last_wonder
+    life.say("hello")
+    life._wonder()  # someone's talking with it: not now
+    assert life._last_wonder == before
+
+
+def test_it_works_out_sums():
+    from haven.cortex.talk import sum_answer, sum_of
+
+    assert sum_of("What's 12 times 7?") == ("12 times 7", "84")
+    assert sum_of("hey haven, what is two plus two") == ("2 plus 2", "4")
+    assert sum_of("How much is 100 divided by 8?") == ("100 divided by 8", "12.5")
+    assert sum_answer(sum_of("9 - 12")) == "9 minus 12 is -3."
+    for said in ("What is the capital of France?", "two and two", "What's 5 divided by 0?", "I'm 7"):
+        assert sum_of(said) is None, said
+
+
+def test_it_can_be_taught_about_the_world():
+    from haven.cortex.talk import best_lesson, lesson
+
+    assert lesson("The capital of Peru is Lima.") == "the capital of Peru is Lima"
+    assert lesson("hey haven, frogs can jump very far") == "frogs can jump very far"
+    assert lesson("No, Mark Twain wrote Tom Sawyer.") == "Mark Twain wrote Tom Sawyer"
+    for said in ("I have a dog named Rex", "That's a frog.", "You are cute", "Ring the bell.", "What is 2 plus 2?"):
+        assert lesson(said) is None, said
+    taught = ["the capital of Peru is Lima", "frogs can jump very far", "Mark Twain wrote Tom Sawyer"]
+    assert best_lesson("What's the capital city of Peru?", taught) == "the capital of Peru is Lima"
+    assert best_lesson("What did Mark Twain write?", taught) == "Mark Twain wrote Tom Sawyer"
+    assert best_lesson("What is the capital of France?", taught) is None

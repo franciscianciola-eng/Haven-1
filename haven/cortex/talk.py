@@ -25,6 +25,7 @@ import numpy as np
 
 from ..mind import Mind, need_words
 from ..world import BELL, FIRE, NEST, SAND, THORN, TREE, WATER
+from .book import BOOK
 
 # --- questions about how it is, what it's doing, and what it knows ------------------------
 
@@ -165,99 +166,325 @@ UNKNOWN_FORMS = (
     "Have you heard of {}?",
     "Explain {}.",
 )
-# (what people call it, the article it's read in, that article's first sentence)
-READINGS = (
-    ("the moon", "Moon", "The Moon is the Earth's only natural satellite."),
-    ("the sun", "Sun", "The Sun is the star at the center of the Solar System."),
-    ("the ocean", "Ocean", "An ocean is a very large body of salt water."),
-    ("Paris", "Paris", "Paris is the capital city of France."),
-    ("France", "France", "France is a country in Western Europe."),
-    ("Japan", "Japan", "Japan is an island country in East Asia."),
-    ("dinosaurs", "Dinosaur", "Dinosaurs are a group of reptiles that lived on Earth for millions of years."),
-    ("elephants", "Elephant", "Elephants are the largest land animals alive today."),
-    ("whales", "Whale", "Whales are very large mammals that live in the ocean."),
-    ("music", "Music", "Music is a form of art that uses sounds organized in time."),
-    ("the internet", "Internet", "The Internet is a network that connects computers all over the world."),
-    ("computers", "Computer", "A computer is a machine that can be programmed to carry out tasks."),
-    ("cars", "Car", "A car is a vehicle with four wheels that people use to travel on roads."),
-    ("trains", "Train", "A train is a row of connected vehicles that runs on railway tracks."),
-    ("airplanes", "Airplane", "An airplane is a vehicle with wings that flies through the air."),
-    ("the weather", "Weather", "Weather is how hot or cold, wet or dry, and windy or calm the air is."),
-    ("snow", "Snow", "Snow is frozen water that falls from clouds as small white flakes."),
-    ("rain", "Rain", "Rain is water that falls from clouds in drops."),
-    ("volcanoes", "Volcano", "A volcano is an opening in the ground where hot melted rock comes out."),
-    ("mountains", "Mountain", "A mountain is a large area of land that rises high above the land around it."),
-    ("the stars", "Star", "A star is a huge ball of hot gas that gives off light and heat."),
-    ("Mars", "Mars", "Mars is the fourth planet from the Sun, and it is often called the Red Planet."),
-    ("Jupiter", "Jupiter", "Jupiter is the largest planet in the Solar System."),
-    ("gravity", "Gravity", "Gravity is the force that pulls things toward each other and makes things fall."),
-    ("electricity", "Electricity", "Electricity is a form of energy carried by tiny charged particles."),
-    ("money", "Money", "Money is something people use to pay for the things they buy."),
-    ("school", "School", "A school is a place where children go to learn."),
-    ("football", "Football", "Football is a team sport in which players try to get a ball into a goal."),
-    ("chess", "Chess", "Chess is a board game for two players, played on a board with 64 squares."),
-    ("the piano", "Piano", "A piano is a musical instrument that is played by pressing keys."),
-    ("pizza", "Pizza", "Pizza is a flat round bread baked with toppings such as tomato and cheese."),
-    ("chocolate", "Chocolate", "Chocolate is a sweet food made from the seeds of the cacao tree."),
-    ("coffee", "Coffee", "Coffee is a drink made from the roasted seeds of the coffee plant."),
-    ("the president", "President", "A president is the leader of a country or of an organization."),
-    ("history", "History", "History is the study of the past."),
-    ("science", "Science", "Science is a way of finding out how the world works by watching and testing."),
-    ("math", "Mathematics", "Mathematics is the study of numbers, shapes and patterns."),
-    ("photosynthesis", "Photosynthesis", "Photosynthesis is how plants use sunlight to make food from water and air."),
-    ("atoms", "Atom", "An atom is the smallest part of a chemical element."),
-    ("the brain", "Brain", "The brain is the organ that controls the body and lets animals think."),
-    ("love", "Love", "Love is a strong feeling of caring about someone or something."),
-    ("friendship", "Friendship", "Friendship is a close bond between people who care about each other."),
-    ("the city", "City", "A city is a large place where many people live and work."),
-    ("London", "London", "London is the capital city of England and the United Kingdom."),
-    ("New York", "New York City", "New York City is the largest city in the United States."),
-    ("China", "China", "China is a large country in East Asia."),
-    ("Egypt", "Egypt", "Egypt is a country in North Africa, known for its ancient pyramids."),
-    ("the pyramids", "Egyptian pyramids", "The Egyptian pyramids are ancient stone tombs built for kings."),
-    ("robots", "Robot", "A robot is a machine that can do tasks by itself."),
-    ("phones", "Telephone", "A telephone is a device that lets people talk to each other from far away."),
-    ("books", "Book", "A book is a set of pages with writing on them, held together with a cover."),
-    ("painting", "Painting", "Painting is the art of putting paint on a surface to make a picture."),
-    ("Shakespeare", "William Shakespeare", "William Shakespeare was an English writer famous for his plays."),
-    ("Einstein", "Albert Einstein", "Albert Einstein was a scientist who came up with the theory of relativity."),
-    ("cats", "Cat", "Cats are small furry animals that many people keep as pets."),
-    ("dogs", "Dog", "Dogs are animals that many people keep as pets, known for being loyal."),
-    ("horses", "Horse", "Horses are large animals with hooves that people have ridden for thousands of years."),
-    ("birds", "Bird", "Birds are animals with feathers and wings, and most of them can fly."),
-    ("fish", "Fish", "Fish are animals that live in water and breathe with gills."),
-    ("the sea", "Sea", "A sea is a large body of salt water."),
-    ("rivers", "River", "A river is a large stream of fresh water that flows across the land."),
-    ("forests", "Forest", "A forest is a large area of land covered with trees."),
-    ("deserts", "Desert", "A desert is a very dry place where very little rain falls."),
-    ("winter", "Winter", "Winter is the coldest season of the year."),
-    ("summer", "Summer", "Summer is the warmest season of the year."),
-    ("the Earth", "Earth", "The Earth is the planet we live on, the third planet from the Sun."),
-    ("bees", "Bee", "Bees are flying insects that make honey and help flowers make seeds."),
-    ("rainbows", "Rainbow", "A rainbow is an arc of colors in the sky, made when sunlight shines through rain."),
-    ("clouds", "Cloud", "A cloud is made of tiny drops of water or ice floating in the sky."),
-    ("ice", "Ice", "Ice is water that has frozen solid."),
-    ("planets", "Planet", "A planet is a large round object in space that goes around a star."),
-    ("spiders", "Spider", "Spiders are small animals with eight legs, and many of them spin webs."),
-    ("the heart", "Heart", "The heart is the organ that pumps blood around the body."),
-    ("bread", "Bread", "Bread is a food made by baking dough of flour and water."),
-    ("the guitar", "Guitar", "A guitar is a musical instrument with strings that are plucked or strummed."),
-    ("Italy", "Italy", "Italy is a country in southern Europe, shaped like a boot."),
-    ("India", "India", "India is a large country in South Asia."),
-    ("Brazil", "Brazil", "Brazil is the largest country in South America."),
-    ("Canada", "Canada", "Canada is a large country in the north of North America."),
-    ("Australia", "Australia", "Australia is a country that is also a continent, in the southern half of the world."),
-    ("Tokyo", "Tokyo", "Tokyo is the capital city of Japan."),
-    ("Rome", "Rome", "Rome is the capital city of Italy."),
-    ("penguins", "Penguin", "Penguins are birds that cannot fly and live mostly in the southern half of the world."),
-    ("tigers", "Tiger", "Tigers are the largest wild cats, with orange fur and black stripes."),
-    ("the violin", "Violin", "A violin is a small musical instrument with four strings, played with a bow."),
-)
+# (what people call it, the article it's read in, that article's first sentence), from the book it's born having read
+READINGS = tuple((e.topic, e.title, e.sentences[0]) for e in BOOK)
 UNKNOWN_TOPICS = tuple(topic for topic, _, _ in READINGS)
+READ_FORMS = ("Read about {}.", "Can you read about {}?", "Look up {}.", "Find out about {}.")  # asking it to read
+MORE_FORMS = ("Tell me more about {}.", "What else do you know about {}?", "What else did you read about {}?")
+MORE_PLAIN = ("Tell me more.", "What else?", "Go on.", "And what else?", "Tell me more about it.", "Anything else?")
+MORE = re.compile(r"\b(tell me more|what else|go on\b|anything else|and then|keep going)", re.I)
+
+
+def more_note(title: str, sentence: str | None) -> str:
+    """What comes to mind when asked for more about something it read: the next thing it read, or that that's all."""
+    return f"More that I read about {title}: {sentence}" if sentence else f"That's all I've read about {title}."
+
+
+def more_answer(title: str, sentence: str | None) -> str:
+    return f"It also says: {sentence}" if sentence else f"That's all I've read about {title}."
+
+
+# --- what it has read lately, and something it read ---------------------------------------------------------
+
+LATELY_FORMS = (
+    "What have you read lately?",
+    "What have you been reading?",
+    "Have you read anything new?",
+    "What did you read today?",
+    "Read anything interesting lately?",
+    "What have you been reading about?",
+)
+LATELY = re.compile(
+    r"^(?:so |and )?(?:what have you (?:been )?read(?:ing)?(?: about)?|(?:have you )?read anything(?: new| interesting)?|"
+    r"what did you read)(?: lately| recently| today)?[?.! ]*$",
+    re.I,
+)
+FACT_FORMS = (
+    "Tell me something interesting.",
+    "Tell me something you read.",
+    "Tell me a fact.",
+    "Teach me something.",
+    "Tell me something I don't know.",
+    "Tell me a fun fact.",
+)
+FACT_ASK = re.compile(
+    r"^(?:can you |please |will you )?(?:tell me (?:something(?: interesting| you read| new| cool| fun| i don't know)?|"
+    r"an? (?:fun |cool |random |interesting )?fact)|teach me something(?: new)?|say something interesting)[?.! ]*$",
+    re.I,
+)
+LATELY_TITLES = (  # things it might have read about lately, for practice at telling what it read
+    *(e.title for e in BOOK),
+    *"Butterfly Flower Apple Mushroom Pond Bell Hill Nest Thorn Fire Boston Sushi Insect Oxidation Hospital Octopus "
+    "Honey Lighthouse Bicycle Castle Tornado Volleyball Saturn Kangaroo Chemistry Opera Glacier Pottery".split(),
+    "Mount Fuji",
+    "Rolling Stones",
+    "Rock (geology)",
+    "Apple tree",
+    "Musical instrument",
+)
+
+
+def bare(text: str) -> str:
+    """What someone said without calling it by name, and without the question mark."""
+    text = _ADDRESS.sub("", " ".join(text.strip().split()), count=1)
+    return re.sub(r",?\s*haven\s*([?.!]*)$", r"\1", text, flags=re.I).strip()
+
+
+def lately_note(titles: list[str]) -> str:
+    """What it has read lately (not counting the little book it was born having read)."""
+    return f"Lately I read about {and_list(titles)}." if titles else "I haven't read anything new lately."
+
+
+def lately_answer(titles: list[str]) -> str:
+    return f"I read about {and_list(titles)}." if titles else "I haven't read anything new lately."
+
+
+def and_list(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+# --- being taught about the world ---------------------------------------------------------------------------
+
+CAPITALS = (
+    ("Peru", "Lima"),
+    ("Kenya", "Nairobi"),
+    ("Norway", "Oslo"),
+    ("Chile", "Santiago"),
+    ("Greece", "Athens"),
+    ("Cuba", "Havana"),
+    ("Ghana", "Accra"),
+    ("Nepal", "Kathmandu"),
+    ("Poland", "Warsaw"),
+    ("Sweden", "Stockholm"),
+    ("Vietnam", "Hanoi"),
+    ("Portugal", "Lisbon"),
+    ("Ireland", "Dublin"),
+    ("Turkey", "Ankara"),
+    ("Mexico", "Mexico City"),
+    ("Argentina", "Buenos Aires"),
+    ("Iceland", "Reykjavik"),
+    ("Morocco", "Rabat"),
+)
+ANIMALS_CAN = (
+    ("frogs", "jump very far"),
+    ("owls", "see in the dark"),
+    ("cheetahs", "run very fast"),
+    ("bats", "fly at night"),
+    ("dolphins", "talk to each other with clicks"),
+    ("parrots", "learn words"),
+    ("octopuses", "change color"),
+    ("camels", "go a long time without water"),
+    ("ants", "carry heavy things"),
+    ("penguins", "swim very well"),
+    ("kangaroos", "jump very high"),
+    ("snails", "sleep for a long time"),
+)
+MADE_OF = (
+    ("glass", "sand"),
+    ("paper", "wood"),
+    ("cheese", "milk"),
+    ("bread", "flour"),
+    ("butter", "cream"),
+    ("chocolate", "cocoa beans"),
+    ("jam", "fruit"),
+    ("candles", "wax"),
+    ("honey", "nectar"),
+    ("rope", "fibers"),
+)
+WROTE = (
+    ("Mark Twain", "Tom Sawyer"),
+    ("Jane Austen", "Pride and Prejudice"),
+    ("Roald Dahl", "Matilda"),
+    ("Mary Shelley", "Frankenstein"),
+    ("Lewis Carroll", "Alice in Wonderland"),
+    ("J. R. R. Tolkien", "The Hobbit"),
+    ("Homer", "the Odyssey"),
+    ("Charles Dickens", "Oliver Twist"),
+)
+MOONS = (("Mars", "two moons"), ("Venus", "no moons"), ("Mercury", "no moons"), ("Neptune", "sixteen moons"))
+PROPER = frozenset(
+    {c for pair in CAPITALS for c in pair}
+    | {who.split()[0] for who, _ in WROTE}
+    | set(
+        "Paris France Japan Tokyo London New China Egypt Italy India Brazil Canada Australia Rome Africa Europe "
+        "Asia America William Albert".split()
+    )
+    | {p for p, _ in MOONS}
+    | set(
+        "Mercury Venus Earth Mars Jupiter Saturn Uranus Neptune Pluto Monday Tuesday Wednesday Thursday Friday "
+        "Saturday Sunday January February March April May June July August September October November December "
+        "God English French Spanish Chinese Japanese German Italian".split()
+    )
+)
+LESSON = re.compile(
+    r"^(?!(?:i|i'm|im|my|me|you|you're|your|we|we're|our|they|he|she|it|it's|its|that|that's|this|these|those|"
+    r"there|there's|here|here's|what|who|why|how|when|where|which|do|does|did|can|could|would|will|should|please|"
+    r"let's|haven|yes|no|not|so|and|but|ok|okay|well|oh|hi|hello|thanks|thank)\b)"
+    r"[a-z0-9][\w'.,-]*(?: [\w'.,-]+){0,6}? (?:is|are|was|were|has|have|had|can|could|will|wrote|made|makes?|"
+    r"lives?|eats?|comes? from|grows?|means?|lays?|needs?|likes?|gives?|helps?|uses?|builds?|flies|fly|swims?|"
+    r"sleeps?|hunts?|contains?|boils?|freezes?|melts?|orbits?|goes|go|runs?|belongs?|won|invented|discovered|"
+    r"painted|sings?|sang|plays?|turns?|gets?|keeps?|brings?|carries|carry) \S.*$",
+    re.I,
+)
+
+
+def a_lesson(rng: random.Random) -> tuple[str, str, tuple[str, ...]]:
+    """Something a person might teach it about the world: (what they say, what it keeps, how they might ask later)."""
+    roll = rng.randrange(5)
+    if roll == 0:
+        country, city = rng.choice(CAPITALS)
+        return (
+            f"The capital of {country} is {city}.",
+            f"the capital of {country} is {city}",
+            (
+                f"What is the capital of {country}?",
+                f"What's the capital city of {country}?",
+                f"Do you know the capital of {country}?",
+            ),
+        )
+    if roll == 1:
+        animals, can = rng.choice(ANIMALS_CAN)
+        return (
+            f"{animals.capitalize()} can {can}.",
+            f"{animals} can {can}",
+            (
+                f"What can {animals} do?",
+                f"Can {animals} {can}?",
+                f"Tell me about {animals}.",
+            ),
+        )
+    if roll == 2:
+        thing, stuff = rng.choice(MADE_OF)
+        verb = "are" if thing.endswith("s") else "is"
+        return (
+            f"{thing.capitalize()} {verb} made from {stuff}.",
+            f"{thing} {verb} made from {stuff}",
+            (
+                f"What {verb} {thing} made of?",
+                f"What {verb} {thing} made from?",
+            ),
+        )
+    if roll == 3:
+        who, book = rng.choice(WROTE)
+        return f"{who} wrote {book}.", f"{who} wrote {book}", (f"Who wrote {book}?", f"What did {who} write?")
+    planet, moons = rng.choice(MOONS)
+    return (
+        f"{planet} has {moons}.",
+        f"{planet} has {moons}",
+        (
+            f"How many moons does {planet} have?",
+            f"Does {planet} have any moons?",
+        ),
+    )
+
+
+def lesson(text: str) -> str | None:
+    """Something about the world someone is teaching it ("The capital of Peru is Lima."), as it would say it back."""
+    t = CORRECTION.sub("", bare(text), count=1).strip()
+    if not t or "?" in t or len(t.split()) < 3 or not LESSON.match(t):
+        return None
+    if introduced(t) or statement(t) or request(t) or sum_of(t):
+        return None
+    t = t.rstrip(".! ")
+    first = t.split()[0]
+    keep = first in PROPER or first in PEOPLE or (len(t.split()) > 1 and t.split()[1][:1].isupper())
+    return t if keep or first.isupper() else first.lower() + t[len(first) :]
+
+
+def best_lesson(text: str, lessons: list[str]) -> str | None:
+    """What it was taught that a question is about: the lesson that shares the most of its words (the latest, if
+    two do as well), and doesn't leave much of the question out."""
+    asked = set(_tokens(text))
+    best, score = None, 0.0
+    for taught in reversed(lessons):
+        words = set(_tokens(taught))
+        s = len(asked & words) - 0.5 * len(asked - words)
+        if s > score:
+            best, score = taught, s
+    return best if score >= 1.0 else None
+
+
+# --- working out sums ---------------------------------------------------------------------------------------
+
+NUMBER_WORDS = (
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+    "seventeen eighteen nineteen twenty"
+).split()
+OPERATIONS = {  # how people say it: (how it says it, what it does)
+    "plus": ("plus", "+"),
+    "+": ("plus", "+"),
+    "and": ("plus", "+"),
+    "add": ("plus", "+"),
+    "minus": ("minus", "-"),
+    "-": ("minus", "-"),
+    "take away": ("minus", "-"),
+    "times": ("times", "*"),
+    "multiplied by": ("times", "*"),
+    "x": ("times", "*"),
+    "*": ("times", "*"),
+    "×": ("times", "*"),
+    "divided by": ("divided by", "/"),
+    "/": ("divided by", "/"),
+    "÷": ("divided by", "/"),
+    "over": ("divided by", "/"),
+}
+_NUMBER = r"(\d+(?:\.\d+)?|" + "|".join(NUMBER_WORDS) + r")"
+_SUM = re.compile(
+    r"^(?:what(?:'s| is)|how much is|can you (?:work out|do|calculate)|calculate|work out|do)?\s*"
+    + _NUMBER
+    + r"\s*(plus|\+|and|add|minus|-|take away|times|multiplied by|x|\*|×|divided by|/|÷|over)\s*"
+    + _NUMBER
+    + r"\s*(?:equals?|is)?\s*[?.!=]*$",
+    re.I,
+)
+
+
+def sum_of(text: str) -> tuple[str, str] | None:
+    """A sum someone asks it to work out ("what's 12 times 7?"): (the sum, as it says it; the answer)."""
+    asked = bare(text)
+    found = _SUM.match(asked)
+    if not found:
+        return None
+    a, op, b = found.groups()
+    x, y = (float(n) if n[0].isdigit() else float(NUMBER_WORDS.index(n.lower())) for n in (a, b))
+    said, do = OPERATIONS[op.lower()]
+    if op.lower() == "and" and not asked.lower().startswith(("what", "how much")):
+        return None  # "two and two" alone isn't asking for a sum
+    if do == "/" and y == 0:
+        return None
+    result = {"+": x + y, "-": x - y, "*": x * y, "/": x / y if y else 0.0}[do]
+    number = lambda v: str(int(v)) if float(v).is_integer() else f"{v:.2f}".rstrip("0").rstrip(".")  # noqa: E731
+    return f"{number(x)} {said} {number(y)}", number(result)
+
+
+SUM_FORMS = ("What's {}?", "What is {}?", "How much is {}?", "Can you work out {}?", "{}?", "Calculate {}.", "{} is?")
+
+
+def sum_question(rng: random.Random) -> str:
+    """A sum to ask it, the way people might type one."""
+    op = rng.choice(("plus", "+", "minus", "-", "times", "x", "*", "divided by", "/", "multiplied by", "take away"))
+    small = rng.random() < 0.5
+    a, b = (rng.randint(0, 20), rng.randint(0, 20)) if small else (rng.randint(0, 999), rng.randint(0, 99))
+    if OPERATIONS[op][1] == "/":
+        b = rng.randint(1, 12)
+        a = b * rng.randint(0, 20) if rng.random() < 0.8 else a
+    if small and rng.random() < 0.4 and max(a, b) <= 20:
+        a, b = NUMBER_WORDS[a], NUMBER_WORDS[b]
+    gap = "" if op in "+-*/x" and rng.random() < 0.3 and op != "x" else " "
+    return rng.choice(SUM_FORMS).format(f"{a}{gap}{op}{gap}{b}")
+
+
+def sum_note(worked: tuple[str, str]) -> str:
+    return f"I worked it out: {worked[0]} is {worked[1]}."
+
+
+def sum_answer(worked: tuple[str, str]) -> str:
+    return f"{worked[0][0].upper()}{worked[0][1:]} is {worked[1]}."
+
+
 OTHER_QUESTIONS = (
     "What is the capital of France?",
     "Who wrote Romeo and Juliet?",
-    "What is two plus two?",
     "Why is the sky blue?",
     "How far away is the moon?",
     "Who is the president?",
@@ -900,9 +1127,18 @@ def second_person(text: str) -> str:
     return " ".join(out)
 
 
+CORRECTION = re.compile(
+    r"^(?:no+|nope|actually|wrong|that's wrong|that's not right|not quite|i mean|oops|sorry)\b[,.!]?\s*", re.I
+)
+
+
 def statement(text: str) -> str | None:
-    """Something about themselves the person just told it, as it would say it back ("you like cats"), or None."""
+    """Something about themselves the person just told it, as it would say it back ("you like cats"), or None.
+
+    Corrections count too: "No, my dog is called Biscuit."
+    """
     t = _ADDRESS.sub("", " ".join(text.strip().split()), count=1)
+    t = CORRECTION.sub("", t, count=1)
     if not t or "?" in t or introduced(t) or len(t.split()) < 3:
         return None
     if not FACT_START.match(t) or NOT_FACT.match(t):
@@ -916,7 +1152,16 @@ STOP = frozenset(
     "what's whats can could would should please haven any".split()
 )
 GENERIC = frozenset("favorite name like love have really much best".split())
-SYNONYMS = {"named": "name", "called": "name", "call": "name", "loves": "love", "likes": "like", "maths": "math"}
+SYNONYMS = {
+    "named": "name",
+    "called": "name",
+    "call": "name",
+    "loves": "love",
+    "likes": "like",
+    "maths": "math",
+    "wrote": "write",
+    "written": "write",
+}
 ALIASES = {"math": "mathematic", "phone": "telephone"}  # a word, and what the article about it is called
 FACT_RULES = (
     (r"\bhow old\b|\bmy age\b", r"\byears old\b|\byou(?:'re| are) \d+\b"),
@@ -942,6 +1187,39 @@ def _tokens(text: str) -> list[str]:
             w = w[:-1]
         out.append(ALIASES.get(w, w))
     return out
+
+
+ABOUT_ALL = re.compile(
+    r"\bwhat do you know about me\b|\bwhat have i told you\b|\bwhat do you remember about me\b|\babout me\b", re.I
+)
+
+
+def fact_key(fact: str) -> str | None:
+    """What a fact is about ("your dog", "where you live"), so a newer one on the same thing replaces the older."""
+    f = fact.lower()
+    for pattern, key in (
+        (r"\byour favorite (\w+)", "favorite {}"),
+        (r"\byour (\w+)(?:'s name| is called| is named)", "{} name"),
+        (r"\byou have an? (\w+) (?:named|called)", "{} name"),
+        (r"\byou (?:live in|are from|'re from|re from)\b", "home"),
+        (r"\byears old\b", "age"),
+        (r"\bbirthday\b", "birthday"),
+        (r"^you(?:'re| are) an? \w+$|^you work as\b", "job"),
+    ):
+        found = re.search(pattern, f)
+        if found:
+            return key.format(*found.groups())
+    return None
+
+
+def about_you(person: str | None, facts: list[str]) -> str:
+    """Everything it knows about the person it's talking with, in a sentence or two."""
+    said = [f"Your name is {person}."] if person else []
+    if facts:
+        parts = [f"that {f}" for f in facts]
+        joined = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + ", and " + parts[-1]
+        said.append(f"You told me {joined}.")
+    return " ".join(said) or "You haven't told me anything yet."
 
 
 def about_them(text: str) -> bool:
@@ -992,12 +1270,159 @@ def best_reading(text: str, read: list[tuple[str, str]]) -> tuple[str, str] | No
     return best if score >= 0.5 else None
 
 
+# --- being asked to do things -------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Request:
+    forms: tuple[str, ...]  # how people ask
+    do: str  # what it would do, as it says it
+    thing: str  # what it's about (a key of THINGS)
+    action: str  # "use", "eat", "go" or "sleep"
+    need: int | None = None  # the need it meets, if any: it'll do it even when that need is pressing
+
+
+GO = {  # things it can be asked to go to: (how the person says it, how it says it)
+    "bell": ("the bell", "the bell"),
+    "ball": ("the ball", "the ball"),
+    "pond": ("the pond", "the pond"),
+    "fire": ("the fire", "the fire"),
+    "nest": ("your nest", "my nest"),
+    "hill": ("the hill", "the hill"),
+    "tree": ("the apple trees", "the apple trees"),
+    "flower": ("the flowers", "the flowers"),
+    "bush": ("the berry bushes", "the berry bushes"),
+    "stone": ("the stones", "the stones"),
+    "mushroom": ("the mushrooms", "the mushrooms"),
+}
+REQUESTS = (
+    Request(
+        ("Ring the bell.", "Can you ring the bell?", "Go ring the bell!", "Please ring the bell."),
+        "ring the bell",
+        "bell",
+        "use",
+    ),
+    Request(
+        ("Push the ball.", "Kick the ball!", "Can you push the ball?", "Go play with the ball."),
+        "push the ball",
+        "ball",
+        "use",
+    ),
+    Request(("Eat some berries.", "Go eat some berries.", "Have some berries."), "eat some berries", "bush", "eat", 0),
+    Request(("Eat an apple.", "Go find an apple to eat.", "Have an apple."), "eat an apple", "apple", "eat", 0),
+    Request(
+        ("Drink some water.", "Go have a drink.", "Drink from the pond.", "Can you get a drink?"),
+        "drink from the pond",
+        "pond",
+        "use",
+        1,
+    ),
+    Request(("Smell a flower.", "Go smell the flowers.", "Can you smell a flower?"), "smell a flower", "flower", "use"),
+    Request(
+        ("Shake a tree.", "Shake an apple tree!", "Go get an apple from a tree."), "shake an apple tree", "tree", "use"
+    ),
+    Request(
+        ("Sit by the fire.", "Go warm up by the fire.", "Warm yourself by the fire."),
+        "sit by the fire",
+        "fire",
+        "use",
+        1,
+    ),
+    Request(("Go to sleep.", "Go to bed.", "Time for bed.", "Get some sleep."), "go to sleep", "nest", "sleep", 3),
+    *(
+        Request(
+            (f"Go to {said}.", f"Can you go to {said}?", f"Walk over to {said}.", f"Please go to {said}."),
+            f"go to {mine}",
+            name,
+            "go",
+        )
+        for name, (said, mine) in GO.items()
+    ),
+)
+_POLITE = re.compile(
+    r"^(?:please |can you |could you |will you |would you |why don't you |let's |go and |try to |i want you to )+", re.I
+)
+_VERBS = re.compile(
+    r"^(?:ring|push|kick|roll|play with|eat|have some|have an|drink|have a drink|get a drink|smell|shake|get an apple|"
+    r"sit|warm|go|walk|run|head|time for bed|get some sleep|take a nap)\b"
+)
+
+
+def request(text: str) -> Request | None:
+    """What someone is asking it to do, if they are asking it to do something in its valley."""
+    t = _ADDRESS.sub("", " ".join(text.lower().strip().split()), count=1)
+    if re.match(r"^(?:can|could) you (?:eat|have)\b", t):
+        return None  # asking whether it can eat something, not asking it to
+    t = _POLITE.sub("", re.sub(r"[?!.,]+", " ", t).strip() + " ").strip()
+    if not _VERBS.match(t):
+        return None
+    by = {r.do: r for r in REQUESTS}
+    if re.search(r"^(go to sleep|go to bed|time for bed|get some sleep|go sleep|take a nap)\b", t):
+        return by["go to sleep"]
+    for pattern, do in (
+        (r"\bring\b.*\bbell\b", "ring the bell"),
+        (r"\b(push|kick|roll|play with)\b.*\bball\b", "push the ball"),
+        (r"\b(drink|have a drink|get a drink)\b", "drink from the pond"),
+        (r"\bsmell\b.*\bflowers?\b", "smell a flower"),
+        (r"\bshake\b.*\btrees?\b|\bapple from a tree\b", "shake an apple tree"),
+        (r"\b(sit|warm)\b.*\bfire\b", "sit by the fire"),
+        (r"\b(eat|have)\b.*\bberr(y|ies)\b", "eat some berries"),
+        (r"\b(eat|have)\b.*\bapples?\b|\bapple to eat\b", "eat an apple"),
+    ):
+        if re.search(pattern, t):
+            return by[do]
+    found = re.match(r"^(?:go|walk|run|head)(?: over| back| down| up)? to\b(.*)", t)
+    names = mentioned(found.group(1)) if found else []
+    if names and names[0] in GO:
+        return by[f"go to {GO[names[0]][1]}"]
+    return None
+
+
+def request_note(req: Request) -> str:
+    return f"You asked me to {req.do}."
+
+
+def request_answer(req: Request, body: dict, stats: dict) -> str:
+    """What it says when asked to do something: whether it will, from how it is and what it knows."""
+    if body["asleep"]:
+        return "I'm asleep."
+    drives = body["drives"]
+    need = int(np.argmax(drives))
+    if drives[need] >= 0.7 and req.need != need:
+        return f"Not now. I'm {need_words(need, float(drives[need]), body['cold'])}."
+    if req.action != "sleep" and req.thing != "nest" and not knows_of(stats):
+        return f"I haven't seen {THINGS[req.thing].one} yet, so I don't know where to go."
+    return f"Okay, I'll {req.do}."
+
+
+# --- being taught words ----------------------------------------------------------------------------
+
+NAMING_FORMS = ("That's {}.", "This is {}.", "It's called {}.", "Look, {}!", "That thing is {}.", "We call that {}.")
+NAMING_WORDS = (
+    "bell ball apple flower tree stone rock pond fire butterfly mushroom toadstool nest berry thorn hill leaf bird "
+    "cloud sky grass moon star sun frog bug feather acorn puddle branch seed snail worm pebble twig petal bee ant"
+).split()
+
+
+def naming_answer(word: str) -> str:
+    return f"{a(word).capitalize()}. I'll try to remember that word."
+
+
 # --- what comes to mind -------------------------------------------------------------------------
 
 TOPICS = {
     "story": r"\bstory\b|\byour life\b|\bhappened in your\b|\bborn\b",
     "can": r"\bwhat can you\b|\bable to\b|\bcan you do\b",
     "world": r"\byour world\b|\byour valley\b",
+}
+
+
+ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it comes to mind last, where it's clearest
+    "today": r"\btoday\b|\byour day\b",
+    "likes": r"\blike\b|\benjoy\b|\bfavou?rite\b|\bfun\b",
+    "knowledge": r"\blearned\b|\bfound out\b|\beat\b|\bfood\b|\bhurts?\b|\bdangerous\b|\bsick\b|\baway from\b",
+    "words": r"\bwords?\b",
+    "memory": r"\bremember\b|\bhappened to you\b",
 }
 
 
@@ -1008,22 +1433,28 @@ def recall(
     told: list[str] | tuple = (),
     read: list[tuple[str, str]] | tuple = (),
     just: str | None = None,
+    extra: list[str] | tuple = (),
 ) -> str:
-    """What comes to mind before it answers: what it always knows, and what the words bring up."""
+    """What comes to mind before it answers: what it always knows, and what the words bring up.
+
+    `extra` holds what else came to mind that the caller found: what it read that answers the
+    question, being asked to do something.
+    """
     texts = [said] if isinstance(said, str) else list(said)
+    everything = " ".join(texts).lower()
+    asked = [piece for piece, pattern in ASKED_FOR.items() if re.search(pattern, everything)]
     parts = [known["me"]]
     if person:
         parts.append(f"I'm talking with {person}.")
-    parts += [known["place"], known["today"], known["likes"], known["knowledge"], known["words"], known["memory"]]
-    everything = " ".join(texts).lower()
-    parts += [known[topic] for topic, pattern in TOPICS.items() if re.search(pattern, everything)]
+    parts += [
+        known[piece] for piece in ("place", "today", "likes", "knowledge", "words", "memory") if piece not in asked
+    ]
     for text in texts:
         for name in mentioned(text)[:2]:
             thing = known["things"][name]
             parts.append(thing_note(name, thing["stats"], thing["where"], with_where="where" in text.lower()))
     for text in texts:
-        fact = best_fact(text, list(told))
-        if fact:
+        for fact in facts_for(text, list(told)):
             parts.append(f"You told me that {fact}.")
     if just:
         parts.append(f"You just told me that {just}.")
@@ -1031,13 +1462,31 @@ def recall(
         found = None if about_them(text) else best_reading(text, list(read))
         if found:
             parts.append(f"I read about {found[0]}: {found[1]}")
+    parts += extra
+    parts += [known[topic] for topic, pattern in TOPICS.items() if re.search(pattern, everything)]
+    parts += [known[piece] for piece in asked]
     return " ".join(dict.fromkeys(p for p in parts if p))
 
 
-def notes(mind: Mind, text: str = "", read: list[tuple[str, str]] | tuple = (), just: str | None = None) -> str:
+def facts_for(text: str, told: list[str]) -> list[str]:
+    """What they told it that comes to mind at their words: all of it (the latest few) if they ask what it knows about
+    them, or the one thing they ask about."""
+    if told and ABOUT_ALL.search(text):
+        return told[-3:]
+    fact = best_fact(text, told)
+    return [fact] if fact else []
+
+
+def notes(
+    mind: Mind,
+    text: str = "",
+    read: list[tuple[str, str]] | tuple = (),
+    just: str | None = None,
+    extra: list[str] | tuple = (),
+) -> str:
     """What comes to mind when someone says something to it, in the middle of its life."""
     told = [fact for _, fact in mind.told if fact != just]  # what they just said isn't a memory yet
-    return recall(memo(mind), text, mind.person, told, read, just)
+    return recall(memo(mind), text, mind.person, told, read, just, extra)
 
 
 # --- answers from its state -------------------------------------------------------------------------
@@ -1305,7 +1754,13 @@ PET_NAMES = (
 KIN = ("sister", "brother", "mom", "dad", "friend", "son", "daughter", "wife", "husband", "grandma", "grandpa")
 MONTHS = "January February March April May June July August September October November December".split()
 PLAYED = ("the piano", "the guitar", "the violin", "the drums", "football", "tennis", "chess", "basketball")
-ABOUT_ME = ("Do you remember what I told you?", "What did I tell you?", "What do you know about me?")
+ABOUT_ME = ("Do you remember what I told you?", "What did I tell you?")  # the latest thing they told it
+ABOUT_ALL_FORMS = (
+    "What do you know about me?",
+    "Tell me what you know about me.",
+    "What have I told you?",
+    "What do you remember about me?",
+)
 MY_NAME = ("What's my name?", "Do you know my name?", "Who am I?", "Do you remember my name?")
 NAME_FORMS = (
     "My name is {}.",
@@ -1424,6 +1879,8 @@ def _thing_turn(moment: dict, rng: random.Random) -> Turn:
     t, thing = THINGS[name], moment["memo"]["things"][name]
     kind = rng.choice(list(THING_QUESTIONS))
     question = rng.choice(THING_QUESTIONS[kind][t.they]).format(rng.choice(t.refs))
+    while request(question):  # (a question, not asking it to do something)
+        question = rng.choice(THING_QUESTIONS[kind][t.they]).format(rng.choice(t.refs))
     return Turn(question, thing_answer(kind, name, thing["stats"], thing["where"]), f"thing {kind}")
 
 
@@ -1465,14 +1922,23 @@ RECALLED = ("day", "world", "words", "story", "can", "learned", "remember", "lik
 def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> tuple[str, list[Turn]]:
     """A short conversation at one moment of a life: what comes to mind first, and what's said, turn by turn."""
     known, answer = other_life(moment, rng)
+    body = moment.get("body") or {"drives": [0.0] * 4, "asleep": False, "cold": False}
+    things = known["things"]
     person = person_name(rng) if rng.random() < 0.35 else None
     earlier = [a_fact(rng) for _ in range(rng.choice((0, 0, 1, 2, 3)))]
     told = [second_person(said) for said, _ in earlier]
-    read = [
-        (title, text)
-        for _, title, text in rng.sample(READINGS, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))
-    ]
+    lessons = [a_lesson(rng) for _ in range(rng.choice((0, 0, 0, 1, 2)))]  # what they taught it about the world
+    taught = [kept for _, kept, _ in lessons]
+    book = rng.sample(BOOK, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))  # what it has read
+    shown: dict[str, int] = {}  # how much of each thing it read it has told them so far
+    extra: list[str] = []  # what else comes to mind: what it read that answers them, being asked to do something
     said: list[Turn] = []
+
+    def tell(entry, text: str, index: int = 0) -> None:
+        extra.append(f"I read about {entry.title}: {entry.sentences[index]}")
+        said.append(Turn(text, f"I read about {entry.title}. It says: {entry.sentences[index]}", "what it read"))
+        shown[entry.title] = max(shown.get(entry.title, 0), 1)
+
     if person is None and rng.random() < 0.2:  # they say who they are first
         for _ in range(5):
             person = person_name(rng)
@@ -1484,20 +1950,34 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             person = None
     for _ in range(turns or rng.choice((1, 1, 2, 3))):
         roll = rng.random()
-        if roll < 0.40:
+        if roll < 0.28:
             intent = rng.choice(RECALLED if rng.random() < EMPHASIS else list(QUESTIONS))
             reply = answer[intent]
             if person and intent in ("hello", "bye"):
                 reply = reply.replace("Hi!", f"Hi, {person}!").replace("Bye!", f"Bye, {person}!")
             said.append(Turn(casual(rng.choice(QUESTIONS[intent]), rng), reply, intent))
-        elif roll < 0.60:
+        elif roll < 0.44:
             turn = _thing_turn(moment, rng)
             turn.said = casual(turn.said, rng)
             said.append(turn)
-        elif roll < 0.66:
+        elif roll < 0.49:
             reply = f"Your name is {person}." if person else "You haven't told me your name yet."
             said.append(Turn(casual(rng.choice(MY_NAME), rng), reply, "their name"))
-        elif roll < 0.76:
+        elif roll < 0.58:
+            if rng.random() < 0.3:  # something they taught it about the world (or didn't)
+                _, kept, asks = rng.choice(lessons) if lessons else a_lesson(rng)
+                text = casual(rng.choice(asks), rng)
+                found = best_lesson(text, taught)
+                if found:
+                    extra.append(f"You told me that {found}.")
+                    said.append(Turn(text, f"You told me that {found}.", "what it was taught"))
+                elif not lessons:
+                    said.append(Turn(text, DONT_KNOW, "what it doesn't know"))
+                continue
+            if rng.random() < 0.3:  # what it knows about them, all together
+                text = casual(rng.choice(ABOUT_ALL_FORMS), rng)
+                said.append(Turn(text, about_you(person, told[-3:]), "what they told it"))
+                continue
             if earlier and rng.random() < 0.7:
                 question = rng.choice(rng.choice(earlier)[1])
             else:
@@ -1506,37 +1986,95 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             fact = best_fact(text, told)
             if fact:
                 reply = f"You told me that {fact}."
-            elif question == ABOUT_ME[2] and person:
-                reply = f"Your name is {person}."
             elif question in ABOUT_ME:
                 reply = "You haven't told me anything yet."
             else:
                 reply = "You haven't told me that."
             said.append(Turn(text, reply, "what they told it"))
-        elif roll < 0.88:
-            if read and rng.random() < 0.6:
-                title = rng.choice(read)[0]
-                topic = next(t for t, name, _ in READINGS if name == title)
+        elif roll < 0.68:
+            if book and rng.random() < 0.65:
+                entry = rng.choice(book)
+                if entry.questions and rng.random() < 0.4:  # a question one of its sentences answers
+                    question, index = rng.choice(entry.questions)
+                    tell(entry, casual(question, rng), index)
+                else:
+                    tell(entry, casual(rng.choice(UNKNOWN_FORMS + READ_FORMS).format(entry.topic), rng))
             else:
-                topic = rng.choice(UNKNOWN_TOPICS)
-            text = casual(rng.choice(UNKNOWN_FORMS).format(topic), rng)
-            found = best_reading(text, read)
-            reply = f"I read about {found[0]}. It says: {found[1]}" if found else DONT_KNOW
-            said.append(Turn(text, reply, "what it read" if found else "what it doesn't know"))
-        elif roll < 0.92:
+                topic = rng.choice([t for t in UNKNOWN_TOPICS if t not in {e.topic for e in book}])
+                text = casual(rng.choice(UNKNOWN_FORMS + READ_FORMS).format(topic), rng)
+                said.append(Turn(text, DONT_KNOW, "what it doesn't know"))
+        elif roll < 0.73:  # asking for more of what it read
+            started = [e for e in book if shown.get(e.title)]
+            if not started and book:
+                entry = rng.choice(book)
+                tell(entry, casual(rng.choice(UNKNOWN_FORMS).format(entry.topic), rng))
+                started = [entry]
+            if not started:
+                said.append(Turn(plain(rng.choice(MORE_PLAIN), rng), "More about what?", "more"))
+                continue
+            for _ in range(rng.choice((1, 1, 2))):
+                entry = started[-1]
+                index = shown[entry.title]
+                sentence = entry.sentences[index] if index < len(entry.sentences) else None
+                form = rng.choice(MORE_PLAIN) if rng.random() < 0.6 else rng.choice(MORE_FORMS).format(entry.topic)
+                extra.append(more_note(entry.title, sentence))
+                said.append(Turn(plain(form, rng), more_answer(entry.title, sentence), "more"))
+                shown[entry.title] = index + 1
+        elif roll < 0.83:  # asking it to do something in its valley
+            req = None
+            for _ in range(4):
+                candidate = rng.choice(REQUESTS)
+                text = casual(rng.choice(candidate.forms), rng)
+                if request(text) == candidate:
+                    req = candidate
+                    break
+            if req is None:
+                continue
+            thing = things[req.thing]
+            extra += [thing_note(req.thing, thing["stats"], thing["where"]), request_note(req)]
+            said.append(Turn(text, request_answer(req, body, thing["stats"]), "request"))
+        elif roll < 0.86:  # teaching it a word
+            word = rng.choice(NAMING_WORDS)
+            text = plain(rng.choice(NAMING_FORMS).format(a(word)), rng)
+            said.append(Turn(text, naming_answer(word), "a word"))
+        elif roll < 0.89:  # a sum to work out
+            text = casual(sum_question(rng), rng)
+            worked = sum_of(text)
+            if worked:
+                extra.append(sum_note(worked))
+                said.append(Turn(text, sum_answer(worked), "sums"))
+        elif roll < 0.91:  # what it has read lately
+            titles = rng.sample(LATELY_TITLES, rng.choice((0, 1, 1, 2, 3)))
+            extra.append(lately_note(titles))
+            said.append(Turn(casual(rng.choice(LATELY_FORMS), rng), lately_answer(titles), "lately"))
+        elif roll < 0.94:  # something it read, to tell them
+            fresh = [e for e in (book or BOOK) if not shown.get(e.title)]
+            entry = rng.choice(fresh or BOOK)
+            if entry not in book:
+                book.append(entry)
+            tell(entry, casual(rng.choice(FACT_FORMS), rng))
+            said[-1].kind = "a fact"
+        elif roll < 0.96:
             text = casual(rng.choice(OTHER_QUESTIONS), rng)
-            if not best_reading(text, read) and not best_fact(text, told):
+            if not best_fact(text, told):
                 said.append(Turn(text, DONT_KNOW, "what it doesn't know"))
         else:
             forms, reply = SMALL_TALK[rng.choice(list(SMALL_TALK))]
             said.append(Turn(plain(rng.choice(forms), rng), reply, "small talk"))
     just = None
-    if rng.random() < 0.2:  # and they tell it something about themselves
-        text = plain(a_fact(rng)[0], rng)
-        just = statement(text)
+    if rng.random() < 0.2:  # and they tell it something about themselves, or teach it something (or put it right)
+        teaching = rng.random() < 0.35
+        fact_said = a_lesson(rng)[0] if teaching else a_fact(rng)[0]
+        if rng.random() < 0.25:
+            first = fact_said.split()[0]
+            fact_said = rng.choice(("No, ", "Actually, ", "No no, ", "Sorry, ")) + (
+                fact_said if first in PROPER or first in PEOPLE else fact_said[0].lower() + fact_said[1:]
+            )
+        text = plain(fact_said, rng)
+        just = lesson(text) if teaching else statement(text)
         if just:
             said.append(Turn(text, f"Okay, I'll remember that {just}.", "being told"))
-    thought = recall(known, [t.said for t in said], person, told, read, just)
+    thought = recall(known, [t.said for t in said], person, told, (), just, extra)
     return thought, said
 
 

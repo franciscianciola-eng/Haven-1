@@ -69,7 +69,7 @@ class Chat:
             return
         if thinker is None:
             return
-        self.life.thinker = thinker  # it goes over what it heard and read while it sleeps
+        self.life.thinker = thinker  # it goes over its day while it sleeps, and reads when nobody is talking
         self.thinker = thinker
         self.status = {"stage": "ready", "text": f"Its language area: {thinker.describe()}."}
         self.log(self.status["text"])
@@ -125,6 +125,7 @@ class Chat:
 
     def _answer(self, turn: dict) -> None:
         life, thinker, text = self.life, self.thinker, turn["text"]
+        life._last_words = time.monotonic()  # someone's talking with it: no reading out of curiosity just now
         with life.lock:
             life.conversation = [*life.conversation[-99:], {"tick": life.mind.tick, "who": "you", "text": text}]
         answer, confidence = "", 0.0

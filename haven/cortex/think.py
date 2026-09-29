@@ -7,14 +7,19 @@ it found its own words, and whether its drafts agree. What it says enters the wo
 as a thought, competing with everything else Haven is aware of, and is remembered like
 any other experience. When someone asks about something it has never learned about, it
 says so, and if it's allowed to, it reads about it in an encyclopedia and tells them
-what it read. While it sleeps, it goes over what it read and what people said to it.
+what it read (and keeps it: see library.py). When nobody is talking with it, it now and
+then reads about something it's curious about. While it sleeps, it goes over moments of
+its day, and keeps what it learned only if it still talks as well (see sleep.py).
 """
 
 from __future__ import annotations
 
+import collections
 import contextlib
+import copy
 import json
 import math
+import random
 import re
 import threading
 import time
@@ -34,6 +39,7 @@ _COMMON = (
     "must tell know think please"
 )
 STOPWORDS = frozenset(_COMMON.split())
+MOMENTS = 40  # moments of its day it needs, at least, to learn from them in its sleep
 
 
 def agreement(texts: list[str]) -> float:
@@ -78,6 +84,10 @@ class Thinker:
         self.root = Path(root)
         self.web = web
         self.busy = threading.Lock()
+        self._library = None
+        self.shown: dict[str, set[int]] = {}  # what it has told of each thing it read, in this conversation
+        self.last_read: str | None = None  # what it last told them it read
+        self.wondered: set[str] = set()  # what it has tried reading about out of curiosity
         # Someone following along as it answers (the app): hears ("draft" | "words" | "pondering" | "thought" |
         # "reading" | "read", text) as a reply takes shape.
         self.listener: Callable[[str, str], None] | None = None
@@ -137,8 +147,8 @@ class Thinker:
         return [*book, *self._read]
 
     def listen(self, mind, text: str) -> str | None:
-        """What it takes from what someone said: their name, or something about themselves to remember."""
-        from .talk import introduced, statement
+        """What it takes from what someone said: their name, or something about themselves or the world to remember."""
+        from .talk import introduced, lesson, statement
 
         name = introduced(text)
         if name:
@@ -150,10 +160,89 @@ class Thinker:
         if fact:
             mind.told = [*(item for item in mind.told if item[1] != fact), (mind.tick, fact)][-50:]
             mind._note(mind.tick, f"was told that {fact}")
-        return fact
+            return fact
+        taught = lesson(text)
+        if taught:
+            mind.lessons = [*(item for item in mind.lessons if item[1] != taught), (mind.tick, taught)][-200:]
+            mind._note(mind.tick, f"was taught that {taught}")
+        return taught
 
-    def look_up(self, topic: str, life=None) -> str | None:
-        """Read about something in the Simple English Wikipedia. Returns a short excerpt."""
+    @property
+    def library(self):
+        """Everything it has read (made the first time it's needed)."""
+        if self._library is None:
+            from .library import Library
+
+            self._library = Library(self.root)
+        self._library.refresh()
+        return self._library
+
+    def recollect(self, mind, text: str, req=None) -> list[str]:
+        """What else comes to mind at someone's words: being asked to do something, a sum worked out, or what it read
+        (that answers them, that it read lately, or that it could tell them)."""
+        from .talk import (
+            FACT_ASK,
+            LATELY,
+            MORE,
+            about_them,
+            bare,
+            best_lesson,
+            lately_note,
+            memo,
+            mentioned,
+            more_note,
+            request_note,
+            sum_note,
+            sum_of,
+            thing_note,
+        )
+
+        if req is not None:
+            thing = memo(mind)["things"][req.thing]
+            return [thing_note(req.thing, thing["stats"], thing["where"]), request_note(req)]
+        worked = sum_of(text)
+        if worked is not None:
+            return [sum_note(worked)]
+        library = self.library
+        if LATELY.search(bare(text)):  # what it has read lately (not its little book)
+            return [lately_note([t for t in library.titles() if library.sources[t] != "book"][-3:])]
+        if FACT_ASK.search(bare(text)):  # something it read that it hasn't told them yet, the latest first
+            fresh = [t for t in library.titles() if not self.shown.get(t)]
+            if not fresh:
+                return []
+            title = fresh[-1] if library.sources[fresh[-1]] != "book" else random.choice(fresh)
+            self.shown.setdefault(title, set()).add(0)
+            self.last_read = title
+            return [f"I read about {title}: {library.sentence(title, 0)}"]
+        if MORE.search(text):  # more of what it read
+            title = library.title_for(text) or self.last_read
+            if title is None or title not in library:
+                return []
+            told = self.shown.setdefault(title, set())
+            self.last_read = title
+            if not told:
+                told.add(0)
+                return [f"I read about {title}: {library.sentence(title, 0)}"]
+            index = next((i for i in range(len(library.docs[title])) if i not in told), None)
+            if index is not None:
+                told.add(index)
+            return [more_note(title, None if index is None else library.sentence(title, index))]
+        if about_them(text) or mentioned(text):  # about them, or about its valley: not what it read
+            return []
+        taught = best_lesson(text, [item for _, item in mind.lessons])
+        if taught:  # something someone taught it
+            return [f"You told me that {taught}."]
+        found = library.find(text)
+        if found is None:
+            return []
+        title, index = found
+        self.shown.setdefault(title, set()).add(index)
+        self.last_read = title
+        return [f"I read about {title}: {library.sentence(title, index)}"]
+
+    def look_up(self, topic: str, life=None, why: str = "asked") -> str | None:
+        """Read about something in the Simple English Wikipedia (`why`: "asked", or "curious"). Returns the title of
+        what it read."""
         if self.web is None:
             return None
         self._tell("reading", topic)
@@ -167,15 +256,53 @@ class Thinker:
         path = self.root / "cortex" / "readings.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a") as f:
-            f.write(json.dumps({"title": title, "text": text[:20000], "time": time.time()}) + "\n")
+            f.write(json.dumps({"title": title, "text": text[:20000], "time": time.time(), "why": why}) + "\n")
         if life is not None:
-            life._emit("event", f"read about {title} to answer that")
+            life._emit(
+                "event",
+                f"read about {title}" + {"asked": " to answer that", "curious": ", out of curiosity"}.get(why, ""),
+            )
         self._tell("read", title)
-        first = " ".join(text.split())[:700]
-        return f"{title}: {first.rsplit('. ', 1)[0]}."
+        return title
 
-    def consolidate(self) -> None:
-        """Learn from recent conversations and reading (called while Haven sleeps)."""
+    # --- reading out of curiosity ------------------------------------------------------------------
+
+    def wonder(self, life) -> str | None:
+        """Something it would like to read about: what people talked with it about lately, the things it has met in
+        its valley, or what something it read says a thing is. Not what it has read, or tried to, already."""
+        from .library import VALLEY, topics_in, what_it_is
+
+        with life.lock:
+            said = [t["text"] for t in life.conversation[-20:] if t["who"] == "you"]
+            mind = life.mind
+            skip = {mind.person.lower()} if mind.person else set()
+            met = sorted(
+                (n for n, r in mind.things.items() if n in VALLEY and r.get("seen")),
+                key=lambda n: -mind.things[n]["seen"],
+            )
+        library = self.library
+        wanted = [topic for text in reversed(said) for topic in topics_in(text, skip)]
+        wanted += [VALLEY[name] for name in met]
+        for title in reversed(library.titles("curious") + library.titles("asked")):
+            kind = what_it_is(library.sentence(title, 0) or "")
+            if kind:
+                wanted.append(kind)
+        return next((t for t in wanted if t.lower() not in self.wondered and not library.title_for(t)), None)
+
+    def read_for_fun(self, life) -> str | None:
+        """Read about something it's curious about. Returns what it read about, if it read anything."""
+        topic = None if self.web is None else self.wonder(life)
+        if topic is None:
+            return None
+        self.wondered.add(topic.lower())
+        return self.look_up(topic, life, why="curious")
+
+    def notice(self, mind) -> None:
+        """A moment of its day, noted to go over while it sleeps (called now and then while it's awake)."""
+
+    def sleep_on_it(self, life=None) -> dict | None:
+        """Learning in its sleep, from the moments of its day (see sleep.py). Returns how it went, if it did."""
+        return None
 
 
 class OwnThinker(Thinker):
@@ -198,8 +325,8 @@ class OwnThinker(Thinker):
         self.model.load_state_dict(checkpoint["model"])
         self.model.to(self.device).eval()
         self.model_lock = threading.Lock()
-        self._optimizer = None
-        self._since_save = 0
+        self.day: collections.deque = collections.deque(maxlen=240)  # moments of its day, to go over in its sleep
+        self._others = None  # the fixed test about other lives, made the first night
 
     def describe(self) -> str:
         from .curriculum import LEVELS
@@ -214,34 +341,45 @@ class OwnThinker(Thinker):
         )
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
-        from .talk import DONT_KNOW, first_sentence, notes
+        from .library import asked_to_read
+        from .talk import DONT_KNOW, notes, request
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
-        read = self.readings()
+        wanted = asked_to_read(text)
+        if wanted and self.web is not None and not self.library.title_for(wanted):
+            self.look_up(wanted, life)  # asked to read about something: it reads it first
         with life.lock:  # what it's experiencing as it's asked, and what comes to mind
             mind = life.mind
             just = self.listen(mind, text)
+            req = None if just else request(text)
+            extra = [] if just else self.recollect(mind, text, req)
             state = torch.tensor(mind_state(mind), device=self.device).unsqueeze(0)
-            known = notes(mind, text, read, just)
+            known = notes(mind, text, (), just, extra)
             history = [t for t in life.conversation[-5:-1] if not t.get("earlier")]
         with self.model_lock:
             heard = self.model.meaning([YOU, *self.tok.encode(text)], state).float().cpu().numpy()
         with life.lock:
             mind.understand(text, heard)  # what it made of what was said comes to mind
-        prompt = [THINK, *self.tok.encode(known)]
-        for turn in history:
-            prompt += [YOU if turn["who"] == "you" else HAVEN, *self.tok.encode(turn["text"])]
-        prompt += [YOU, *self.tok.encode(text), HAVEN]
-        words, confidence = self._say(prompt, state, drafts)
-        if words.startswith(DONT_KNOW[:24]) and self.web is not None:  # "I don't know. I haven't…" (not "…yet")
-            topic = topic_of(text)
-            excerpt = self.look_up(topic, life) if topic else None
-            if excerpt:  # it didn't know, so it read about it: it tells them what it read
-                title, _, found = excerpt.partition(": ")
-                words, confidence = f"I didn't know, so I read about {title}. It says: {first_sentence(found)}", 0.5
-                self._tell("draft")
-                self._tell("words", words)
+
+        def prompt_for(known: str) -> list[int]:
+            prompt = [THINK, *self.tok.encode(known)]
+            for turn in history:
+                prompt += [YOU if turn["who"] == "you" else HAVEN, *self.tok.encode(turn["text"])]
+            return prompt + [YOU, *self.tok.encode(text), HAVEN]
+
+        words, confidence = self._say(prompt_for(known), state, drafts)
+        topic = topic_of(text)
+        if words.startswith(DONT_KNOW[:24]) and self.web is not None and topic and not self.library.title_for(topic):
+            if self.look_up(topic, life):  # it didn't know, so it reads about it, and says what it read
+                with life.lock:
+                    extra = self.recollect(mind, text)
+                    known = notes(mind, text, (), just, extra)
+                if extra:
+                    words, confidence = self._say(prompt_for(known), state, drafts)
+        if req is not None and words.startswith("Okay, I'll"):
+            with life.lock:
+                mind.take_errand(req.do, req.thing, req.action, req.need)  # it said it would, so it sets off
         with self.model_lock:
             meaning = self.model.meaning([HAVEN, *self.tok.encode(words)], state).float().cpu().numpy()
         with life.lock:
@@ -272,43 +410,41 @@ class OwnThinker(Thinker):
         words, likely = found[-1]
         return words, 0.5 * likely + 0.5 * agreement([d[0] for d in found])
 
-    def consolidate(self, steps: int = 2) -> None:
-        """A little learning in its sleep, from what it read and what people said to it."""
-        from .tokenizer import END
+    def notice(self, mind) -> None:
+        from .grounding import moment_of
 
-        torch = self.torch
-        texts = []
-        for name in ("conversations.jsonl", "readings.jsonl"):
-            path = self.root / "cortex" / name
-            if path.exists():
-                for line in path.read_text().splitlines()[-200:]:
-                    item = json.loads(line)
-                    text = item.get("you") if "you" in item else item.get("text", "")[:4000]
-                    if text:
-                        texts.append(self.tok.encode(text) + [END])
-        if not texts:
-            return
-        rng = np.random.default_rng()
+        self.day.append(moment_of(mind))
+
+    def sleep_on_it(self, life=None) -> dict | None:
+        """Practise talking about moments of its day on a copy of its cortex, and keep the copy only if it talks at
+        least as well (see sleep.py)."""
+        from . import sleep
+
+        day = list(self.day)
+        if len(day) < MOMENTS:
+            return None
+        if self._others is None:
+            self._others = sleep.other_lives()
         with self.model_lock:
-            model = self.model
-            if self._optimizer is None:
-                self._optimizer = torch.optim.AdamW(model.parameters(), lr=3e-5, weight_decay=0.0)
-            model.train()
-            for _ in range(steps):
-                ids = texts[int(rng.integers(len(texts)))][: model.cfg.context + 1]
-                if len(ids) < 3:
-                    continue
-                batch = torch.tensor([ids], device=self.device)
-                logits, _ = model(batch[:, :-1])
-                loss = torch.nn.functional.cross_entropy(logits[0].float(), batch[0, 1:])
-                self._optimizer.zero_grad(set_to_none=True)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-                self._optimizer.step()
-            model.eval()
-            self._since_save += steps
-            if self._since_save >= 50:
-                self.save()
+            current = copy.deepcopy(self.model)
+        learned, report = sleep.night(current, self.tok, day, self._others, random.Random())
+        if learned is not None:
+            with self.model_lock:
+                self.model.load_state_dict(learned.state_dict())
+            self.save()
+        self.day.clear()
+        report["time"] = time.time()
+        with (self.root / "cortex" / "nights.jsonl").open("a") as f:
+            f.write(json.dumps(report) + "\n")
+        if life is not None:
+            b, a = report["before"]["own day"], report["after"]["own day"]
+            life._emit(
+                "event",
+                f"went over its day in its sleep, and learned from it (answers about its day: {b:.0%} → {a:.0%})"
+                if learned is not None
+                else "went over its day in its sleep, but kept what it knew: practising didn't help this time",
+            )
+        return report
 
     def save(self) -> None:
         torch = self.torch
@@ -319,7 +455,6 @@ class OwnThinker(Thinker):
             tmp = path.with_suffix(".pt.tmp")
             torch.save(checkpoint, tmp)
             tmp.replace(path)
-            self._since_save = 0
 
 
 def make_thinker(spec: str, root: Path, web: Web | None = None) -> tuple[Thinker | None, str]:
