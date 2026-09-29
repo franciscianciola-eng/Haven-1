@@ -186,7 +186,8 @@ class Life:
         state["conversation"] = self.conversation[-20:]
         state["news"] = [{"id": n, "text": text} for n, text in self.news]
         library = getattr(self.thinker, "_library", None)  # what it has read, besides the book it was born with
-        state["read"] = [t for t in library.titles() if library.sources[t] != "book"][-8:][::-1] if library else []
+        sources = dict(library.sources) if library else {}  # (a copy: it may be reading something right now)
+        state["read"] = [title for title, source in sources.items() if source != "book"][-8:][::-1]
         state["cortex"] = None if self.thinker is None else self.thinker.describe()
         return state
 
