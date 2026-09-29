@@ -388,7 +388,7 @@ function render(s) {
 
 function showHistory(conversation) {
   if (!conversation.length) {
-    const hello = el("div", "hello", `Say hello. ${name} answers in words of its own, from what it's feeling and what it knows. It's new to language, so it speaks simply, mostly about itself and its valley. Tell it your name, and things about you: it remembers.`);
+    const hello = el("div", "hello", `Say hello. ${name} answers in words of its own, from what it's feeling and what it knows. It's new to language, so it speaks simply, mostly about itself and its valley. Tell it your name, and things about you or the world: it remembers. Ask it to ring the bell or eat some berries, ask it what it has read, or ask it a sum.`);
     hello.id = "hello";
     $("log").append(hello);
     return;
