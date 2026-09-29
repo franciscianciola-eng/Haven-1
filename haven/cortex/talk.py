@@ -70,9 +70,21 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
     "alive": ("Are you alive?", "Do you think you're alive?", "Are you real?", "Are you conscious?"),
     "feelings": ("Do you have feelings?", "Can you feel things?", "Do you feel anything?"),
     "what": ("What are you?", "What kind of thing are you?", "Tell me about yourself.", "Describe yourself."),
-    "hello": ("Hi", "Hello", "Hi Haven", "Hello Haven", "Hey", "Good morning", "Hi there", "hello!", "hey haven"),
-    "thanks": ("Thank you", "Thanks", "Thanks Haven", "thank you!", "Thank you so much."),
-    "bye": ("Bye", "Goodbye", "See you later", "Bye Haven", "Good night", "I have to go now."),
+    "hello": (
+        "Hi",
+        "Hello",
+        "Hi Haven",
+        "Hello Haven",
+        "Hey",
+        "Good morning",
+        "Hi there",
+        "Hello there",
+        "Hey there",
+        "Good evening",
+        "Howdy",
+    ),
+    "thanks": ("Thank you", "Thanks", "Thanks Haven", "Thank you so much.", "Thanks a lot"),
+    "bye": ("Bye", "Goodbye", "See you later", "Bye Haven", "Good night", "I have to go now.", "See you", "Bye bye"),
 }
 
 # Questions about the world beyond its garden: it hasn't experienced or read about these.
@@ -408,6 +420,22 @@ def answers(mind: Mind) -> dict[str, str]:
     }
 
 
+def casual(text: str, rng: random.Random) -> str:
+    """The way people actually type: often in lower case, without the question mark, sometimes by name."""
+    if rng.random() < 0.15:
+        text = rng.choice(("Haven, ", "Hey Haven, ", "Hey, ", "So ", "Ok, ")) + text[0].lower() + text[1:]
+    elif rng.random() < 0.1:
+        end = text[-1] if text[-1] in "?.!" else ""
+        text = text.rstrip("?.!") + rng.choice((", Haven", " haven", " Haven")) + end
+    if rng.random() < 0.3:
+        text = text.rstrip("?.!")
+    elif rng.random() < 0.1:
+        text = text.rstrip("?.!") + rng.choice(("??", "!", " ?"))
+    if rng.random() < 0.45:
+        text = text.lower()
+    return text
+
+
 def dialog(moment: dict, rng: random.Random, turns: int | None = None) -> list[tuple[str, str]]:
     """A short conversation at one moment: (what the person said, what Haven answers), a few times over."""
     turns = turns or rng.choice((1, 1, 2, 3))
@@ -421,4 +449,4 @@ def dialog(moment: dict, rng: random.Random, turns: int | None = None) -> list[t
         else:
             intent = rng.choice(list(QUESTIONS))
             said.append((rng.choice(QUESTIONS[intent]), moment["answers"][intent]))
-    return said
+    return [(casual(question, rng), answer) for question, answer in said]

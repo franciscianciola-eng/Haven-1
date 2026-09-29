@@ -33,11 +33,15 @@ def main() -> None:
     parser.add_argument("--work", default=str(ROOT / "dist" / "starter-work"))
     parser.add_argument("--every", type=int, default=500)
     parser.add_argument("--threads", type=int, default=0)
+    parser.add_argument(
+        "--lr", type=float, help="learning rate (default: the size's own; lower it to carry on training)"
+    )
     args = parser.parse_args()
     if args.threads:
         torch.set_num_threads(args.threads)
     torch.manual_seed(0)
-    trainer = Trainer(Path(args.work), size=args.size, device="cpu", scale={"pieces": 4.0, "batch": 32})
+    scale = {"pieces": 4.0, "batch": 32, **({"lr": args.lr} if args.lr else {})}
+    trainer = Trainer(Path(args.work), size=args.size, device="cpu", scale=scale)  # carries on from the work folder
     trainer.progress["level"] = 2
     level = LEVELS[1]
     data = trainer.prepare(level)
@@ -84,6 +88,9 @@ def main() -> None:
         print(
             f"  you: {m['question']}\n  haven: {reader.reply(m['state'], m['notes'], m['question'])}   (its state says: {m['answer']})"
         )
+    m = data["grounded"][-1]
+    for question in ("hi", "how are you", "where are you?", "what's your name", "hey haven, are you hungry?", "bye"):
+        print(f"  you: {question}\n  haven: {reader.reply(m['state'], m['notes'], question)}")
     trainer.progress["level"] = 1  # at home, it goes on to read its first stories, then the rest
     starter.pack(trainer)
     print("saved to", starter.FOLDER)
