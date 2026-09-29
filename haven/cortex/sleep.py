@@ -4,10 +4,12 @@ well as it did.
 While it's awake, Haven notes down moments of its life now and then: its state, the words for it, what it knows, and
 what it would truthfully answer (worked out from its own state, as when it first learned to talk). While it sleeps
 (at most every so often, in real time), a copy of its language cortex practises conversations about those moments:
-about its own things, its own places, its own firsts and the people it has met. Then the copy and the cortex it has
-take the same two tests: questions about moments of its day it didn't practise, and a fixed set about other lives.
-It keeps the copy only if it does at least as well on its own day, and no worse on other lives (so learning about
-its own life can't cost it what it knew). Either way, how it went is written down in cortex/nights.jsonl.
+about its own things, its own places, its own firsts, the people it has met and what it has read. Every other one is
+about a moment of another life instead, so that it doesn't forget how to talk about others. Then the copy and the
+cortex it has take the same two tests: questions about moments of its day it didn't practise, and a fixed set about
+other lives. It keeps the copy only if it does at least as well on its own day, and no worse on other lives (so
+learning about its own life can't cost it what it knew). Either way, how it went is written down in
+cortex/nights.jsonl.
 """
 
 from __future__ import annotations
@@ -21,21 +23,25 @@ import torch.nn.functional as F
 
 from .tokenizer import END, HAVEN, THINK, YOU
 
-STEPS = 60  # practice steps a night
+STEPS = 120  # practice steps a night, half on its own day and half going over another life
 BATCH = 8
-LR = 1e-4  # (a sweep: 5e-5 helped less; 2e-4 helped its day more but cost it on other lives)
+LR = 1e-4  # (sweeps: without going over another life too, practice cost it on other lives, and was thrown away)
 HELD = 4  # one moment in this many is kept back, to test on
 TOLERANCE = 0.02  # how much worse on other lives still counts as no worse (the tests are small)
 
 
-def practice_loss(model, tok, moments: list[dict], rng: random.Random) -> torch.Tensor:
-    """Saying what it's experiencing, and conversations about moments of its day (only its own words are learned)."""
+def practice_loss(model, tok, moments: list[dict], rng: random.Random, rehearse: list[dict] = ()) -> torch.Tensor:
+    """Saying what it's experiencing, and conversations about moments of its day (only its own words are learned).
+
+    With `rehearse`, every other example is a moment of another life, so it doesn't forget how to talk about others.
+    """
     from .train import conversation_ids
 
     seqs, marks, states = [], [], []
     limit = model.cfg.context + 1
     for i in range(BATCH):
-        m = moments[rng.randrange(len(moments))]
+        pool = rehearse if rehearse and i % 2 else moments
+        m = pool[rng.randrange(len(pool))]
         if i % 4 == 0:
             seq = [HAVEN, *tok.encode(m["text"]), END]
             mark = [False] + [True] * (len(seq) - 1)
@@ -96,6 +102,7 @@ def night(
     rng: random.Random,
     steps: int | None = None,
     lr: float | None = None,
+    rehearse: list[dict] = (),
 ):
     """A night's practice on a copy of the cortex. Returns the copy if it's worth keeping (else None), and a report."""
     from .train import conversation_items
@@ -110,7 +117,7 @@ def night(
     optimizer = torch.optim.AdamW(student.parameters(), lr=LR if lr is None else lr, weight_decay=0.0)
     losses = []
     for _ in range(steps):
-        loss = practice_loss(student, tok, practice, rng)
+        loss = practice_loss(student, tok, practice, rng, rehearse)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(student.parameters(), 1.0)
@@ -128,6 +135,13 @@ def night(
         "kept": kept,
     }
     return (student if kept else None), report
+
+
+def rehearsal(seed: int = 12) -> list[dict]:
+    """Moments of another life, to go over along with its own (not the life it's tested on)."""
+    from .grounding import gather
+
+    return gather(seed, days=0.6)
 
 
 def other_lives(n: int = 80, seed: int = 11) -> list[dict]:

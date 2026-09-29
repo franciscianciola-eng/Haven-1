@@ -331,7 +331,7 @@ class OwnThinker(Thinker):
         self.model.to(self.device).eval()
         self.model_lock = threading.Lock()
         self.day: collections.deque = collections.deque(maxlen=240)  # moments of its day, to go over in its sleep
-        self._others = None  # the fixed test about other lives, made the first night
+        self._others = self._rehearse = None  # the test about other lives, and another life to go over (made once)
 
     def describe(self) -> str:
         from .curriculum import LEVELS
@@ -440,10 +440,10 @@ class OwnThinker(Thinker):
         readings = self.own_readings()
         day = [{**m, "readings": readings} for m in day]  # it goes over what it read, too
         if self._others is None:
-            self._others = sleep.other_lives()
+            self._others, self._rehearse = sleep.other_lives(), sleep.rehearsal()
         with self.model_lock:
             current = copy.deepcopy(self.model)
-        learned, report = sleep.night(current, self.tok, day, self._others, random.Random())
+        learned, report = sleep.night(current, self.tok, day, self._others, random.Random(), rehearse=self._rehearse)
         if learned is not None:
             with self.model_lock:
                 self.model.load_state_dict(learned.state_dict())
