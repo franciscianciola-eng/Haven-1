@@ -16,6 +16,7 @@ AUTOSAVE = 600  # ticks between saves
 QUIET = 180.0  # seconds nobody has said anything before Haven reads about something out of curiosity
 CURIOUS_EVERY = 900.0  # seconds, at least, between the things it reads out of curiosity
 SLEEP_EVERY = 1800.0  # seconds, at least, between nights it learns from its day (its days are short)
+FIRST_NIGHT = 600.0  # seconds after it wakes up in the app before the first time it can
 NOTICE = 25  # ticks between the moments of its day it notes down, to learn from
 NEWS = re.compile(  # what it does that's worth telling the person talking with it
     r"^(?:set off to|did what it was asked|stopped trying to|gave up trying to|couldn't .*: it didn't know where|"
@@ -54,7 +55,7 @@ class Life:
         self._seen_log = mind.log[-1] if mind.log else None
         self._seen_said = mind.said[-1] if mind.said else None
         self._last_words = self._last_wonder = time.monotonic() - CURIOUS_EVERY  # when it last talked, and read
-        self._last_night = time.monotonic()  # when it last learned in its sleep
+        self._last_night = time.monotonic() - SLEEP_EVERY + FIRST_NIGHT  # when it last learned in its sleep
         self._learning = threading.Lock()
         self.news: list[tuple[int, str]] = []  # (number, what): what it did lately that's worth telling
         self._news = 0
