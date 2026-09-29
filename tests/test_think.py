@@ -58,3 +58,11 @@ def test_no_cortex_yet(tmp_path, monkeypatch):
     assert thinker is None and "haven learn" in message
     assert make_thinker("none", tmp_path) == (None, "")
     assert make_thinker("someone else's", tmp_path)[0] is None  # its language cortex is only ever its own
+
+
+def test_it_notices_when_its_words_go_round_in_circles():
+    from haven.cortex.think import repeats
+
+    assert repeats("I can climb the hill and climb the hill and swim", "I can climb the hill and swim")
+    story = "I noticed a new kind of thing: a stone. I noticed a new kind of thing: a flower."
+    assert not repeats(story, f"I remember: {story}")  # saying again what came to mind isn't going in circles

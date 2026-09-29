@@ -1222,7 +1222,20 @@ PEOPLE = (
     "Yara Zain Ada Bruno Clara Dmitri Esme Finn Greta Hugo Ivy Jonas Kira Luca Mira Nico Otto Petra Rhea Silas Tess "
     "Wyatt Aiko Bodhi Cyrus Dara Enzo Fatima Gio Hiro Isaac Jade Kenji Laila Milo Nadia Orla Paz Remy Sage Tomas"
 ).split()
+PEOPLE += (
+    "Rosalind Bartholomew Siobhan Xiomara Oluwaseun Anastasia Maximilian Guadalupe Nkechi Thaddeus Ingrid Beatrix "
+    "Cornelius Evangeline Fitzgerald Gwendolyn Horatio Isadora Jebediah Konstantin Lucinda Marguerite Nathaniel "
+    "Octavia Penelope Quentin Rosamund Sebastian Theodora Ulysses Valentina Winifred Xavier Yolanda Zebulon Aurelio "
+    "Bronwyn Catalina Desmond Eleanor Florian Genevieve Harriet Ignatius Josephine Killian Leopold Magdalena Niamh "
+    "Ottilie Percival Rafferty Saoirse Tobias Violet Wilhelmina Yusuf Zeynep Adaeze Bjorn Chidi Dagny Emeka Freya "
+    "Gunnar Haruki Ifeoma Jurgen Kwame Lorenzo Mbali Njeri Osei Paolo Ragnhild Sanjay Tomasz Ulrike Vikram Wanjiru "
+    "Yaw Zofia Anneliese Bashir Chiamaka Dorota Esperanza Farhan Giuseppe Hanneke Ishaan Jadwiga Kofi Leilani "
+    "Mehmet Nadezhda Oisin Parveen Quang Rahel Sunniva Thanh Ugo Vesna Wojciech Ximena Yevgenia Zainab Abigail "
+    "Bernadette Clementine Dashiell Eloise Fernando Griselda Humphrey Imogen Jasper Katharina Lysander Mirabel "
+    "Norbert Ophelia Philippa Reginald Susannah Tabitha Wilfred Aloysius Benedikt Cressida Dorothea Ezekiel Felicity"
+).split()
 SYLLABLES = ("ka", "lo", "mi", "ra", "ne", "ta", "vi", "so", "da", "ju", "be", "ri", "an", "el", "or", "is")
+SOUNDS = ("br", "st", "l", "m", "n", "r", "th", "v", "z", "k", "d", "s", "gw", "ph", "j", "w", "h", "t", "x", "y")
 LIKED = (
     "pizza",
     "cats",
@@ -1303,9 +1316,17 @@ NAME_FORMS = (
 
 
 def person_name(rng: random.Random) -> str:
-    if rng.random() < 0.8:
+    """Someone's name: a real one from many languages, or one made up, so it learns to take any name as it's said."""
+    roll = rng.random()
+    if roll < 0.6:
         return rng.choice(PEOPLE)
-    return "".join(rng.choice(SYLLABLES) for _ in range(rng.choice((2, 2, 3)))).capitalize()
+    if roll < 0.8:
+        return "".join(rng.choice(SYLLABLES) for _ in range(rng.choice((2, 2, 3)))).capitalize()
+    parts = [
+        rng.choice(SOUNDS) + rng.choice("aeiouy") + rng.choice(("", "n", "l", "r", "s"))
+        for _ in range(rng.randint(2, 4))
+    ]
+    return "".join(parts).capitalize()
 
 
 def a(word: str) -> str:
@@ -1403,12 +1424,42 @@ def _thing_turn(moment: dict, rng: random.Random) -> Turn:
 
 # Kinds of questions whose answers are long, word-for-word recollections: more practice with these when set above 0.
 EMPHASIS = 0.0
-RECALLED = ("day", "world", "words", "story", "can", "learned", "remember", "likes", "danger", "eat")
+# Firsts that the lives it learns from don't have, so it learns to tell whatever comes to mind, not what usually does.
+UNUSUAL = (
+    "I moved to a new, bigger world: a valley with a hill, a pond, trees, and things to use.",
+    "I saw the sun come up over the hill for the first time.",
+    "I got lost, and found my way back to my nest.",
+    "I watched a butterfly land on a flower.",
+    "I slept under the apple trees for the first time.",
+    "I heard someone laugh for the first time.",
+    "I was given a berry by someone for the first time.",
+    "I found a quiet spot by the pond.",
+)
+
+
+def other_life(moment: dict, rng: random.Random) -> tuple[dict, dict]:
+    """The same moment in the life of a Haven with another name, or with a first the lives it learned from lacked."""
+    known, answer = dict(moment["memo"]), dict(moment["answers"])
+    if rng.random() < 0.3:
+        name = person_name(rng)
+        known["me"] = known["me"].replace("I'm Haven,", f"I'm {name},")
+        answer["name"] = f"My name is {name}."
+        answer["what"] = answer["what"].replace("I'm Haven.", f"I'm {name}.")
+    if rng.random() < 0.25:
+        first = rng.choice(UNUSUAL)
+        told = re.split(r"(?<=\.) (?=I )", known["story"]) if known["story"] else []
+        known["story"] = " ".join([*told[:1], *told[1:][-2:], first])
+        known["memory"] = answer["remember"] = first
+        answer["story"] = known["story"]
+    return known, answer
+
+
+RECALLED = ("day", "world", "words", "story", "can", "learned", "remember", "likes", "danger", "eat", "name", "what")
 
 
 def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> tuple[str, list[Turn]]:
     """A short conversation at one moment of a life: what comes to mind first, and what's said, turn by turn."""
-    known, answer = moment["memo"], moment["answers"]
+    known, answer = other_life(moment, rng)
     person = person_name(rng) if rng.random() < 0.35 else None
     earlier = [a_fact(rng) for _ in range(rng.choice((0, 0, 1, 2, 3)))]
     told = [second_person(said) for said, _ in earlier]

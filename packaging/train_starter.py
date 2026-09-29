@@ -50,6 +50,7 @@ def main() -> None:
     trainer.progress["level"] = 2
     level = LEVELS[1]
     data = trainer.prepare(level)
+    data["items"]["conversation"] = conversation_items(trainer.grounded()["held"], 300, seed=1)  # less noisy
     record = trainer.progress["levels"]["2"]
     record["status"] = "studying"
     best, best_state = -1.0, None
@@ -71,8 +72,8 @@ def main() -> None:
                 f"({(time.monotonic() - started) / 60:.0f} min)",
                 flush=True,
             )
-            if score > best:
-                best, best_state = score, copy.deepcopy(trainer.model.state_dict())
+            if score > best - 0.01:  # within the tests' noise, the later (better studied) one is kept
+                best, best_state = max(score, best), copy.deepcopy(trainer.model.state_dict())
                 trainer.save()
     if best_state is not None:
         trainer.model.load_state_dict(best_state)

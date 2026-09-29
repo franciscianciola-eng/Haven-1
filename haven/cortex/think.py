@@ -45,6 +45,21 @@ def agreement(texts: list[str]) -> float:
     return float(np.mean([len(a & b) / max(len(a | b), 1) for a, b in pairs]))
 
 
+def repeats(text: str, context: str = "") -> bool:
+    """Whether words go round in circles ("I can climb the hill and climb the hill"): say something more often
+    than it came to mind."""
+
+    def grams(words: str) -> dict[tuple, int]:
+        found = re.findall(r"[a-z']+", words.lower())
+        counted: dict[tuple, int] = {}
+        for i in range(len(found) - 2):
+            counted[tuple(found[i : i + 3])] = counted.get(tuple(found[i : i + 3]), 0) + 1
+        return counted
+
+    known = grams(context)
+    return any(n > 1 and n > known.get(gram, 0) for gram, n in grams(text).items())
+
+
 def topic_of(text: str) -> str | None:
     """What a question is about: a name if there is one, else its most specific word."""
     names = re.findall(r"(?<!^)(?<![.?!] )\b([A-Z][a-z]+(?: [A-Z][a-z]+)*)", text)
@@ -249,7 +264,8 @@ class OwnThinker(Thinker):
                 )
                 words = self.tok.decode(tokens).strip()
                 found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
-        found.sort(key=lambda d: d[1])
+        mind = self.tok.decode(prompt)  # what came to mind, and what was said
+        found.sort(key=lambda d: (not repeats(d[0], mind), d[1]))  # a draft that goes round in circles loses
         for words, _ in found:  # the ones it didn't pick pass by as thoughts; the likeliest comes last
             self._tell("draft")
             self._tell("words", words)
