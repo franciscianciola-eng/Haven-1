@@ -347,7 +347,7 @@ class OwnThinker(Thinker):
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
         from .library import asked_to_read
-        from .talk import DONT_KNOW, notes, request
+        from .talk import DONT_KNOW, MORE, notes, request
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
@@ -361,7 +361,8 @@ class OwnThinker(Thinker):
             extra = [] if just else self.recollect(mind, text, req)
             state = torch.tensor(mind_state(mind), device=self.device).unsqueeze(0)
             known = notes(mind, text, (), just, extra)
-            history = [t for t in life.conversation[-5:-1] if not t.get("earlier")]
+            # It answers from what comes to mind, as it learned to; only "tell me more" needs what was just said.
+            history = [t for t in life.conversation[-3:-1] if not t.get("earlier")] if MORE.search(text) else []
         with self.model_lock:
             heard = self.model.meaning([YOU, *self.tok.encode(text)], state).float().cpu().numpy()
         with life.lock:
