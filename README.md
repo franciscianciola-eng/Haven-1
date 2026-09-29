@@ -157,7 +157,7 @@ Words it learns from you stay few. For language beyond that, Haven has a languag
 
 **It's born talking about itself.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of six simulated lives of Haven, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, and what it would answer if asked, about 30 kinds of questions in many wordings ("How are you?", "What do you see?", "Where are you?", "What have you learned?", "Are you alive?", …). The answers it learned are worked out from its state at that moment, so to answer right it has to read its own state. Questions about anything beyond its garden have the answer that it doesn't know. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
 
-On a simulated life it never saw while learning, it {RESULTS}
+How well it does, tested on a simulated life it never saw while learning, is on its report card (`haven learn --report`).
 
 **It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over what it read and what people said to it.
 
