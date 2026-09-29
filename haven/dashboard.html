@@ -100,6 +100,8 @@ td.code { white-space: nowrap; font-weight: 600; }
     <section><h2>What it has concluded about itself</h2><ul id="self"></ul></section>
     <section><h2>Words it understands</h2><div class="words" id="words"></div><div class="muted" id="said"></div></section>
     <section><h2>Kinds of things it has learned</h2><ul id="kinds"></ul></section>
+    <section><h2>The valley's things, as it knows them</h2><ul id="things"></ul></section>
+    <section><h2>What it knows about you</h2><ul id="you"></ul></section>
     <section><h2>Life story</h2><ul id="story"></ul></section>
   </div>
   <section id="checkSection"><h2>Indicator properties (Butlin, Long et al. 2023), measured now</h2>
@@ -203,6 +205,9 @@ function render(s) {
     '<span class="muted" style="background:none">none yet: say a word while it attends to something, a few times</span>';
   $("said").textContent = s.said.length ? "Recently said: " + s.said.map((x) => `"${x.text}"`).join(", ") : "";
   $("kinds").innerHTML = s.kinds.map((k) => `<li><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${k.color}"></i> kind ${k.id}${k.name ? ` ("${esc(k.name)}")` : ""}: ${k.facts.length ? esc(k.facts.join(", ")) : '<span class="muted">nothing learned yet</span>'} <span class="muted">· seen ${k.seen}×</span></li>`).join("");
+  $("things").innerHTML = s.things.length ? s.things.map((t) => `<li>${esc(t)}</li>`).join("") : '<li class="muted">It hasn\'t come across anything yet.</li>';
+  $("you").innerHTML = (s.you.name ? `<li>Your name is ${esc(s.you.name)}.</li>` : "") + s.you.told.map((f) => `<li>You told it that ${esc(f)}.</li>`).join("") ||
+    '<li class="muted">Nothing yet. Tell it your name, or something about yourself.</li>';
   $("story").innerHTML = s.self.milestones.map((m) => `<li><span class="muted">day ${Math.floor((m.tick - 0) / 1200) + 1}</span> ${esc(m.text)}</li>`).join("");
   $("convo").innerHTML = s.conversation.map((c) => c.who === "you" ? `<div class="you">you: ${esc(c.text)}</div>` : `<div class="haven"><b>${esc(s.name)}:</b> ${esc(c.text)}</div>`).join("") ||
     '<div class="muted">It hasn\'t learned language yet unless it has a trained language cortex. Talk to it anyway: it learns words from you.</div>';

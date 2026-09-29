@@ -178,7 +178,21 @@ def snapshot(mind: Mind) -> dict:
         "readout": readout(mind),
         "welfare": welfare(mind),
         "today": mind.today,
+        "things": things(mind),
+        "you": {"name": mind.person, "told": [fact for _, fact in mind.told[-12:]][::-1]},
     }
+
+
+def things(mind: Mind) -> list[str]:
+    """What it has found out about each thing in its valley that it has come across."""
+    from .cortex.talk import THINGS, knows_of, thing_note
+
+    notes = []
+    for name in THINGS:
+        stats = {k: v for k, v in mind.things.get(name, {}).items() if k not in ("x", "y", "last")}
+        if knows_of(stats):
+            notes.append(thing_note(name, stats))
+    return notes
 
 
 def world(mind: Mind) -> dict:
