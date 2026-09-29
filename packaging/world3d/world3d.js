@@ -497,6 +497,21 @@ const ICONS = {
     c.fill();
   },
 };
+ICONS.pin = (c) => {  // where it's going, when it's doing something it was asked
+  c.fillStyle = "#ffcf4a";
+  c.strokeStyle = "#7a5200";
+  c.lineWidth = 3;
+  c.beginPath();
+  c.moveTo(32, 60);
+  c.bezierCurveTo(10, 34, 10, 6, 32, 6);
+  c.bezierCurveTo(54, 6, 54, 34, 32, 60);
+  c.fill();
+  c.stroke();
+  c.fillStyle = "#fffaf0";
+  c.beginPath();
+  c.arc(32, 25, 8, 0, Math.PI * 2);
+  c.fill();
+};
 const EVENT_ICONS = {
   ate: "sparkle", drank: "drop", rang: "note", pushed: "sparkle", smelled: "heart", shook: "sparkle",
   warmed: "warm", sick: "sick", hurt: "ouch", touched: "heart",
@@ -560,6 +575,11 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     effects: [], moving: 0, touchedAt: -1e9, rungAt: null,
   };
   const textures = Object.fromEntries(Object.entries(ICONS).map(([k, draw]) => [k, iconTexture(draw)]));
+  view.marker = new Sprite(new SpriteMaterial({ map: textures.pin, transparent: true, depthWrite: false }));
+  view.marker.scale.setScalar(0.5);
+  view.marker.visible = false;
+  view.markerAt = new Vector3();
+  scene.add(view.marker);
 
   const bubble = document.createElement("div");
   bubble.className = "speech";
@@ -711,6 +731,12 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     }
     view.voice = world.voice && world.voice.ago < 3 * view.speed ? world.voice.text : null;
     if (moved) view.moving = 1;
+    const errand = world.errand;  // where it's going to do what it was asked
+    view.marker.visible = !!(errand && errand.to);
+    if (view.marker.visible) {
+      spot(errand.to[0], errand.to[1], 1.2, view.markerAt);
+      view.marker.userData.label = `where Haven is going: to ${errand.do}`;
+    }
   }
 
   function touched() {
@@ -892,6 +918,11 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       }
       p.needsUpdate = true;
       view.water.geometry.computeVertexNormals();
+    }
+
+    if (view.marker.visible) {
+      view.marker.position.copy(view.markerAt);
+      view.marker.position.y += 0.08 * Math.sin(now / 300);
     }
 
     // Little pictures of what happened rise and fade.

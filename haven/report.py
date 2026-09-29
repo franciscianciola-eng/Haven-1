@@ -225,7 +225,17 @@ def world(mind: Mind) -> dict:
         "asleep": mind.body.asleep,
         "did": did(mind),
         "voice": None if w.voice is None else {"ago": w.tick - w.voice[0], "text": w.voice[1]},
+        "errand": errand(mind),
     }
+
+
+def errand(mind: Mind) -> dict | None:
+    """What it's doing because someone asked, and the place it believes it's going (nearest first), if it knows."""
+    if mind.errand is None:
+        return None
+    thing = "nest" if mind.errand["action"] == "sleep" else mind.errand["thing"]
+    places = sorted(mind.places_of(thing), key=lambda c: abs(c[0] - mind.world.x) + abs(c[1] - mind.world.y))
+    return {"do": mind.errand["do"], "to": list(places[0]) if places else None}
 
 
 def did(mind: Mind) -> list[str]:
