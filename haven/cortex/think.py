@@ -357,7 +357,7 @@ class OwnThinker(Thinker):
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
         from .library import asked_to_read
-        from .talk import DONT_KNOW, MORE, notes, request
+        from .talk import DONT_KNOW, MORE, notes, request, sum_of
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
@@ -385,7 +385,7 @@ class OwnThinker(Thinker):
             return prompt + [YOU, *self.tok.encode(text), HAVEN]
 
         words, confidence = self._say(prompt_for(known), state, drafts)
-        topic = topic_of(text)
+        topic = None if sum_of(text) else topic_of(text)  # (a sum isn't something to look up)
         if words.startswith(DONT_KNOW[:24]) and self.web is not None and topic and not self.library.title_for(topic):
             if self.look_up(topic, life):  # it didn't know, so it reads about it, and says what it read
                 with life.lock:
