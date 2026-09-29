@@ -199,6 +199,7 @@ def test_it_reads_about_what_it_is_curious_about(tmp_path, internet, monkeypatch
     assert Thinker(tmp_path).library.sources["Bell"] == "curious"  # it keeps what it read
 
     life.thinker, before = thinker, life._last_wonder
+    assert life.snapshot()["read"] == ["Butterfly", "Bell", "Boston"]  # the latest first, for the app
     life.say("hello")
     life._wonder()  # someone's talking with it: not now
     assert life._last_wonder == before
