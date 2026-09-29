@@ -184,6 +184,7 @@ class Thinker:
             FACT_ASK,
             LATELY,
             MORE,
+            about_haven,
             about_them,
             bare,
             best_lesson,
@@ -228,6 +229,8 @@ class Thinker:
                 told.add(index)
             return [more_note(title, None if index is None else library.sentence(title, index))]
         if about_them(text) or mentioned(text):  # about them, or about its valley: not what it read
+            return []
+        if about_haven(text) and not library.title_for(text):  # about it ("who made you?"), not something it read
             return []
         taught = best_lesson(text, [item for _, item in mind.lessons])
         if taught:  # something someone taught it

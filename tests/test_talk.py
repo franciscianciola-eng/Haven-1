@@ -227,3 +227,12 @@ def test_it_can_be_taught_about_the_world():
     assert best_lesson("What's the capital city of Peru?", taught) == "the capital of Peru is Lima"
     assert best_lesson("What did Mark Twain write?", taught) == "Mark Twain wrote Tom Sawyer"
     assert best_lesson("What is the capital of France?", taught) is None
+
+
+def test_questions_about_it_are_not_about_what_it_read():
+    from haven.cortex.talk import about_haven
+
+    for said in ("Who made you?", "Is it day or night?", "Do you speak English?", "What should you stay away from?"):
+        assert about_haven(said), said
+    for said in ("What do you know about volcanoes?", "Do you know who wrote Hamlet?", "What is the capital of France?"):
+        assert not about_haven(said), said
