@@ -12,9 +12,10 @@ import pytest
 
 pytest.importorskip("torch")
 
-from haven.app import Chat, running, serve
+from haven import __version__
+from haven.app import Chat, let_rest, running, serve
 from haven.cli import Terminal
-from haven.cortex.think import Thinker, spoken
+from haven.cortex.think import Thinker
 from haven.life import Life
 from haven.mind import Mind
 from haven.store import Store
@@ -41,7 +42,7 @@ def status(port, path, body=None, headers=None):
 
 
 class Stand(Thinker):
-    """A stand-in cortex: it answers the way a grafted cortex does, a piece at a time, once it's allowed to."""
+    """A stand-in cortex: it answers a piece at a time, thinking it over on the way, once it's allowed to."""
 
     name = "a stand-in"
 
@@ -57,7 +58,7 @@ class Stand(Thinker):
         self._tell("thought", "They asked how I feel.")
         self.go.wait(10)
         self._tell("draft")
-        self._tell("words", "<think>hmm</think> I feel fine, thank you.")
+        self._tell("words", "I feel fine, thank you.")
         return "I feel fine, thank you.", 0.8
 
 
@@ -135,6 +136,23 @@ def test_resting_and_waking(app, tmp_path):
     assert chat.resting.wait(5)  # it answers first, then lets Haven rest
 
 
+def test_an_older_haven_rests_for_a_newer_one(tmp_path):
+    life = Life(Mind(seed=4), Store(tmp_path))
+    chat = Chat(life, log=lambda s: None)
+    server = serve(life, chat, port=0)
+    port = server.server_port
+    assert running(port)["version"] == __version__  # so a newer version can tell it's older
+
+    def when_let_rest():
+        if chat.resting.wait(10):  # as `haven app` does: it saves, rests and closes its window
+            server.shutdown()
+            server.server_close()
+
+    threading.Thread(target=when_let_rest, daemon=True).start()
+    let_rest(port, wait=10)
+    assert chat.resting.is_set() and running(port) is None
+
+
 def test_not_ready_yet(tmp_path):
     life = Life(Mind(seed=4), Store(tmp_path))
     chat = Chat(life, log=lambda s: None)
@@ -145,35 +163,28 @@ def test_not_ready_yet(tmp_path):
         server.shutdown()
 
 
-def test_spoken():
-    assert spoken("<think>\nLet me see.\n</think>\n\nI'm warm.") == "I'm warm."
-    assert spoken("</think> </think> I'm hungry.") == "I'm hungry."
-    assert spoken("I see a berry. <think>maybe") == "I see a berry."
+def test_the_app_gives_it_its_own_cortex(tmp_path):
+    """The first time, it gets the language cortex it's born with (its own), and then it can talk."""
+    from haven.cortex import starter
+    from haven.cortex.think import OwnThinker
 
-
-def test_the_app_gets_a_cortex(tmp_path):
-    """The first time, it gets a language cortex (here a tiny stand-in on this computer), then it can talk."""
-    pytest.importorskip("transformers")
-    from fakes import tiny_base
-
-    from haven.cortex.graft import exists
-    from haven.cortex.think import GraftThinker
-
-    base = tiny_base(tmp_path / "base")
+    if not starter.available():
+        pytest.skip("this copy of Haven came without its starter cortex")
     life = Life(Mind(seed=4), Store(tmp_path / "home"))
-    chat = Chat(life, base=str(base), device="cpu", log=lambda s: None)
+    chat = Chat(life, log=lambda s: None)
     chat.start()
-    for _ in range(600):
+    for _ in range(300):
         if chat.status["stage"] in ("ready", "error"):
             break
         time.sleep(0.1)
     assert chat.status["stage"] == "ready", chat.status
-    assert isinstance(chat.thinker, GraftThinker) and life.thinker is chat.thinker
-    assert "reading a description of Haven's state" in chat.thinker.describe()  # until `haven learn` wires it in
-    assert exists(tmp_path / "home")
-    turn = chat.ask("hello")
-    for _ in range(600):
+    assert isinstance(chat.thinker, OwnThinker) and life.thinker is chat.thinker
+    assert "grown from scratch" in chat.thinker.describe()
+    turn = chat.ask("What's your name?")
+    for _ in range(300):
         if chat.turn(turn["id"])["done"]:
             break
         time.sleep(0.1)
-    assert chat.turn(turn["id"])["done"]
+    done = chat.turn(turn["id"])
+    assert done["done"] and "Haven" in done["reply"]
+    assert [t["kind"] for t in done["thoughts"]] == ["draft", "draft"]  # the other words that came to it

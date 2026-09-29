@@ -9,7 +9,14 @@ from haven.cortex.curriculum import LEVELS, cloze_items, next_sentence_items, pa
 from haven.cortex.train import Trainer
 from haven.web import Web
 
-TEST_SCALE = {"tinystories": 60_000, "articles": 40, "steps": 0.004, "every": 5, "batch": 2}
+TEST_SCALE = {
+    "tinystories": 60_000,
+    "articles": 40,
+    "steps": 0.004,
+    "every": 5,
+    "batch": 2,
+    "lives": ((1, 0.4), (2, 0.2)),
+}
 
 
 def test_sources_read_their_formats(internet, tmp_path):

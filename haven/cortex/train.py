@@ -28,6 +28,7 @@ from .curriculum import (
     balanced,
     choose,
     cloze_items,
+    conversation,
     fluency,
     next_sentence_items,
     passed,
@@ -37,7 +38,8 @@ from .curriculum import (
 )
 from .grounding import gather
 from .model import SIZES, Cortex, CortexConfig
-from .tokenizer import END, HAVEN, YOU, Tokenizer
+from .talk import OTHER_QUESTIONS, QUESTIONS, UNKNOWN_FORMS, UNKNOWN_TOPICS, dialog
+from .tokenizer import END, HAVEN, THINK, YOU, Tokenizer
 
 SCALE = {  # how much it reads and studies, by the size of its cortex
     "tiny": {
@@ -190,10 +192,17 @@ class Trainer:
         self.log(f"Level {level.number} · {level.name}: {level.about}.")
         if level.source == "grounded":
             moments = self.grounded()
-            train_texts = [f"{m['text']}" for m in moments["train"]] + [m["answer"] for m in moments["train"]]
+            train_texts = [m["text"] for m in moments["train"]] + [m["notes"] for m in moments["train"][::5]]
+            train_texts += [a for m in moments["train"][::5] for a in m["answers"].values()]
+            train_texts += [q for qs in QUESTIONS.values() for q in qs] * 20 + list(OTHER_QUESTIONS) * 5
+            train_texts += [form.format(topic) for form in UNKNOWN_FORMS for topic in UNKNOWN_TOPICS]
             data = {
                 "grounded": moments["train"],
-                "items": {"self-report": balanced(moments["held"], 60), "understanding": moments["held"][:200]},
+                "items": {
+                    "self-report": balanced(moments["held"], 60),
+                    "understanding": moments["held"][:200],
+                    "conversation": conversation_items(moments["held"], 120),
+                },
             }
         else:
             reading = self.read(level)
@@ -226,7 +235,7 @@ class Trainer:
     def grounded(self) -> dict:
         """Moments from simulated lives, each with its state tokens and words for it."""
         if self._grounded is None:
-            self._grounded = simulated_moments(self.cache, self.log)
+            self._grounded = simulated_moments(self.cache, self.log, lives=self.scale.get("lives", LIVES))
         return self._grounded
 
     def stream(self, number: int, texts: list[str]) -> np.ndarray:
@@ -319,7 +328,9 @@ class Trainer:
         lr = self.scale["lr"] * min(1.0, (n + 1) / warmup)
         for group in opt.param_groups:
             group["lr"] = lr
-        grounded_turn = level.source == "grounded" or (self.progress["level"] > 2 and n % 20 == 0)
+        # Once it can talk about itself, it keeps talking while it reads, so it doesn't forget how.
+        talks = self.progress["levels"].get("2", {}).get("status") in ("passed", "moved on", "plateaued", "studied")
+        grounded_turn = level.source == "grounded" or (talks and n % 5 == 0)
         if grounded_turn:
             loss = self._grounded_loss(self.grounded()["train"] if level.source != "grounded" else data["grounded"])
         else:
@@ -358,23 +369,31 @@ class Trainer:
             return F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), batch[:, 1:].reshape(-1))
 
     def _grounded_loss(self, moments: list[dict]) -> torch.Tensor:
+        """Talking about itself: saying what it's experiencing, understanding words about states, and answering people.
+
+        Only what Haven says is marked: the notes it recalls and what people say are there to be read.
+        """
         b = self.scale["batch"]
         chosen = [moments[self.rng.randrange(len(moments))] for _ in range(b)]
-        seqs, states, understand = [], [], []
+        seqs, marks, states, understand = [], [], [], []
         for i, m in enumerate(chosen):
-            if i % 3 == 2:
-                seq = [YOU, *self.tok.encode(m["question"]), HAVEN, *self.tok.encode(m["answer"]), END]
-            else:
+            if i % 6 in (0, 1):  # saying what it's experiencing; or (0) working out a state from the words alone
                 seq = [HAVEN, *self.tok.encode(m["text"]), END]
-            seqs.append(seq[: self.model.cfg.context + 1])
+                mark = [False] + [True] * (len(seq) - 1)
+            else:
+                seq, mark = conversation_ids(self.tok, m, self.rng)
+            limit = self.model.cfg.context + 1
+            seqs.append(seq[-limit:])
+            marks.append(mark[-limit:])
             states.append(np.asarray(m["state"], dtype=np.float32))
-            understand.append(i % 3 == 1)  # these rows must work out the state from the words alone
+            understand.append(i % 6 == 0)
         length = max(len(s) for s in seqs)
         ids = torch.full((b, length), END, dtype=torch.long)
         targets = torch.full((b, length - 1), -100, dtype=torch.long)
-        for i, s in enumerate(seqs):
-            ids[i, : len(s)] = torch.tensor(s)
-            targets[i, : len(s) - 1] = torch.tensor(s[1:])
+        for i, (seq, mark) in enumerate(zip(seqs, marks, strict=True)):
+            ids[i, : len(seq)] = torch.tensor(seq)
+            keep = torch.tensor(mark[1:])
+            targets[i, : len(seq) - 1] = torch.where(keep, torch.tensor(seq[1:]), torch.tensor(-100))
         state = torch.tensor(np.stack(states), device=self.device)
         given = state.clone()
         mask = torch.tensor(understand, device=self.device)
@@ -432,7 +451,7 @@ def read_level(level: Level, web: Web, cache: Path, urls: dict, scale: dict) -> 
     raise ValueError(f"unknown source {s}")
 
 
-LIVES = ((101, 4.0), (202, 4.0), (303, 2.0))  # (seed, days): the last life is held out for testing
+LIVES = ((101, 4.0), (202, 4.0), (404, 4.0), (505, 3.0), (606, 3.0), (303, 3.0))  # (seed, days); the last is held out
 
 
 def simulated_moments(cache: Path, log: Callable[[str], None], lives: tuple = LIVES) -> dict:
@@ -452,7 +471,7 @@ def simulated_moments(cache: Path, log: Callable[[str], None], lives: tuple = LI
             np.savez_compressed(f, states=states, meta=np.array(json.dumps(meta)))
     for m, state in zip(meta, states, strict=True):
         m["state"] = state
-    cut = int(len(meta) * 0.8)  # about the last simulated life is held out for testing
+    cut = int(len(meta) * 0.86)  # about the last simulated life is held out for testing
     return {"train": meta[:cut], "held": meta[cut:]}
 
 
@@ -469,6 +488,8 @@ def evaluate(reader, level: Level, data: dict, limit: int = 120) -> dict:
             results[test] = self_report(reader, items["self-report"][: max(limit // 2, 10)])
         elif test == "understanding":
             results[test] = understanding(reader, items["understanding"])
+        elif test == "conversation":
+            results[test] = conversation(reader, items.get("conversation", [])[:limit])
     return {k: v for k, v in results.items() if v is not None}
 
 
@@ -494,3 +515,32 @@ def _sample(texts: list[str], limit: int, rng: random.Random) -> list[str]:
 
 
 __all__ = ["LEVELS", "SCALE", "Trainer", "math", "pick_device"]
+
+
+def conversation_ids(tok: Tokenizer, moment: dict, rng: random.Random) -> tuple[list[int], list[bool]]:
+    """A conversation at one moment, as tokens: what it recalls, then what's said, turn by turn.
+
+    Also returns which tokens are Haven's to say (its answers, and knowing when to stop).
+    """
+    ids, mark = [THINK, *tok.encode(moment["notes"])], []
+    mark = [False] * len(ids)
+    for question, answer in dialog(moment, rng):
+        asked = [YOU, *tok.encode(question), HAVEN]
+        ids += asked
+        mark += [bool(mark) and mark[-1]] + [False] * (len(asked) - 1)  # the turn after its answer ends it
+        said = tok.encode(answer)
+        ids += said
+        mark += [True] * len(said)
+    ids.append(END)
+    mark.append(True)
+    return ids, mark
+
+
+def conversation_items(moments: list[dict], n: int, seed: int = 0) -> list[dict]:
+    """Held-out questions, at held-out moments, with the answers its state gives."""
+    rng = random.Random(seed)
+    items = []
+    for m in rng.sample(moments, min(n, len(moments))):
+        question, answer = dialog(m, rng, turns=1)[0]
+        items.append({"state": m["state"], "notes": m["notes"], "question": question, "answer": answer})
+    return items

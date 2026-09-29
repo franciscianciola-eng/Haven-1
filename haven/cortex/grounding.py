@@ -133,38 +133,49 @@ def describe(mind: Mind) -> tuple[str, dict]:
     return " ".join(parts), facts
 
 
-def answers(mind: Mind) -> list[tuple[str, str]]:
-    """Questions a person might ask about it, and what its state says the answer is."""
-    text, _ = describe(mind)
-    sentences = text.split(". ")
-    feeling = sentences[0].rstrip(".") + "."
-    seeing = next((s.rstrip(".") + "." for s in sentences if s.startswith("I see")), "I don't see anything special.")
-    conclusions = mind.me.conclusions()
-    return [
-        ("How do you feel?", feeling),
-        ("What do you see?", seeing if not mind.body.asleep else "Nothing. I'm asleep."),
-        ("What are you doing?", next((s.rstrip(".") + "." for s in sentences if s.startswith("I want")), text)),
-        ("Are you alive?", conclusions[-1]),
-        ("What are you?", " ".join(conclusions[-2:]) if len(conclusions) > 1 else conclusions[-1]),
-        ("Who are you?", f"I'm {mind.me.name}. I'm {mind.age / 1200:.0f} days old."),
-    ]
+# What someone keeping it company calls the things it looks at, by their color.
+NAMES = {"red": "berry", "purple": "thorn", "gray": "stone", "yellow": "nest", "dark gray": "wall", "pale": "stone"}
 
 
-def gather(seed: int, days: float, every: int = 7) -> list[dict]:
-    """Live a simulated life and note down the moments: state tokens with words for them."""
+def visit(mind: Mind, rng: np.random.Generator) -> None:
+    """Someone keeping it company now and then: naming what it's looking at, saying hello, touching and feeding it."""
+    content = mind.workspace.content
+    if content is not None and content.source == "vision" and rng.random() < 0.05:
+        word = NAMES.get(content.extra.get("color"))
+        if word:
+            mind.hear(word)
+    drives = mind.body.drives()
+    need = int(np.argmax(drives))
+    if drives[need] > 0.5 and rng.random() < 0.01:
+        mind.hear(("hungry", "cold" if mind.body.cold() else "hot", "hurt", "tired")[need])
+    roll = rng.random()
+    if roll < 0.001:
+        mind.touch()
+    elif roll < 0.0015:
+        mind.feed()
+    elif roll < 0.003:
+        mind.hear(str(rng.choice(["hello haven", "hi", "good morning haven", "hello"])))
+
+
+def gather(seed: int, days: float, every: int = 7, company: bool = True) -> list[dict]:
+    """Live a simulated life and note down the moments: state tokens, words for them, and what it would answer."""
+    from .talk import answers, notes
+
     mind = Mind(seed)
     rng = np.random.default_rng(seed)
     moments = []
     for tick in range(int(days * 1200)):
+        if company:
+            visit(mind, rng)
         mind.step()
         # Moments of need are rarer than moments of feeling fine, so they're noted more often.
         needy = dominant_need(mind) != "fine" or (mind.workspace.content and mind.workspace.content.source != "vision")
         if tick % (2 if needy else every):
             continue
         text, facts = describe(mind)
-        state = mind_state(mind)
-        question, answer = answers(mind)[int(rng.integers(0, 6))]
-        moments.append({"state": state, "text": text, "question": question, "answer": answer, **facts})
+        moments.append(
+            {"state": mind_state(mind), "text": text, "notes": notes(mind), "answers": answers(mind), **facts}
+        )
     return moments
 
 

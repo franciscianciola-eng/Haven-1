@@ -108,13 +108,23 @@ step() {  # step N COMMAND...: run a step of setting up, keeping the page up to 
   wait "$pid"
 }
 
-awake() {  # the address of a Haven that's already awake, if there is one
-  local port
+VERSION="$(grep -m1 '^version' "$SOURCE/pyproject.toml" | cut -d'"' -f2)"
+
+awake() {  # the address of this version of Haven if it's already awake (an older one is asked to rest)
+  local port said i
   for port in 8765 8766 8767 8768 8769 8770 8771 8772 8773 8774; do
-    if curl -s --noproxy '*' --max-time 2 "http://127.0.0.1:$port/api/chat" 2>/dev/null | grep -q '"stage"'; then
+    said="$(curl -s --noproxy '*' --max-time 2 "http://127.0.0.1:$port/api/chat" 2>/dev/null)"
+    case "$said" in *'"stage"'*) ;; *) continue ;; esac
+    if printf '%s' "$said" | grep -q "\"version\": \"$VERSION\""; then
       echo "http://127.0.0.1:$port/"
       return 0
     fi
+    curl -s --noproxy '*' --max-time 5 -X POST -H "Content-Type: application/json" -d '{}' \
+      "http://127.0.0.1:$port/api/rest" > /dev/null 2>&1
+    for i in $(seq 1 40); do  # wait for the older Haven to save and rest
+      curl -s --noproxy '*' --max-time 1 "http://127.0.0.1:$port/api/chat" > /dev/null 2>&1 || break
+      sleep 0.5
+    done
   done
   return 1
 }

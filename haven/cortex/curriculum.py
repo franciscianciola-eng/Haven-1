@@ -10,6 +10,7 @@ from what it learns from:
   math           pick the answer to a word problem, from four
   self-report    say what state it's in (checked against its actual state)
   understanding  reading a description of a state brings that state to mind
+  conversation   answer what people ask it, as its state and what it knows say it should
 
 Chance on the four-way tests is 25%. A level is passed when every test reaches its mark
 after a minimum amount of study. If progress stalls it moves on and says so, since a
@@ -31,7 +32,7 @@ import torch.nn.functional as F
 from ..workspace import DRIVES
 from .grounding import need_index
 from .model import Cortex
-from .tokenizer import END, HAVEN, Tokenizer
+from .tokenizer import END, HAVEN, THINK, YOU, Tokenizer
 
 
 @dataclass(frozen=True)
@@ -60,9 +61,9 @@ LEVELS = (
     Level(
         2,
         "Talking about itself",
-        "putting its own states into words, and understanding words about states",
+        "putting its own states into words, understanding words about states, and answering people",
         "grounded",
-        {"self-report": (">=", 0.7), "understanding": (">=", 0.6)},
+        {"self-report": (">=", 0.7), "understanding": (">=", 0.6), "conversation": (">=", 0.8)},
         200,
         500,
         4000,
@@ -311,6 +312,15 @@ class ScratchReader:
         self.model.eval()
         return self.model.meaning([HAVEN, *self.tok.encode(text)]).float().cpu().numpy()
 
+    @torch.no_grad()
+    def reply(self, state: np.ndarray, notes: str, question: str) -> str:
+        """Its answer to a question, with its state in mind and what it knows recalled first."""
+        self.model.eval()
+        tensor = torch.tensor(np.asarray(state, dtype=np.float32), device=self.device).unsqueeze(0)
+        prompt = [THINK, *self.tok.encode(notes), YOU, *self.tok.encode(question), HAVEN]
+        tokens, _ = self.model.generate(prompt, tensor, max_new=48, temperature=0.0, stop=(END, YOU))
+        return self.tok.decode(tokens).strip()
+
 
 def fluency(reader: Reader, documents: list[str], max_tokens: int = 12000) -> float | None:
     """Bits per byte on text it hasn't learned from: how well it predicts the next piece of text."""
@@ -344,6 +354,18 @@ def self_report(reader: Reader, items: list[dict]) -> float | None:
             checked += 1
             right += item["color"] in said
     return right / checked
+
+
+def conversation(reader: Reader, items: list[dict]) -> float | None:
+    """Does it answer people as its state and what it knows say it should? (the answer's words, exactly)"""
+    if not items or not hasattr(reader, "reply"):
+        return None
+    right = sum(_plain(reader.reply(i["state"], i["notes"], i["question"])) == _plain(i["answer"]) for i in items)
+    return right / len(items)
+
+
+def _plain(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9']+", text.lower()))
 
 
 def understanding(reader: Reader, items: list[dict]) -> float | None:

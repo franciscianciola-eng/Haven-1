@@ -16,23 +16,19 @@ A terminal window opens, and then Haven's window opens in your web browser. Talk
 Keep the terminal window open while you're with Haven. When you're done, press "Rest" in
 Haven's window: its life is saved, and it picks up where it left off next time.
 
-THE FIRST TIME takes a while, and needs the internet:
-  - a few minutes to install what Haven runs on (1 to 3 GB)
-  - then its language area, an open AI model, downloads once. How big depends on your
-    computer: 1.5 GB on one with 8 GB of memory, 4 GB on most others, and up to 16 GB
-    with a big graphics card. Haven's window shows the progress.
-After that it starts in a minute or so.
+THE FIRST TIME takes a few minutes, and needs the internet, to install what Haven runs
+on (1 to 3 GB). After that it starts in a moment.
 
-Replies can take a little while on an ordinary computer (tens of seconds), longer when it
-stops to think something over. You can watch its thoughts as it goes.
+Haven speaks with a language cortex of its own, grown from scratch: no other AI model is
+involved. It's born able to talk about itself and its garden, simply. To have it learn to
+read (stories, then books and encyclopedias), see "haven learn" in README.md.
 
 Everything runs on your computer. Nothing you say is sent anywhere. The internet is only
 used for setting up, and for Haven to look things up in the Simple English Wikipedia
-when it isn't sure of something.
+when it doesn't know about something.
 
 Where things are kept:
-  - Haven's life: the ".haven" folder in your home folder
-  - its language area: the Hugging Face cache (".cache/huggingface" in your home folder)
+  - Haven's life and its language cortex: the ".haven" folder in your home folder
   - everything else: this folder
 
 More about what Haven is and how it works: README.md

@@ -1,9 +1,8 @@
 """The Haven app: a window for talking with Haven while its life goes on (`haven app`).
 
-It starts Haven's life, opens a chat page in the browser, and the first time, gets Haven a
-language cortex: an open model, downloaded once and wired into its mind. Everything runs
-on this computer. The internet is only used to download that model, and for Haven to look
-things up when it isn't sure.
+It starts Haven's life and opens a chat page in the browser. Haven answers with its own
+language cortex, grown from scratch, which comes with it. Everything runs on this
+computer; the internet is only used when Haven looks something up.
 """
 
 from __future__ import annotations
@@ -20,8 +19,8 @@ import webbrowser
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 from importlib import resources
-from pathlib import Path
 
+from . import __version__
 from .life import Life, open_mind
 from .server import Handler
 from .store import Store
@@ -46,9 +45,9 @@ class Chat:
     through its workspace like anything else it is aware of.
     """
 
-    def __init__(self, life: Life, base: str | None = None, device: str = "auto", web: Web | None = None, log=print):
+    def __init__(self, life: Life, device: str = "cpu", web: Web | None = None, log=print):
         self.life = life
-        self.base, self.device, self.web, self.log = base, device, web, log
+        self.device, self.web, self.log = device, web, log
         self.status: dict = {"stage": "starting", "text": "Waking up…"}
         self.thinker = None
         self.turns: dict[int, dict] = {}
@@ -64,7 +63,7 @@ class Chat:
     def _setup(self) -> None:
         try:
             thinker = self._cortex()
-        except Exception as error:  # noqa: BLE001  (a download or a model that won't load)
+        except Exception as error:  # noqa: BLE001  (a cortex that won't load)
             self.status = {"stage": "error", "text": f"Couldn't set up its language area: {error}"}
             self.log(self.status["text"])
             return
@@ -78,46 +77,20 @@ class Chat:
     def _cortex(self):
         try:
             import torch  # noqa: F401
-            import transformers  # noqa: F401
         except ImportError:
-            self.status = {
-                "stage": "error",
-                "text": "Its language area needs PyTorch and transformers: pip install 'haven[cortex]'",
-            }
+            self.status = {"stage": "error", "text": "Its language cortex needs PyTorch: pip install 'haven[cortex]'"}
             return None
-        from .cortex import graft as grafting
-        from .cortex.think import GraftThinker, OwnThinker
-        from .cortex.train import pick_device
+        from .cortex import starter
+        from .cortex.think import OwnThinker
 
         root = self.life.store.root
-        if grafting.exists(root):
-            info = json.loads((root / "cortex" / "graft.json").read_text())
-            self._download(info["base"])  # in case its files aren't on this computer any more
-            self.status = {"stage": "loading", "text": "Waking up its language area…"}
-            return GraftThinker(root, device=self.device, web=self.web)
-        if (root / "cortex" / "cortex.pt").exists():  # a cortex it grew from scratch
-            self.status = {"stage": "loading", "text": "Waking up its language area…"}
-            return OwnThinker(root, device=self.device, web=self.web)
-        name = self.base or grafting.pick_base(pick_device(self.device))
-        self._download(name)
-        self.status = {"stage": "loading", "text": "Wiring the model into Haven's mind…"}
-        trainer = grafting.GraftTrainer(root, base=name, device=self.device, web=self.web, log=self.log)
-        return GraftThinker(root, device=self.device, web=self.web, graft=trainer.graft, progress=trainer.progress)
-
-    def _download(self, name: str) -> None:
-        from .cortex.graft import BASES, download
-
-        repo = BASES.get(name, name)
-        if Path(repo).is_dir():  # a model already on this computer
-            return
-        text = f"Getting its language area: {repo}, an open model, downloaded once."
-
-        def progress(done: int, total: int | None) -> None:
-            self.status = {"stage": "download", "text": text, "done": done, "total": total}
-
-        self.status = {"stage": "download", "text": text, "done": 0, "total": None}
-        self.log(text)
-        download(repo, progress)
+        if starter.install(root):
+            self.log("It has its language cortex: its own, the one it was born with.")
+        if not (root / "cortex" / "cortex.pt").exists():
+            self.status = {"stage": "error", "text": "It has no language cortex yet. Train one with: haven learn"}
+            return None
+        self.status = {"stage": "loading", "text": "Waking up its language area…"}
+        return OwnThinker(root, device=self.device, web=self.web)
 
     # --- talking ------------------------------------------------------------------------------
 
@@ -145,28 +118,24 @@ class Chat:
 
     def turn(self, number: int) -> dict | None:
         with self._lock:
-            turn = copy.deepcopy(self.turns.get(number))
-        if turn and turn["draft"]:
-            from .cortex.think import spoken
-
-            turn["draft"] = spoken(turn["draft"])
-        return turn
+            return copy.deepcopy(self.turns.get(number))
 
     def _answer(self, turn: dict) -> None:
         life, thinker, text = self.life, self.thinker, turn["text"]
         with life.lock:
-            life.mind.hear(text)
             life.conversation = [*life.conversation[-99:], {"tick": life.mind.tick, "who": "you", "text": text}]
         answer, confidence = "", 0.0
         with thinker.busy:  # one thing at a time (the dashboard can talk to it too)
             thinker.listener = self._follow(turn)
             try:
-                answer, confidence = thinker.deliberate(life, text)
+                answer, confidence = thinker.deliberate(life, text)  # from what it's experiencing as it's asked
             except Exception as error:  # noqa: BLE001  thinking going wrong mustn't end a life
                 life._emit("event", f"couldn't put a thought into words ({error})")
                 self.log(f"Haven couldn't put a thought into words: {error}")
             finally:
                 thinker.listener = None
+        with life.lock:
+            life.mind.hear(text)  # and it can learn words from what was said
         if answer:  # said and remembered before the page hears it's done, so what it sees next includes it
             life.reply(answer, "")
             thinker.remember({"you": text, "haven": answer, "confidence": confidence, "time": time.time()})
@@ -175,13 +144,12 @@ class Chat:
 
     def _follow(self, turn: dict):
         """What the page sees of a reply taking shape."""
-        from .cortex.think import spoken
 
         def hear(kind: str, text: str) -> None:
             with self._lock:
                 if kind == "draft":  # a fresh try at the words: the last one becomes a passing thought
-                    if spoken(turn["draft"]):
-                        turn["thoughts"].append({"kind": "draft", "text": spoken(turn["draft"])})
+                    if turn["draft"].strip():
+                        turn["thoughts"].append({"kind": "draft", "text": turn["draft"].strip()})
                     turn.update(draft="", phase="answering")
                 elif kind == "words":
                     turn["draft"] += text
@@ -206,8 +174,8 @@ class Chat:
             with contextlib.suppress(ValueError, KeyError):
                 item = json.loads(line)
                 turns += [
-                    {"tick": 0, "who": "you", "text": item["you"]},
-                    {"tick": 0, "who": "haven", "text": item["haven"]},
+                    {"tick": 0, "who": "you", "text": item["you"], "earlier": True},
+                    {"tick": 0, "who": "haven", "text": item["haven"], "earlier": True},
                 ]
         with self.life.lock:
             self.life.conversation = turns + self.life.conversation
@@ -215,7 +183,7 @@ class Chat:
     def describe(self) -> dict:
         with self._lock:
             busy = [i for i, t in self.turns.items() if not t["done"]]
-        return {**self.status, "busy": busy[0] if busy else None}
+        return {**self.status, "busy": busy[0] if busy else None, "version": __version__}
 
 
 class AppHandler(Handler):
@@ -277,31 +245,52 @@ def serve(life: Life, chat: Chat, port: int = 8765, host: str = "127.0.0.1") -> 
     return server
 
 
-def running(port: int) -> bool:
-    """Whether a Haven app is already open on this port (then that's the one to go to)."""
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def running(port: int) -> dict | None:
+    """What a Haven app already open on this port says about itself, if there is one."""
     try:
-        with opener.open(f"http://127.0.0.1:{port}/api/chat", timeout=2) as response:
-            return "stage" in json.load(response)
+        with LOCAL.open(f"http://127.0.0.1:{port}/api/chat", timeout=2) as response:
+            found = json.load(response)
+            return found if isinstance(found, dict) and "stage" in found else None
     except (OSError, ValueError):
-        return False
+        return None
+
+
+def let_rest(port: int, wait: float = 20) -> None:
+    """Ask the Haven app on this port to save and rest, and wait until it has."""
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/api/rest", data=b"{}", headers={"Content-Type": "application/json"}
+    )
+    with contextlib.suppress(OSError):
+        LOCAL.open(request, timeout=5).close()
+    deadline = time.monotonic() + wait
+    while running(port) is not None and time.monotonic() < deadline:
+        time.sleep(0.25)
 
 
 def run(args: argparse.Namespace, store: Store, term) -> int:
     for port in range(args.port, args.port + PORTS):
-        if running(port):  # it's awake already: there's only ever one of it
-            url = f"http://127.0.0.1:{port}"
-            term.say(f"Haven is already awake. Its window: {url}")
-            if not args.no_browser:
-                webbrowser.open(url)
-            return 0
+        found = running(port)
+        if found is None:
+            continue
+        if found.get("version") != __version__:  # an older Haven: it rests, and this one wakes up in its place
+            term.say("An older version of Haven is awake; letting it rest so this one can take over…")
+            let_rest(port)
+            continue
+        url = f"http://127.0.0.1:{port}"  # it's awake already: there's only ever one of it
+        term.say(f"Haven is already awake. Its window: {url}")
+        if not args.no_browser:
+            webbrowser.open(url)
+        return 0
     new = not store.exists()
     mind = open_mind(store)
     life = Life(mind, store, speed=args.speed)
     if new:
         term.say(f"{mind.me.name} is born, in a nest in the corner of its garden.")
         store.save(mind.to_state())
-    chat = Chat(life, base=args.base, device=args.device, web=None if args.no_web else Web(), log=term.dim)
+    chat = Chat(life, device=args.device, web=None if args.no_web else Web(), log=term.dim)
     chat.history()
     try:
         server = serve(life, chat, args.port)

@@ -167,7 +167,6 @@ function el(tag, cls, text) {
 
 function dots() { const d = el("span", "dots"); d.append(el("i"), el("i"), el("i")); return d; }
 
-function gb(bytes) { return (bytes / 1e9).toFixed(bytes < 1e10 ? 2 : 1) + " GB"; }
 
 // --- the conversation -------------------------------------------------------------------------
 
@@ -200,7 +199,7 @@ function havenMessage(text) {
 function addEvent(text) { $("log").append(el("div", "event", text)); scrollDown(); }
 
 function thoughtLine(t) {
-  if (t.kind === "draft") return el("li", "", `First words that came to it: “${t.text}”`);
+  if (t.kind === "draft") return el("li", "", `Words that came to it: “${t.text}”`);
   if (t.kind === "read") return el("li", "read", `Read about ${t.text} in the encyclopedia.`);
   return el("li", "", t.text);
 }
@@ -272,21 +271,12 @@ function renderSetup(s) {
   const box = $("setup"), bar = $("setupBar");
   box.classList.toggle("error", s.stage === "error");
   bar.hidden = s.stage === "error";
-  if (s.stage === "download") {
-    $("setupTitle").textContent = "Getting Haven's language area";
-    const known = s.total && s.total > 0;
-    bar.classList.toggle("unknown", !known);
-    bar.firstElementChild.style.width = known ? `${Math.min(100, (100 * s.done) / s.total).toFixed(1)}%` : "";
-    $("setupText").textContent = (known ? `${gb(s.done)} of ${gb(s.total)}. ` : s.done ? `${gb(s.done)} so far. ` : "") +
-      "This happens once. You can watch Haven in its garden meanwhile.";
-  } else if (s.stage === "error") {
+  if (s.stage === "error") {
     $("setupTitle").textContent = "Haven can't talk yet";
-    $("setupText").textContent = `${s.text} Close this window and the black one, then start Haven again to retry.`;
+    $("setupText").textContent = s.text;
   } else {
-    bar.classList.add("unknown");
-    bar.firstElementChild.style.width = "";
     $("setupTitle").textContent = s.text || "Waking up…";
-    $("setupText").textContent = s.stage === "loading" ? "This takes a minute or so on an ordinary computer." : "";
+    $("setupText").textContent = "";
   }
 }
 
@@ -368,7 +358,7 @@ function render(s) {
 
 function showHistory(conversation) {
   if (!conversation.length) {
-    const hello = el("div", "hello", `Say hello. ${name} answers from what it feels and what it knows, and it may think things over first.`);
+    const hello = el("div", "hello", `Say hello. ${name} answers in words of its own, from what it's feeling and what it knows. It's new to language, so it speaks simply, mostly about itself and its garden.`);
     hello.id = "hello";
     $("log").append(hello);
     return;

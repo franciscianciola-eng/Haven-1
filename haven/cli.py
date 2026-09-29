@@ -57,10 +57,7 @@ def main(argv: list[str] | None = None) -> int:
 
     app = commands.add_parser("app", help="open Haven's window and talk with it (the easiest way to be with it)")
     app.add_argument("--port", type=int, default=8765, help="port for its window (default 8765)")
-    app.add_argument(
-        "--base", help="the open model its language area is grafted onto, the first time (default: by hardware)"
-    )
-    app.add_argument("--device", default="auto", help="auto, cpu, cuda or mps")
+    app.add_argument("--device", default="cpu", help="where its language cortex runs: cpu (plenty), cuda or mps")
     app.add_argument("--speed", type=float, default=8.0, help="moments per second (default 8)")
     app.add_argument("--no-browser", action="store_true", help="don't open its window in a browser")
     app.add_argument("--no-web", action="store_true", help="don't let it look things up")
@@ -110,7 +107,7 @@ def add_cortex_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--cortex",
         default="own",
-        help='language cortex: "own" (the one it trains, if any), "ollama:MODEL" (borrow a local model), or "none"',
+        help='language cortex: "own" (its own, the one it was born with) or "none"',
     )
 
 
