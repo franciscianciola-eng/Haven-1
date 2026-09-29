@@ -32,7 +32,15 @@ def lived():
 
 
 def test_it_hears_people_say_their_name():
-    for said in ("My name is Sam", "my name is sam", "Hi, I'm Sam.", "I'm Sam", "call me Sam", "Hey Haven, I'm Sam"):
+    for said in (
+        "My name is Sam",
+        "my name is sam",
+        "Hi, I'm Sam.",
+        "I'm Sam",
+        "call me Sam",
+        "Hey Haven, I'm Sam",
+        "Hi, I'm Sam, nice to meet you!",
+    ):
         assert introduced(said) == "Sam", said
     for said in ("I'm tired", "I'm fine thanks", "i'm back", "I'm a teacher", "It's cold", "I'm from Oslo"):
         assert introduced(said) is None, said
@@ -120,3 +128,10 @@ def test_the_mind_keeps_names_and_facts(lived):
     restored.load_state(mind.to_state())
     assert (restored.person, restored.told) == ("Ada", [(5, "you like tea")])
     assert "I'm talking with Ada." in notes(restored, "hello")
+
+
+def test_what_they_just_said_comes_to_mind_as_just_said():
+    mind = Mind(seed=1)
+    mind.told = [(1, "you like tea"), (2, "you live in Lisbon")]
+    thought = notes(mind, "I live in Lisbon.", just="you live in Lisbon")
+    assert "You just told me that you live in Lisbon." in thought and "You told me that you live" not in thought

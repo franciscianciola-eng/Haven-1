@@ -833,7 +833,7 @@ def introduced(text: str) -> str | None:
     t = _ADDRESS.sub("", " ".join(text.strip().split()), count=1)
     found = re.search(r"\b(?:my name is|my name's|call me|name's)\s+([A-Za-z][A-Za-z'-]{1,20})", t, re.I)
     if not found:
-        found = re.search(r"^(?:i'm|i am|it's|this is)\s+([A-Z][a-z'-]{1,20})[.!]?$", t)
+        found = re.search(r"^(?:[Ii]'m|[Ii] am|[Ii]t's|[Tt]his is)\s+([A-Z][a-z'-]{1,20})(?=[\s,.!]|$)", t)
     if not found and len(t.split()) <= 3:
         found = re.search(r"^(?:i'm|im|i am)\s+([a-z][a-z'-]{1,20})[.!]?$", t, re.I)
     if not found:
@@ -1026,7 +1026,8 @@ def recall(
 
 def notes(mind: Mind, text: str = "", read: list[tuple[str, str]] | tuple = (), just: str | None = None) -> str:
     """What comes to mind when someone says something to it, in the middle of its life."""
-    return recall(memo(mind), text, mind.person, [fact for _, fact in mind.told], read, just)
+    told = [fact for _, fact in mind.told if fact != just]  # what they just said isn't a memory yet
+    return recall(memo(mind), text, mind.person, told, read, just)
 
 
 # --- answers from its state -------------------------------------------------------------------------

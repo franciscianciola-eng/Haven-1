@@ -743,11 +743,22 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
   });
   renderer.domElement.addEventListener("pointerleave", () => { tip.hidden = true; });
   renderer.domElement.addEventListener("pointerdown", (event) => { downAt = [event.clientX, event.clientY]; });
+  let tipTimer = null;
   renderer.domElement.addEventListener("pointerup", (event) => {
     if (!downAt || Math.hypot(event.clientX - downAt[0], event.clientY - downAt[1]) > 5) return;
-    if (pick(event) === "Haven" && onTouch) {
+    const what = pick(event);
+    if (what === "Haven" && onTouch) {
       onTouch();
       touched();
+    }
+    if (what && event.pointerType !== "mouse") {  // no hovering on a touch screen: a tap says what it is
+      const box = container.getBoundingClientRect();
+      tip.textContent = what;
+      tip.style.left = `${event.clientX - box.left + 10}px`;
+      tip.style.top = `${event.clientY - box.top - 30}px`;
+      tip.hidden = false;
+      clearTimeout(tipTimer);
+      tipTimer = setTimeout(() => { tip.hidden = true; }, 2500);
     }
   });
 
