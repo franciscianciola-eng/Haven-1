@@ -88,6 +88,7 @@ def wait_for(port, number):
 def test_talking_in_the_app(app, tmp_path):
     life, chat, port = app
     assert b"<title>Haven</title>" in call(port, "/") and b"Talk to" in call(port, "/")
+    assert b"/static/world3d.js" in call(port, "/")  # its valley, in 3D
     assert b"Stream of consciousness" in call(port, "/dashboard")  # the full view of its mind is there too
     assert call(port, "/api/chat")["stage"] == "ready"
     turn = call(port, "/api/chat", {"text": "how do you feel?"})
@@ -168,8 +169,8 @@ def test_the_app_gives_it_its_own_cortex(tmp_path):
     from haven.cortex import starter
     from haven.cortex.think import OwnThinker
 
-    if not starter.available():
-        pytest.skip("this copy of Haven came without its starter cortex")
+    if not starter.available() or not starter.fits(starter.FOLDER / "cortex.pt"):
+        pytest.skip("this copy of Haven came without its starter cortex (or with an out-of-date one)")
     life = Life(Mind(seed=4), Store(tmp_path / "home"))
     chat = Chat(life, log=lambda s: None)
     chat.start()

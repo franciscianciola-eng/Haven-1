@@ -84,8 +84,11 @@ class Chat:
         from .cortex.think import OwnThinker
 
         root = self.life.store.root
-        if starter.install(root):
+        installed = starter.install(root)
+        if installed == "installed":
             self.log("It has its language cortex: its own, the one it was born with.")
+        elif installed:
+            self.log(f"Its old language cortex was grown for its old world, so it's kept in {root / 'archive'}.")
         if not (root / "cortex" / "cortex.pt").exists():
             self.status = {"stage": "error", "text": "It has no language cortex yet. Train one with: haven learn"}
             return None
@@ -288,7 +291,7 @@ def run(args: argparse.Namespace, store: Store, term) -> int:
     mind = open_mind(store)
     life = Life(mind, store, speed=args.speed)
     if new:
-        term.say(f"{mind.me.name} is born, in a nest in the corner of its garden.")
+        term.say(f"{mind.me.name} is born, in a nest in the corner of its valley.")
         store.save(mind.to_state())
     chat = Chat(life, device=args.device, web=None if args.no_web else Web(), log=term.dim)
     chat.history()

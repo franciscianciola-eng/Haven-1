@@ -38,7 +38,8 @@ from .curriculum import (
 )
 from .grounding import gather
 from .model import SIZES, Cortex, CortexConfig
-from .talk import OTHER_QUESTIONS, QUESTIONS, UNKNOWN_FORMS, UNKNOWN_TOPICS, dialog
+from .talk import OTHER_QUESTIONS, QUESTIONS, UNKNOWN_FORMS, UNKNOWN_TOPICS
+from .talk import conversation as converse
 from .tokenizer import END, HAVEN, THINK, YOU, Tokenizer
 
 SCALE = {  # how much it reads and studies, by the size of its cortex
@@ -196,6 +197,10 @@ class Trainer:
             train_texts += [a for m in moments["train"][::5] for a in m["answers"].values()]
             train_texts += [q for qs in QUESTIONS.values() for q in qs] * 20 + list(OTHER_QUESTIONS) * 5
             train_texts += [form.format(topic) for form in UNKNOWN_FORMS for topic in UNKNOWN_TOPICS]
+            rng = random.Random(0)
+            for m in moments["train"][::2]:  # conversations: what comes to mind, what's asked, and what it says
+                thought, turns = converse(m, rng)
+                train_texts += [thought, *(t.said for t in turns), *(t.answer for t in turns)]
             data = {
                 "grounded": moments["train"],
                 "items": {
@@ -522,9 +527,10 @@ def conversation_ids(tok: Tokenizer, moment: dict, rng: random.Random) -> tuple[
 
     Also returns which tokens are Haven's to say (its answers, and knowing when to stop).
     """
-    ids, mark = [THINK, *tok.encode(moment["notes"])], []
+    thought, turns = converse(moment, rng)
+    ids = [THINK, *tok.encode(thought)]
     mark = [False] * len(ids)
-    for question, answer in dialog(moment, rng):
+    for question, answer in ((t.said, t.answer) for t in turns):
         asked = [YOU, *tok.encode(question), HAVEN]
         ids += asked
         mark += [bool(mark) and mark[-1]] + [False] * (len(asked) - 1)  # the turn after its answer ends it
@@ -537,10 +543,13 @@ def conversation_ids(tok: Tokenizer, moment: dict, rng: random.Random) -> tuple[
 
 
 def conversation_items(moments: list[dict], n: int, seed: int = 0) -> list[dict]:
-    """Held-out questions, at held-out moments, with the answers its state gives."""
+    """Held-out questions, at held-out moments, with the answers its state and what comes to mind give."""
     rng = random.Random(seed)
     items = []
     for m in rng.sample(moments, min(n, len(moments))):
-        question, answer = dialog(m, rng, turns=1)[0]
-        items.append({"state": m["state"], "notes": m["notes"], "question": question, "answer": answer})
+        thought, turns = converse(m, rng, turns=1)
+        turn = rng.choice(turns)
+        items.append(
+            {"state": m["state"], "notes": thought, "question": turn.said, "answer": turn.answer, "kind": turn.kind}
+        )
     return items

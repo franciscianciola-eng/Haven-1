@@ -16,8 +16,9 @@ from __future__ import annotations
 import numpy as np
 
 from ..attention import GOALS
-from ..mind import Mind, need_words
+from ..mind import Mind, name_of, need_words
 from ..workspace import SOURCES, D
+from ..world import BUSH
 from .model import SLOTS
 
 NEED_WORDS = ("hungry", "cold", "hot", "hurt", "tired", "fine")
@@ -92,6 +93,11 @@ def describe(mind: Mind) -> tuple[str, dict]:
         if content.source == "vision":
             parts.append(f"I see {content.label.split(' (')[0]}.")
             facts["color"] = content.extra.get("color")
+            named = mind.kind_name(content.kind) if content.kind >= 0 else None
+            if named:
+                from .talk import THINGS
+
+                parts.append(f"I think it's {THINGS[named].one}.")
             if content.kind >= 0:
                 knowledge = mind.knowledge.describe(content.kind)
                 if "good to eat" in knowledge:
@@ -124,6 +130,7 @@ def describe(mind: Mind) -> tuple[str, dict]:
             "healing": "I need to rest.",
             "sleep": "I want to go to my nest and sleep.",
             "explore": "I want to look around.",
+            "play": "I want to play.",
         }[goal]
     )
     if mind.valence > 0.2:
@@ -133,15 +140,36 @@ def describe(mind: Mind) -> tuple[str, dict]:
     return " ".join(parts), facts
 
 
-# What someone keeping it company calls the things it looks at, by their color.
-NAMES = {"red": "berry", "purple": "thorn", "gray": "stone", "yellow": "nest", "dark gray": "wall", "pale": "stone"}
+# What someone keeping it company calls the things it looks at.
+WORDS = {
+    "apple": "apple",
+    "tree": "tree",
+    "pond": "water",
+    "bell": "bell",
+    "ball": "ball",
+    "flower": "flower",
+    "mushroom": "mushroom",
+    "toadstool": "toadstool",
+    "fire": "fire",
+    "butterfly": "butterfly",
+    "stone": "stone",
+    "thorns": "thorn",
+    "nest": "nest",
+    "hill": "hill",
+    "wall": "wall",
+}
 
 
 def visit(mind: Mind, rng: np.random.Generator) -> None:
     """Someone keeping it company now and then: naming what it's looking at, saying hello, touching and feeding it."""
     content = mind.workspace.content
-    if content is not None and content.source == "vision" and rng.random() < 0.05:
-        word = NAMES.get(content.extra.get("color"))
+    cell = content.extra.get("cell") if content is not None and content.source == "vision" else None
+    if cell is not None and rng.random() < 0.05:
+        name = name_of(mind.world, *cell)
+        if name == "bush":
+            word = "berry" if mind.world.thing(*cell) == BUSH and mind.world.berries.get(tuple(cell)) else "bush"
+        else:
+            word = WORDS.get(name)
         if word:
             mind.hear(word)
     drives = mind.body.drives()
@@ -159,7 +187,7 @@ def visit(mind: Mind, rng: np.random.Generator) -> None:
 
 def gather(seed: int, days: float, every: int = 7, company: bool = True) -> list[dict]:
     """Live a simulated life and note down the moments: state tokens, words for them, and what it would answer."""
-    from .talk import answers, notes
+    from .talk import answers, memo, recall
 
     mind = Mind(seed)
     rng = np.random.default_rng(seed)
@@ -173,8 +201,16 @@ def gather(seed: int, days: float, every: int = 7, company: bool = True) -> list
         if tick % (2 if needy else every):
             continue
         text, facts = describe(mind)
+        known = memo(mind)
         moments.append(
-            {"state": mind_state(mind), "text": text, "notes": notes(mind), "answers": answers(mind), **facts}
+            {
+                "state": mind_state(mind),
+                "text": text,
+                "memo": known,
+                "notes": recall(known, ""),
+                "answers": answers(mind),
+                **facts,
+            }
         )
     return moments
 

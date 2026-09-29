@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 from pathlib import Path
 
 FOLDER = Path(__file__).parent / "starter"
@@ -19,15 +20,50 @@ def available() -> bool:
     return all((FOLDER / name).exists() for name in FILES)
 
 
-def install(root: Path) -> bool:
-    """Give a Haven that has no language cortex yet the one it starts with. Returns whether it did."""
+def fits(path: Path) -> bool:
+    """Whether a cortex was grown for Haven's workspace as it is now (it grew when Haven moved to the valley)."""
+    import torch
+
+    from ..workspace import D
+    from .model import SLOTS
+
+    try:
+        checkpoint = torch.load(path, map_location="cpu", weights_only=False, mmap=True)  # just to read its config
+    except RuntimeError:  # saved in a format that can't be mapped
+        checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+    config = checkpoint.get("config", {})
+    return config.get("core") == D and config.get("slots", SLOTS) == SLOTS
+
+
+def retire(root: Path) -> Path:
+    """Move a cortex that no longer fits into archive/ (nothing is deleted). What it heard and read stays."""
+    source = Path(root) / "cortex"
+    target = Path(root) / "archive" / f"cortex-{time.strftime('%Y%m%d-%H%M%S')}"
+    target.mkdir(parents=True, exist_ok=True)
+    for name in FILES:
+        if (source / name).exists():
+            shutil.move(str(source / name), target / name)
+    return target
+
+
+def install(root: Path) -> str:
+    """Give Haven the cortex it starts with, if it has none that fits.
+
+    Returns what happened: "installed", "replaced" (an old one that no longer fit was
+    archived), "retired" (archived, but there's no starter to replace it), or "".
+    """
     target = Path(root) / "cortex"
-    if (target / "cortex.pt").exists() or not available():
-        return False
+    had = (target / "cortex.pt").exists()
+    if had and fits(target / "cortex.pt"):
+        return ""
+    if had:
+        retire(root)
+    if not available() or not fits(FOLDER / "cortex.pt"):  # (a copy of Haven whose starter is out of date)
+        return "retired" if had else ""
     target.mkdir(parents=True, exist_ok=True)
     for name in FILES:
         shutil.copyfile(FOLDER / name, target / name)
-    return True
+    return "replaced" if had else "installed"
 
 
 def pack(trainer, folder: Path = FOLDER) -> None:

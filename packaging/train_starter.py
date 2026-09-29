@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT))
 import torch
 
 from haven.cortex import starter
-from haven.cortex.curriculum import LEVELS, ScratchReader
-from haven.cortex.train import Trainer, describe
+from haven.cortex.curriculum import LEVELS, ScratchReader, _plain
+from haven.cortex.train import Trainer, conversation_items, describe
 
 
 def main() -> None:
@@ -33,6 +33,7 @@ def main() -> None:
     parser.add_argument("--work", default=str(ROOT / "dist" / "starter-work"))
     parser.add_argument("--every", type=int, default=500)
     parser.add_argument("--threads", type=int, default=0)
+    parser.add_argument("--out", default=str(starter.FOLDER), help="where to save the finished cortex")
     parser.add_argument(
         "--lr", type=float, help="learning rate (default: the size's own; lower it to carry on training)"
     )
@@ -40,7 +41,7 @@ def main() -> None:
     if args.threads:
         torch.set_num_threads(args.threads)
     torch.manual_seed(0)
-    scale = {"pieces": 4.0, "batch": 32, **({"lr": args.lr} if args.lr else {})}
+    scale = {"pieces": 6.0, "batch": 32, **({"lr": args.lr} if args.lr else {})}
     trainer = Trainer(Path(args.work), size=args.size, device="cpu", scale=scale)  # carries on from the work folder
     trainer.progress["level"] = 2
     level = LEVELS[1]
@@ -88,12 +89,14 @@ def main() -> None:
         print(
             f"  you: {m['question']}\n  haven: {reader.reply(m['state'], m['notes'], m['question'])}   (its state says: {m['answer']})"
         )
-    m = data["grounded"][-1]
-    for question in ("hi", "how are you", "where are you?", "what's your name", "hey haven, are you hungry?", "bye"):
-        print(f"  you: {question}\n  haven: {reader.reply(m['state'], m['notes'], question)}")
+    kinds: dict[str, list[bool]] = {}
+    for m in conversation_items(trainer.grounded()["held"], 600, seed=5):
+        said = reader.reply(m["state"], m["notes"], m["question"])
+        kinds.setdefault(m["kind"], []).append(_plain(said) == _plain(m["answer"]))
+    print("by kind:", ", ".join(f"{k} {sum(v) / len(v):.0%} ({len(v)})" for k, v in sorted(kinds.items())))
     trainer.progress["level"] = 1  # at home, it goes on to read its first stories, then the rest
-    starter.pack(trainer)
-    print("saved to", starter.FOLDER)
+    starter.pack(trainer, Path(args.out))
+    print("saved to", args.out)
 
 
 if __name__ == "__main__":

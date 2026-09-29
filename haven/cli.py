@@ -137,7 +137,7 @@ def run_live(args: argparse.Namespace, store: Store, term: Terminal) -> int:
     mind = open_mind(store, args.seed, args.name)
     life = Life(mind, store, speed=args.speed)
     if new:
-        term.say(f"{mind.me.name} is born, in a nest in the corner of its garden.")
+        term.say(f"{mind.me.name} is born, in a nest in the corner of its valley.")
         store.save(mind.to_state())
     if args.ticks:
         started = time.monotonic()

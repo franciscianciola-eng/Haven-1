@@ -54,10 +54,12 @@ class Body:
 
     def live(self, outcome: Outcome, warmth: float, resting: bool, in_nest: bool, fed: bool) -> None:
         """One tick of metabolism."""
-        burn = 0.0002 if self.asleep else 0.0003 + 0.0006 * outcome.moved + 0.0001 * outcome.turned
-        self.energy += 0.3 * outcome.ate + 0.2 * fed - burn
+        burn = 0.0002 if self.asleep else 0.0003 + 0.0005 * outcome.moved + 0.0001 * outcome.turned
+        burn += 0.0008 * outcome.climbed + 0.0002 * outcome.pushed  # climbing and pushing take effort
+        self.energy += outcome.food + 0.2 * fed - burn
         self.temperature += 0.03 * (warmth - self.temperature) + 0.004 * outcome.moved
-        self.integrity -= 0.06 * outcome.pain
+        self.temperature += 0.05 * outcome.warmed - 0.06 * outcome.drank  # warming its hands; a cool drink
+        self.integrity -= 0.06 * outcome.pain + outcome.sick
         if resting and self.energy > 0.25:
             self.integrity += 0.004 if in_nest else 0.002
         rest = 0.005 if self.asleep else (0.0025 if in_nest else 0.0015) if resting else 0.0  # sleep restores most

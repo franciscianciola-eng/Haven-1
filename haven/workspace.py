@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 SOURCES = ("vision", "smell", "touch", "body", "hearing", "memory", "imagination", "thought")
-Q = 16  # size of the quality part of a content
+Q = 24  # size of the quality part of a content
 
 # Layout of the broadcast vector.
 SOURCE = slice(0, len(SOURCES))

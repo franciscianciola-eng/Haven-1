@@ -21,7 +21,7 @@ haven = "haven.cli:main"
 packages = ["haven", "haven.cortex"]
 
 [tool.setuptools.package-data]
-haven = ["dashboard.html", "app.html"]
+haven = ["dashboard.html", "app.html", "static/*"]
 "haven.cortex" = ["starter/*"]
 
 [tool.pytest.ini_options]

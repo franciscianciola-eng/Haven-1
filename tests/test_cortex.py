@@ -31,3 +31,20 @@ def test_scoring_generation_and_growth():
     assert model.embed.weight.shape[0] == 305 and torch.equal(model.embed.weight[:300], before)
     assert torch.allclose(model.embed.weight[300], (before[1] + before[2]) / 2)
     assert model.head.weight is model.embed.weight
+
+
+def test_a_cortex_grown_for_another_workspace_is_archived(tmp_path):
+    from haven.cortex import starter
+
+    folder = tmp_path / "cortex"
+    folder.mkdir()
+    old = Cortex(CortexConfig(vocab=300, d=32, layers=2, heads=2, context=64, core=36))  # the old garden's size
+    torch.save({"config": dict(vars(old.cfg)), "model": old.state_dict(), "progress": {}}, folder / "cortex.pt")
+    (folder / "conversations.jsonl").write_text("{}\n")
+    assert not starter.fits(folder / "cortex.pt")
+    usable = starter.available() and starter.fits(starter.FOLDER / "cortex.pt")
+    assert starter.install(tmp_path) == ("replaced" if usable else "retired")
+    assert list((tmp_path / "archive").glob("cortex-*/cortex.pt"))  # kept, not deleted
+    assert (folder / "conversations.jsonl").exists()  # what it heard stays
+    if usable:
+        assert starter.fits(folder / "cortex.pt") and starter.install(tmp_path) == ""

@@ -13,8 +13,10 @@ from importlib import resources
 
 from .check import indicators, probe
 from .life import Life
+from .report import world
 
 MAX_BODY = 16_000
+STATIC = {"world3d.js": "text/javascript; charset=utf-8", "three-LICENSE.txt": "text/plain; charset=utf-8"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -41,6 +43,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.OK, page, "text/html; charset=utf-8")
         elif self.path == "/api/state":
             self._json(self.life.snapshot())
+        elif self.path == "/api/world":  # what the 3D view shows, several times a second
+            with self.life.lock:
+                shown = world(self.life.mind)
+            self._json({**shown, "speed": self.life.speed, "paused": self.life.paused})
+        elif self.path.startswith("/static/") and self.path[8:] in STATIC:
+            name = self.path[8:]
+            body = resources.files("haven").joinpath("static", name).read_bytes()
+            self._send(HTTPStatus.OK, body, STATIC[name])
         elif self.path == "/api/check":
             with self.life.lock:
                 measured = probe(self.life.mind)

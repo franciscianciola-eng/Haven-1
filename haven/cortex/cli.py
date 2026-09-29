@@ -99,7 +99,7 @@ def chat(args: argparse.Namespace, store, term) -> int:
     mind = open_mind(store)
     life = Life(mind, store)
     if new:
-        term.say(f"{mind.me.name} is born, in a nest in the corner of its garden.")
+        term.say(f"{mind.me.name} is born, in a nest in the corner of its valley.")
         store.save(mind.to_state())
     thinker, message = make_thinker("own", store.root, web=None if args.no_web else Web())
     if thinker is None:

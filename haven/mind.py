@@ -10,26 +10,60 @@ better or worse, and that feeling is what the whole mind learns from.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
 
-from .agency import ActorCritic, BeliefMap, Goals, KindKnowledge, Planner, goal_cells, reflexes
+from .agency import EFFECTS, ActorCritic, BeliefMap, Goals, KindKnowledge, Planner, goal_cells, reflexes
 from .attention import GOALS, NOTHING, AttentionSchema, features
 from .body import WEIGHTS, Body
 from .language import Lexicon, sound
 from .memory import Episode, EpisodicMemory, ReplayBuffer
 from .metacognition import Metacognition, context
 from .nets import cosine, softmax
-from .perception import BODY_FEATURES, VISION_FEATURES, Observation, Vision, color_name, vision_candidates
+from .perception import BODY_FEATURES, VISION_FEATURES, Observation, Vision, color_name, looks, vision_candidates
 from .selfmodel import NEEDS, SelfModel
 from .workspace import QUALITY, SOURCES, Candidate, D, Q, Workspace
-from .world import ACTIONS, DAY, NEST, Outcome, World
+from .world import (
+    ACTIONS,
+    APPLE,
+    BUSH,
+    DAY,
+    FIRE,
+    FLOOR,
+    MUSHROOM,
+    NAMES,
+    NEST,
+    SAND,
+    THORN,
+    TOADSTOOL,
+    WATER,
+    Outcome,
+    World,
+)
 from .worldmodel import N_IN, N_OUT, Prediction, WorldModel
 
+VERSION = 2  # 2: the valley, with its heights and things to use (1 was the first, flat garden)
 N_STATE = D + VISION_FEATURES + len(BODY_FEATURES) + 4 + len(GOALS) + len(ACTIONS) + 3
 A = {name: i for i, name in enumerate(ACTIONS)}
-VERBS = {"forward": "stepping forward", "eat": "biting that", "left": "turning left", "right": "turning right"}
+VERBS = {
+    "forward": "stepping forward",
+    "eat": "biting that",
+    "use": "touching that",
+    "left": "turning left",
+    "right": "turning right",
+}
+EVENTS = ("ate", "drank", "rang", "pushed", "smelled", "shook", "warmed", "sick", "climbed")
+DOINGS = ("ate", "sick", "drank", "rang", "pushed", "smelled", "shook", "warmed")  # what can happen with a thing
+
+
+def name_of(world: World, x: int, y: int) -> str | None:
+    """What people call the thing at a place: the words it's given for what it sees and does."""
+    kind = world.thing(x, y)
+    if kind in (FLOOR, SAND):
+        return "hill" if world.level(x, y) > 0 else None  # rising ground
+    return "pond" if kind == WATER else NAMES[kind]
 
 
 @dataclass
@@ -88,9 +122,17 @@ class Mind:
         self.said: list[tuple[int, str]] = []
         self.rest_streak = 0
         self.scent = 0.0
+        self.scent_change = 0.0
         self.distress = 0  # ticks of sustained low mood, watched for its welfare
+        self.fun = 0.0  # how much it has played lately: playing the same way again is less fun for a while
+        self.bitten: dict[tuple[int, int], int] = {}  # where biting did nothing, and when: it won't keep trying
+        self.today: dict[str, int] = {}  # what it has done since dawn, for telling about its day
+        self.things: dict[str, dict[str, float]] = {}  # what it has seen and done with each thing, by name
+        self.kind_names: dict[int, dict[str, float]] = {}  # which of its own kinds of things those were
+        self.person: str | None = None  # the name of the person who talks with it, once they've said it
+        self.told: list[tuple[int, str]] = []  # what people have told it, in its words ("you like pizza")
         self._target_now: np.ndarray | None = None
-        self.counts = dict.fromkeys(("vetoes", "recalls", "dreams", "imagined", "ate", "hurt", "fainted"), 0)
+        self.counts = dict.fromkeys(("vetoes", "recalls", "dreams", "imagined", "hurt", "fainted", *EVENTS), 0)
         self.daily: dict[str, list[float]] = {"model_error": [], "valence": [], "ate": []}
         self._today = {"model_error": 0.0, "daylight": 0.0, "valence": 0.0, "ate": 0.0, "n": 0}
         self.me.milestone("born", self.world.tick, f"{name} came into the world, in its nest")
@@ -203,16 +245,25 @@ class Mind:
 
         # Decide what to do.
         previous_goal = self.goals.current
-        urgencies = self.goals.urgencies(drives, b.cold(), obs.light, 1 - self.beliefs.known())
+        urgencies = self.goals.urgencies(drives, b.cold(), obs.light, 1 - self.beliefs.known(), self._playful())
         goal = self.goals.choose(urgencies, tick)
         if goal != previous_goal and tick - self.queried.get(goal, -(10**9)) > 300:
             self.query = goal
             self.queried[goal] = tick
+        mode, cells = self.target
+        if (
+            goal == "food"
+            and mode == "enter"
+            and len(cells) == 1
+            and abs(cells[0][0] - w.x) + abs(cells[0][1] - w.y) <= 1
+        ):
+            self.bitten[cells[0]] = tick  # it came back to where it ate before, and there's nothing now
+        skip = {cell for cell, t in self.bitten.items() if tick - t < 400}
         self.target = goal_cells(
-            goal, pose, self.beliefs, self.knowledge, b.cold(), b.temperature, self._remembered_place, tick
+            goal, pose, self.beliefs, self.knowledge, b.cold(), b.temperature, self._remembered_place, tick, skip
         )
         suggestion = self.planner.next_action(pose, self.target, self.beliefs, self.knowledge, tick)
-        self.suggestion = suggestion = suggestion or self._arrived(goal, pose, percepts)
+        self.suggestion = suggestion = suggestion or self._arrived(goal, pose, percepts, drives)
         state = self._state(broadcast, obs, drives, suggestion)
         if self.last is not None:
             last = self.last
@@ -227,7 +278,7 @@ class Mind:
 
         # Act, and feel how it went.
         ahead = percepts[2] if percepts else None
-        outcome = self._act(action, obs, drives, tick)
+        outcome = self._act(action, obs, drives, tick, ahead.kind if ahead is not None and ahead.distance == 1 else -1)
         self.last = Moment(
             state=state,
             action=action,
@@ -251,7 +302,15 @@ class Mind:
             self.me.reflect(self.model.agency.mean, len(self.memory.episodes), learned)
         self._tally(outcome)
 
+    def _playful(self) -> float:
+        """How much it would enjoy playing just now: if it knows something fun to do, and hasn't just played."""
+        k = self.knowledge
+        fun = any(k.use_tries[i] >= 2 and k.fun(i) > 0.1 for i in self.vision.kinds.alive())
+        return float(fun) * math.exp(-self.fun / 4)
+
     def _tally(self, outcome: Outcome) -> None:
+        if self.world.tick % DAY == int(0.25 * DAY):  # a new day begins at dawn
+            self.today = {}
         today = self._today
         today["valence"] += self.valence
         today["ate"] += outcome.ate
@@ -275,13 +334,17 @@ class Mind:
         if obs.light > 0.5:
             self.agency_now = self.model.sense_of_agency(last.model_in, last.action, target)
         act, k = ACTIONS[last.action], last.ahead_kind
-        if last.ahead_near and k >= 0 and last.ahead_trust > 0.5:  # it only learns from what it saw clearly
+        weight = float(np.clip((last.ahead_trust - 0.3) / 0.3, 0.0, 1.0))  # it learns as much as it could see
+        if last.ahead_near and k >= 0 and weight > 0:
             if act == "eat":
-                self.knowledge.tried_eating(k, last.outcome.ate)
+                self.knowledge.tried_eating(k, last.outcome.ate, last.outcome.sick > 0, weight)
             elif act == "forward":
-                self.knowledge.tried_walking(k, last.outcome.bumped)
-            if act in ("eat", "forward"):
-                self.knowledge.felt(k, last.reward)
+                self.knowledge.tried_walking(k, last.outcome.bumped, weight)
+            elif act == "use":
+                effects = [e for e in EFFECTS if getattr(last.outcome, e)]
+                self.knowledge.tried_using(k, last.reward, effects, weight)
+            if act in ("eat", "forward", "use"):
+                self.knowledge.felt(k, last.reward, weight)
         x, y, _ = pose
         here = int(self.beliefs.kind[y, x])
         if last.outcome.moved and here < 0 and last.ahead_near and last.ahead_trust > 0.5:
@@ -295,6 +358,10 @@ class Mind:
             self.me.remedy("hunger", "being fed" if obs.fed and not last.outcome.ate else "eating")
         if relief[1] > 0.0005 and last.in_nest:
             self.me.remedy("temperature", "my nest")
+        if relief[1] > 0.0005 and last.outcome.drank:
+            self.me.remedy("temperature", "a cool drink")
+        if relief[1] > 0.0005 and not last.in_nest and self.world._nearest(x, y, FIRE, 1) is not None:
+            self.me.remedy("temperature", "sitting by the fire")
         if relief[2] > 0.001 and act == "rest":
             self.me.remedy("damage", "resting")
         if relief[3] > 0.001 and act == "rest":
@@ -338,6 +405,9 @@ class Mind:
         for episode in self.memory.episodes:
             if episode.kind == gone:
                 episode.kind = keep
+        names = self.kind_names.setdefault(keep, {})
+        for name, n in self.kind_names.pop(gone, {}).items():
+            names[name] = names.get(name, 0.0) + n
         self.me.firsts.discard(f"kind:{gone}")
         self.counts["merged"] = self.counts.get("merged", 0) + 1
         self._note(self.world.tick, f"realized two kinds of things were one: {self._kind_words(keep)}")
@@ -376,6 +446,7 @@ class Mind:
         else:
             error = 0.0
         change, self.scent = obs.scent - self.scent, obs.scent
+        self.scent_change = change
         if not b.asleep and obs.scent > 0.03:
             quality = np.zeros(Q)
             quality[0], quality[1] = obs.scent, np.clip(change * 20, -1, 1)
@@ -421,6 +492,19 @@ class Mind:
                 key=("body", need),
             )
         )
+
+        # A sound: the bell ringing.
+        if obs.sound > 0:
+            candidates.append(
+                Candidate(
+                    "hearing",
+                    sound("ding-dong") * obs.sound,
+                    salience=0.8,
+                    novelty=float(1 / np.sqrt(1 + self.counts["rang"] / 5)),
+                    label="a ringing sound",
+                    key=("hearing", "ring", tick),
+                )
+            )
 
         # Hearing: the next word it hasn't attended to yet. Unattended words pass by unheard.
         if self.hearing:
@@ -503,6 +587,10 @@ class Mind:
             score += 0.5 * self.knowledge.painful(k) * near
             if self.goals.current in ("warmth", "sleep") and self.knowledge.warm(k) > 0.62:
                 score += 0.25
+            if self.goals.current == "play" and self.knowledge.use_tries[k] >= 2:
+                score += 0.4 * max(0.0, self.knowledge.fun(k))
+            if drives[1] > 0.3 and not self.body.cold() and self.knowledge.does(k, "drank"):
+                score += 0.3
             if self.primed and tick <= self.primed[2]:
                 score += 0.5 * max(0.0, cosine(c.quality, self.primed[0])) + 0.3 * (c.kind == self.primed[1])
         elif c.source == "smell":
@@ -526,6 +614,12 @@ class Mind:
 
     def _ignited(self, content: Candidate, tick: int, pose: tuple[int, int, int]) -> None:
         """Something came to the fore."""
+        cell = content.extra.get("cell") if content.source == "vision" else None
+        name = None if cell is None else name_of(self.world, *cell)
+        if name is not None:
+            seen = self.things.setdefault(name, {})
+            seen["seen"] = seen.get("seen", 0) + 1
+            seen["x"], seen["y"], seen["last"] = cell[0], cell[1], tick
         if content.source == "hearing" and "word" in content.extra:
             form = content.extra["word"]
             referent = None
@@ -574,11 +668,16 @@ class Mind:
 
     # --- deciding and acting -------------------------------------------------------------
 
-    def _arrived(self, goal: str, pose: tuple[int, int, int], percepts: list) -> str | None:
+    def _arrived(self, goal: str, pose: tuple[int, int, int], percepts: list, drives: np.ndarray) -> str | None:
         mode, cells = self.target
         x, y, _ = pose
-        if goal == "food" and mode == "face" and percepts and percepts[2].cell in cells and percepts[2].distance == 1:
+        facing = mode == "face" and percepts and percepts[2].cell in cells and percepts[2].distance == 1
+        if goal == "explore" and facing:
+            return "eat" if drives[0] > 0.15 else "use"  # something it hasn't tried: a nibble, or a poke
+        if goal == "food" and facing:
             return "eat"
+        if goal in ("play", "warmth") and facing:
+            return "use"  # play with it; or, too hot, have a drink
         if self.world.pain:
             return None  # not here: it hurts
         if goal in ("warmth", "sleep", "healing") and (x, y) in cells:
@@ -614,6 +713,9 @@ class Mind:
             social,
             drives[3],
             self.rng,
+            hot=not self.body.cold() and drives[1] > 0.3,
+            calm=float(np.max(drives)) < 0.35,
+            sniff=self.scent_change if obs.scent > 0.03 else 0.0,
         )
         if suggestion:
             logits[A[suggestion]] += 2.5
@@ -628,10 +730,13 @@ class Mind:
                 and self.knowledge.edible(ahead.kind) < 0.2
             ):
                 logits[A["eat"]] -= 3.0  # it knows that isn't food
+            if tick - self.bitten.get(ahead.cell, -(10**9)) < 400:
+                logits[A["eat"]] -= 4.0  # it tried that a moment ago, and nothing came of it
+                logits[A["use"]] -= 4.0
         policy = softmax(logits, 0.5)
         action = int(self.rng.choice(len(ACTIONS), p=policy))
         # Before doing it, imagine it. If what it imagines is bad enough to come to mind, it holds back.
-        if ACTIONS[action] in ("forward", "eat") and self.vision.seen > 200:
+        if ACTIONS[action] in ("forward", "eat", "use") and self.vision.seen > 200:
             x = WorldModel.inputs(broadcast, obs.vision(), obs.body(), drives, action)
             imagined = self.model.predict(x)
             expected = self._imagined_valence(imagined, drives)
@@ -664,9 +769,10 @@ class Mind:
         relief = float(WEIGHTS @ drives**2 - WEIGHTS @ after**2)
         return float(np.clip(8 * relief - 0.9 * imagined.pain, -1, 1))
 
-    def _act(self, action: int, obs: Observation, drives: np.ndarray, tick: int) -> Outcome:
+    def _act(self, action: int, obs: Observation, drives: np.ndarray, tick: int, seen_kind: int = -1) -> Outcome:
         w, b = self.world, self.body
         name = ACTIONS[action]
+        target = w.thing(*w.ahead())  # what's really in front of it (Haven only knows what it sees)
         outcome = w.act(name)
         in_nest = bool(w.grid[w.y, w.x] == NEST)
         b.live(outcome, w.ambient(), name == "rest", in_nest, obs.fed > 0)
@@ -674,28 +780,69 @@ class Mind:
             self._speak(drives, tick)
 
         discomfort = b.discomfort()
-        pleasant = 0.6 * outcome.ate + 0.5 * obs.touch + 0.5 * obs.fed
-        self.valence = float(np.clip(8 * (self.discomfort - discomfort) - 0.9 * outcome.pain + 0.4 * pleasant, -1, 1))
+        played = outcome.rang or outcome.pushed or outcome.shook
+        refreshing = outcome.drank and drives[1] > 0.2 and not b.cold()
+        pleasant = 0.6 * outcome.ate + 0.5 * obs.touch + 0.5 * obs.fed + 0.5 * outcome.smelled + 0.3 * refreshing
+        pleasant += 0.8 * math.exp(-self.fun / 3) * played  # play is fun, less so over and over
+        nausea = 1.0 if outcome.sick else 0.0
+        self.valence = float(
+            np.clip(
+                8 * (self.discomfort - discomfort) - 0.9 * outcome.pain + 0.4 * pleasant - 0.8 * nausea,
+                -1,
+                1,
+            )
+        )
+        self.fun = 0.997 * self.fun + float(played or outcome.smelled)
         self.discomfort = discomfort
         excitement = min(1.0, self.surprise * 5 + outcome.pain + obs.touch + 0.5 * outcome.ate + 0.3 * obs.bump)
+        excitement = min(1.0, excitement + 0.4 * played + 0.5 * nausea)
         self.arousal = float(np.clip(0.85 * self.arousal + 0.15 * max(excitement, float(np.max(drives)) * 0.5), 0, 1))
         self.mood = 0.998 * self.mood + 0.002 * self.valence
         self.me.felt(self.valence)
         self.distress = self.distress + 1 if self.mood < -0.25 else max(0, self.distress - 5)
 
         content = self.workspace.content
+        pose = (w.x, w.y, w.heading)
+        effects = outcome.ate or outcome.drank or outcome.rang or outcome.pushed or outcome.smelled or outcome.shook
+        if name in ("eat", "use") and not effects and not outcome.warmed:  # trying that came to nothing
+            self.bitten = {c: t for c, t in self.bitten.items() if tick - t < 400}
+            self.bitten[w.ahead()] = tick
         if outcome.ate:
-            self.counts["ate"] += 1
-            self._note(tick, "ate a berry")
+            food = {BUSH: "a berry", APPLE: "an apple", MUSHROOM: "a mushroom", TOADSTOOL: "a toadstool"}[target]
+            self._did("ate", f"ate {food}")
             self.me.milestone("first meal", tick, "found food and ate for the first time")
+            if target == APPLE:
+                self.me.milestone("first apple", tick, "ate an apple for the first time")
             if content is not None:
-                self._remember(content, tick, (w.x, w.y, w.heading), "ate")
+                self._remember(content, tick, pose, "ate")
+        if outcome.sick:
+            self._did("sick", "felt sick after eating a toadstool")
+            self.me.milestone("first sick", tick, "ate a toadstool that made it sick")
+            if content is not None:
+                self._remember(content, tick, pose, "sick")
+        for happened, event, text, first in (
+            (outcome.drank, "drank", "drank from the pond", "drank from the pond for the first time"),
+            (outcome.rang, "rang", "rang the bell", "rang the bell for the first time"),
+            (outcome.pushed, "pushed", "pushed the ball and watched it roll", "pushed the ball and watched it roll"),
+            (outcome.smelled, "smelled", "smelled a flower", "smelled a flower for the first time"),
+            (outcome.shook, "shook", "shook a tree, and an apple fell", "shook a tree and an apple fell"),
+            (outcome.warmed, "warmed", "warmed itself at the fire", "warmed itself at the fire for the first time"),
+        ):
+            if happened:
+                self._did(event, text)
+                self.me.milestone(f"first {event}", tick, first)
+                if content is not None:
+                    self._remember(content, tick, pose, event)
+        self._experience(target, name, outcome, seen_kind, tick)
+        if outcome.climbed and w.level(w.x, w.y) >= 3:
+            self._did("climbed", "climbed to the top of the hill")
+            self.me.milestone("hilltop", tick, "climbed to the top of the hill for the first time")
         if outcome.pain:
             self.counts["hurt"] += 1
-            self._note(tick, "got hurt")
+            self._note(tick, "got burned" if w.grid[w.y, w.x] == FIRE else "got hurt")
             self.me.milestone("first pain", tick, "felt pain for the first time")
             if content is not None:
-                self._remember(content, tick, (w.x, w.y, w.heading), "hurt")
+                self._remember(content, tick, pose, "hurt")
         if obs.touch:
             self.me.milestone("first touch", tick, "was touched by someone for the first time")
         if obs.fed:
@@ -754,14 +901,64 @@ class Mind:
     def _note(self, tick: int, text: str) -> None:
         self.log = [*self.log[-199:], (tick, text)]
 
+    def _experience(self, target: int, action: str, outcome: Outcome, kind: int, tick: int) -> None:
+        """What happened with the thing in front of it, kept under the name people give it."""
+        if outcome.climbed:
+            hill = self.things.setdefault("hill", {})
+            hill["climbed"] = hill.get("climbed", 0) + 1
+            if self.world.level(self.world.x, self.world.y) >= 3:
+                hill["top"] = hill.get("top", 0) + 1
+        here = int(self.world.grid[self.world.y, self.world.x])
+        if outcome.pain and here in (THORN, FIRE):  # what it's standing in hurts
+            burned = self.things.setdefault(NAMES[here], {})
+            burned["hurt"] = burned.get("hurt", 0) + 1
+        happened = [event for event in DOINGS if getattr(outcome, event)]
+        if outcome.pain and target == THORN and not outcome.moved:
+            happened.append("hurt")  # pricked
+        if outcome.bumped and not outcome.pushed:
+            happened.append("bumped")
+        if action in ("eat", "use") and not happened and not outcome.warmed:
+            happened.append("tried")  # it did nothing
+        if not happened or target not in NAMES or target in (FLOOR, SAND):
+            return
+        name = "pond" if target == WATER else NAMES[target]
+        record = self.things.setdefault(name, {})
+        for event in happened:
+            record[event] = record.get(event, 0) + 1
+        record["last"] = tick
+        if self.valence > 0.1:
+            record["joy"] = record.get("joy", 0.0) + self.valence  # how much it has enjoyed it
+        if happened != ["bumped"] and kind >= 0:  # what it was looking at when it did that
+            names = self.kind_names.setdefault(kind, {})
+            names[name] = names.get(name, 0.0) + 1
+
+    def kind_name(self, kind: int) -> str | None:
+        """The name it has for one of its own kinds of things: what went with it when it did things to it."""
+        names = self.kind_names.get(kind)
+        if not names:
+            return None
+        name, n = max(names.items(), key=lambda item: item[1])
+        return name if n >= 2 and n >= 0.6 * sum(names.values()) else None
+
+    def _did(self, event: str, text: str) -> None:
+        """Something it did: counted, logged, and kept for telling about its day."""
+        self.counts[event] = self.counts.get(event, 0) + 1
+        self.today[text] = self.today.get(text, 0) + 1
+        self._note(self.world.tick, text)
+
     # --- describing ----------------------------------------------------------------------
 
     def kind_color(self, kind: int) -> str:
         return color_name(self.vision.coder.reconstruct(self.vision.kinds.centers[kind]))
 
+    def kind_look(self, kind: int) -> str:
+        """How a kind of thing looks to it: its size and color, like "tall green"."""
+        look = self.vision.coder.reconstruct(self.vision.kinds.centers[kind])
+        return looks(look[:3], float(look[3]))
+
     def _kind_words(self, kind: int) -> str:
         name = self.lexicon.name_for(kind)
-        described = f"something {self.kind_color(kind)}"
+        described = f"something {self.kind_look(kind)}"
         return f'{described} ("{name}")' if name else described
 
     @property
@@ -800,7 +997,7 @@ class Mind:
                 "ahead_trust": m.ahead_trust,
             }
         return {
-            "version": 1,
+            "version": VERSION,
             "seed": self.seed,
             "rng": self.rng.bit_generator.state,
             "world": {**self.world.state(), "rng": self.world.rng.bit_generator.state},
@@ -838,6 +1035,13 @@ class Mind:
             "counts": self.counts,
             "daily": self.daily,
             "today": self._today,
+            "events_today": self.today,
+            "fun": self.fun,
+            "bitten": [[x, y, t] for (x, y), t in self.bitten.items()],
+            "things": self.things,
+            "kind_names": {str(k): v for k, v in self.kind_names.items()},
+            "person": self.person,
+            "told": [list(item) for item in self.told],
         }
 
     def load_state(self, state: dict) -> None:
@@ -890,6 +1094,42 @@ class Mind:
         self.queried = {k: int(v) for k, v in state["queried"].items()}
         self.daily = {k: [float(x) for x in v] for k, v in state["daily"].items()}
         self._today = {k: float(v) for k, v in state["today"].items()}
+        self.today = {k: int(v) for k, v in state.get("events_today", {}).items()}
+        self.fun = float(state.get("fun", 0.0))
+        self.bitten = {(int(x), int(y)): int(t) for x, y, t in state.get("bitten", [])}
+        self.things = {
+            name: {k: float(v) for k, v in record.items()} for name, record in state.get("things", {}).items()
+        }
+        self.kind_names = {int(k): {n: float(c) for n, c in v.items()} for k, v in state.get("kind_names", {}).items()}
+        self.person = state.get("person")
+        self.told = [(int(t), str(text)) for t, text in state.get("told", [])]
+
+
+MOVED = "moved to a new, bigger world: a valley with a hill, a pond, trees, and things to use"
+
+
+def moved(state: dict) -> Mind:
+    """A Haven from an older world, brought into this one.
+
+    Its world and its senses are new (it sees how tall things are now), so what it learned
+    about the old world can't come along: its kinds of things, the words it had for them,
+    its maps, memories and habits. It finds out about the valley from scratch. Who it is
+    does come along: its name and age, the story of its life, what it found out about
+    itself, and its body as it was.
+    """
+    old = state["self"]
+    mind = Mind(int(state["seed"]), str(old["name"]))
+    tick = int(state["world"]["tick"])
+    mind.world.tick = tick
+    mind.body.load({k: v for k, v in state["body"].items() if hasattr(mind.body, k)})
+    mind.me.load_state({**old, "firsts": [f for f in old["firsts"] if not f.startswith("kind:")]})
+    mind.log = [(int(t), str(text)) for t, text in state.get("log", [])]
+    mind.said = [(int(t), str(text)) for t, text in state.get("said", [])]
+    mind.counts.update({k: int(v) for k, v in state.get("counts", {}).items() if k in mind.counts})
+    mind.daily = {k: [float(x) for x in v] for k, v in state.get("daily", mind.daily).items()}
+    mind.me.milestone("moved", tick, MOVED)
+    mind._note(tick, MOVED)
+    return mind
 
 
 def _quality(meaning: np.ndarray | None) -> np.ndarray:
@@ -907,4 +1147,4 @@ def need_words(need: int, level: float, cold: bool) -> str:
     return f"{amount}{word}"
 
 
-__all__ = ["NEEDS", "Mind", "need_words"]
+__all__ = ["NEEDS", "VERSION", "Mind", "moved", "need_words"]

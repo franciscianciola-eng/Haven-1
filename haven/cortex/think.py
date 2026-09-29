@@ -100,6 +100,40 @@ class Thinker:
         with path.open("a") as f:
             f.write(json.dumps(exchange) + "\n")
 
+    def readings(self) -> list[tuple[str, str]]:
+        """What it has read: (title, first sentence), oldest first."""
+        from .talk import first_sentence
+
+        path = self.root / "cortex" / "readings.jsonl"
+        try:
+            stamp = path.stat().st_mtime
+        except FileNotFoundError:
+            return []
+        if getattr(self, "_read_stamp", None) != stamp:
+            found = []
+            for line in path.read_text().splitlines()[-500:]:
+                with contextlib.suppress(ValueError, KeyError, TypeError):
+                    item = json.loads(line)
+                    found.append((str(item["title"]), first_sentence(str(item["text"]))))
+            self._read, self._read_stamp = found, stamp
+        return self._read
+
+    def listen(self, mind, text: str) -> str | None:
+        """What it takes from what someone said: their name, or something about themselves to remember."""
+        from .talk import introduced, statement
+
+        name = introduced(text)
+        if name:
+            if name != mind.person:
+                mind._note(mind.tick, f"learned that the person talking with it is called {name}")
+            mind.person = name
+            return None
+        fact = statement(text)
+        if fact:
+            mind.told = [*(item for item in mind.told if item[1] != fact), (mind.tick, fact)][-50:]
+            mind._note(mind.tick, f"was told that {fact}")
+        return fact
+
     def look_up(self, topic: str, life=None) -> str | None:
         """Read about something in the Simple English Wikipedia. Returns a short excerpt."""
         if self.web is None:
@@ -162,14 +196,16 @@ class OwnThinker(Thinker):
         )
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
-        from .talk import DONT_KNOW, notes
+        from .talk import DONT_KNOW, first_sentence, notes
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
-        with life.lock:  # what it's experiencing as it's asked, and what it knows
+        read = self.readings()
+        with life.lock:  # what it's experiencing as it's asked, and what comes to mind
             mind = life.mind
+            just = self.listen(mind, text)
             state = torch.tensor(mind_state(mind), device=self.device).unsqueeze(0)
-            known = notes(mind)
+            known = notes(mind, text, read, just)
             history = [t for t in life.conversation[-5:-1] if not t.get("earlier")]
         with self.model_lock:
             heard = self.model.meaning([YOU, *self.tok.encode(text)], state).float().cpu().numpy()
@@ -184,9 +220,8 @@ class OwnThinker(Thinker):
             topic = topic_of(text)
             excerpt = self.look_up(topic, life) if topic else None
             if excerpt:  # it didn't know, so it read about it: it tells them what it read
-                title, _, read = excerpt.partition(": ")
-                first = read.split(". ")[0].rstrip(".") + "."
-                words, confidence = f"I didn't know, so I read about {title}. It says: {first}", 0.5
+                title, _, found = excerpt.partition(": ")
+                words, confidence = f"I didn't know, so I read about {title}. It says: {first_sentence(found)}", 0.5
                 self._tell("draft")
                 self._tell("words", words)
         with self.model_lock:
@@ -203,9 +238,9 @@ class OwnThinker(Thinker):
         with self.model_lock:
             for _ in range(drafts):
                 tokens, logprobs = self.model.generate(
-                    prompt[-(self.model.cfg.context - 60) :],
+                    prompt[-(self.model.cfg.context - 100) :],
                     state,
-                    max_new=60,
+                    max_new=100,
                     temperature=0.6,
                     stop=(END, YOU),
                 )
@@ -277,8 +312,16 @@ def make_thinker(spec: str, root: Path, web: Web | None = None) -> tuple[Thinker
         return None, ""
     if spec != "own":
         return None, f'Its language cortex is its own: "{spec}" isn\'t one it can use.'
-    starter.install(root)
+    installed = starter.install(root)
+    moved = (
+        " (its old one was grown for its old world: it's kept in archive/)"
+        if installed in ("replaced", "retired")
+        else ""
+    )
     if not (Path(root) / "cortex" / "cortex.pt").exists():
-        return None, "It has no language cortex yet (train one with: haven learn). It can still learn words from you."
+        return (
+            None,
+            f"It has no language cortex yet{moved}. Train one with: haven learn. It can still learn words from you.",
+        )
     thinker = OwnThinker(root, web=web)
-    return thinker, f"Language cortex: {thinker.describe()}."
+    return thinker, f"Language cortex: {thinker.describe()}.{moved}"

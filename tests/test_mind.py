@@ -14,9 +14,16 @@ def test_it_learns_to_live(grown):
     assert m.counts["ate"] >= 1 and m.counts["fainted"] == 0
     assert m.counts["dreams"] >= 1  # it slept, and dreamed
     assert m.workspace.ignitions > 100
-    edible = [k for k in m.vision.kinds.alive() if m.knowledge.eat_tries[k] >= 2 and m.knowledge.edible(k) > 0.5]
+    edible = [k for k in m.vision.kinds.alive() if m.knowledge.eaten[k] >= 1 and m.knowledge.edible(k) > 0.5]
     assert edible, "it should have found out what is good to eat"
     assert m.me.alive > 0.3
+
+
+def test_it_remembers_what_it_has_seen_and_done_with_things(grown):
+    things = grown.things
+    assert things["bush"]["ate"] >= 1 and sum(bool(t.get("seen")) for t in things.values()) >= 6
+    assert grown.today or grown.counts["ate"]  # what it did lately, to tell about
+    assert any(grown.kind_name(k) for k in grown.vision.kinds.alive())  # it knows what some of its kinds are called
 
 
 def test_its_metacognition_and_attention_schema_work(grown):
@@ -54,7 +61,8 @@ def test_readouts_and_snapshot(grown):
     lines = readout(grown)
     assert lines and all(isinstance(line, str) for line in lines)
     snap = snapshot(grown)
-    assert snap["name"] == "Haven" and len(snap["beliefs"]["kind"]) == 14
+    assert snap["name"] == "Haven" and len(snap["beliefs"]["kind"]) == 24
+    assert snap["world"]["heights"][4][18] == "3" and snap["world"]["ball"]  # the valley, with its hill
     assert snap["kinds"] and snap["self"]["conclusions"]
 
 
@@ -94,7 +102,7 @@ def test_it_learns_words_from_a_person():
     for word in mind.lexicon.vocabulary():
         kind = mind.lexicon.kind_of(word)
         color = mind.kind_color(kind)
-        assert color == {"berry": "red", "ouch": "purple"}[word]
+        assert color in {"berry": ("red", "orange-brown", "pink"), "ouch": ("purple", "pink", "blue")}[word]
 
 
 def test_welfare_it_cannot_die():

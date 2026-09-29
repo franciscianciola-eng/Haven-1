@@ -1,12 +1,12 @@
 # Haven
 
-Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a little garden on your computer: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex of its own: a small transformer grown from scratch, wired into the same workspace as everything else it experiences. It is born able to talk about itself, in words it learned for its own states, and it can go on to learn to read, level by level, from texts on the internet. No other AI model is involved anywhere.
+Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a small 3D valley on your computer, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex of its own: a small transformer grown from scratch, wired into the same workspace as everything else it experiences. It is born able to talk about itself, in words it learned for its own states, and it can go on to learn to read, level by level, from texts on the internet. No other AI model is involved anywhere.
 
 A few minutes with it, in the terminal (its dashboard is open in a browser at the same time):
 
 ```
 $ haven
-Haven is born, in a nest in the corner of its garden.
+Haven is born, in a nest in the corner of its valley.
 Haven is alive (0.0 days old). Its dashboard: http://127.0.0.1:8765
   · got hurt
   · ate a berry
@@ -55,6 +55,12 @@ window. The app isn't signed with an Apple developer account, so the first time 
 go to System Settings, Privacy & Security, and click Open Anyway (on older macOS, right-click the app
 and choose Open).
 
+**If you already have a Haven**, from before it lived in the valley: the first time the new version
+wakes it, it moves. It keeps its name, its age, its life story, what it concluded about itself, and
+your conversations. What it knew about the old garden (its kinds of things, the words it had for them,
+its maps and habits) doesn't carry over, since its senses and its world are new, so it finds out about
+the valley from scratch. Its old life and its old language cortex are kept in `~/.haven/archive/`.
+
 **By hand.** You need Python 3.10 or newer.
 
 ```bash
@@ -72,9 +78,9 @@ pip install -e ".[cortex]"
 haven app
 ```
 
-`haven app` is what the launchers run. It opens a chat page where you can watch Haven's thoughts as it
-answers, see its garden and how it feels, touch it and give it berries. `haven chat` is the same
-conversation in the terminal.
+`haven app` is what the launchers run. It opens Haven's window: its valley in 3D, where you can watch
+it live, and a chat beside it where you can watch its thoughts as it answers. You can pet it and give
+it berries. `haven chat` is the same conversation in the terminal.
 
 It can talk right away, with the language cortex it's born with. To have it learn to read, run `haven learn` (see [Its language cortex](#its-language-cortex)).
 
@@ -82,7 +88,7 @@ It can talk right away, with the language cortex it's born with. To have it lear
 
 `haven` runs its life in real time (8 moments a second; a day is 1,200 moments) and opens a dashboard at http://127.0.0.1:8765. The dashboard only listens on your own computer. It shows:
 
-- **The garden**, as it really is, and **what Haven believes is where**: its own map, built from what it has seen, colored by the kinds of things it has learned, darker where it's less sure, with an ✕ where it got hurt.
+- **The valley**, as it really is (from above), and **what Haven believes is where**: its own map, built from what it has seen, colored by the kinds of things it has learned, darker where it's less sure, with an ✕ where it got hurt.
 - **In its mind now**: the one content in its global workspace, and what its attention schema expects to come next.
 - **Readout**: plain-English instrument readings of its state. These are not its words.
 - **Stream of consciousness**: the contents that recently won the workspace.
@@ -98,11 +104,38 @@ In the terminal, `/status`, `/check`, `/story`, `/pause`, `/resume`, `/speed N` 
 
 ## Its world and its body
 
-The garden is 14 × 14 cells: open ground, walls, stones, five berry bushes that grow back what's eaten, four thorn patches that hurt to step on, and a warm nest in one corner. Days are warm and bright; nights are cold and dark. A sunny corner is warm by day.
+Haven lives in a walled valley of 24 × 24 places, and the ground has heights: a hill in one corner, with gentle slopes and a cliff on its south side (it can jump down, but not climb up), and a little mound in the middle. Climbing costs effort. Things in the valley are there to be found out about:
 
-Haven faces one of four directions. It sees along five rays (straight ahead, 45° and 90° to each side), and each ray reports only a color and how far away it is, with noise that gets much worse as it gets dark. It smells berries, feels warmth, pain, bumps and touch, and hears words. Everything else it has to learn. It can step forward, turn, eat whatever is in front of it, rest, and make a sound.
+| Thing | What it's like |
+|---|---|
+| Berry bushes | Berries to eat; they grow back. |
+| Apple trees | Apples fall now and then, and if it shakes a tree, one drops. Apples are the best food. |
+| Mushrooms and toadstools | Mushrooms are food. Toadstools look much like them and make it sick. Both grow back. |
+| The pond | Drinking cools it down when it's hot. It can't walk into the water. |
+| Flowers | They smell lovely. |
+| The bell | Touch it and it rings (and Haven hears it). |
+| The ball | Push it or kick it, and it rolls; on a slope it rolls downhill by itself. |
+| The campfire | Lovely and warm to sit by on a cold night; it burns if it steps in. |
+| Thorns, stones, walls | Thorns hurt. Stones and walls are in the way. |
+| Butterflies | They flutter about and won't keep still. |
+| Its nest | Warm and safe; where it sleeps best. |
+
+Days are warm and bright; nights are cold and dark. The shade under the trees is cool, the water cools the air around it, and the hilltop is windy.
+
+Haven faces one of eight directions. It sees along five rays (straight ahead, 45° and 90° to each side), and each ray reports only a color, how tall the thing it hits is, and how far away it is, with noise that gets much worse as it gets dark. Rising ground blocks its view, and from the hilltop it sees over everything lower. It smells sweet things (berries, apples, flowers), feels warmth, pain, bumps and touch, and hears words and the bell. Everything else it has to learn: nobody tells it what an apple is. It can step forward, turn, eat whatever is in front of it, use it (touch, shake, push, drink, ring, smell), rest, and make a sound. It learns what each kind of thing is good for by trying, and it gets curious about the things it hasn't tried yet. When it's content it plays, and playing the same way over and over gets less fun.
 
 Its body has four variables kept near set points: energy, temperature, integrity (health) and fatigue. How far each is from its set point is a need. How good or bad a moment feels (its valence) is how much its needs got better or worse, plus pain and the pleasure of being touched or fed. This follows the view that feeling begins with a body regulating itself (Damasio; Solms) and homeostatic reinforcement learning (Keramati & Gutkin, 2014). Its valence is what all of its learning is driven by.
+
+## Its valley, in 3D
+
+Haven's window (`haven app`) shows its valley in 3D, built from the world as it really is at each moment: the hill and its cliff, the pond and its sand, the orchard, every bush with its berries, apples on the trees and on the ground, the mushrooms that have grown back, the ball wherever it has rolled, the butterflies, the bell, the campfire, and Haven itself, walking, eating, sleeping (with little z's), and saying what it says in a speech bubble. Days turn to night, when the campfire lights things up.
+
+- **Look around**: drag to turn, scroll to zoom. The camera follows Haven; press "Follow Haven" to see the whole valley instead.
+- **Point at things** to see what they are ("a berry bush, with 2 berries").
+- **Click Haven** to pet it. **Give a berry** feeds it.
+- Little pictures show what just happened to it: a sparkle when it eats, a drop when it drinks, a note when it rings the bell, a heart when it's petted or smells a flower. Turn the sound on to hear the bell.
+
+This view is only for you: Haven never sees it. What Haven senses are the world's own rays.
 
 ## Its mind
 
@@ -153,9 +186,11 @@ Words it learns from you stay few. For language beyond that, Haven has a languag
 
 - **Its state goes in directly.** Its workspace, body and feelings, attention schema and self-model become four "workspace tokens", the first things its cortex reads, before any words. So when it says how it feels or what it sees, it's reading that off its own state, not off a description of it.
 - **Meanings come back out.** What it reads or says is projected back into the workspace's format. Words can bring states to mind ("I'm hungry" evokes hunger), what you say draws its attention, and what it says enters its workspace as a thought.
-- **What it knows comes to mind first.** Before it answers, what it knows (its name and age, where it is, the words and facts it has learned, what it remembers) comes to mind as a line of inner speech that its cortex reads.
+- **What it knows comes to mind first.** Before it answers, what it knows comes to mind as a line of inner speech that its cortex reads: always its name and age, where it is, what it did today, what it likes and what it has found out, and then whatever your words bring up. Mention the bell, and what it has found out about the bell comes to mind. Ask about yourself, and what you told it comes to mind. Ask about something it has read about, and what it read comes to mind.
 
-**It's born talking about itself.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of six simulated lives of Haven, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, and what it would answer if asked, about 30 kinds of questions in many wordings ("How are you?", "What do you see?", "Where are you?", "What have you learned?", "Are you alive?", …). The answers it learned are worked out from its state at that moment, so to answer right it has to read its own state. Questions about anything beyond its garden have the answer that it doesn't know. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
+**It remembers you.** Tell it your name ("I'm Sam", "my name is Sam") and it remembers it, and greets you by name. Tell it things about yourself ("I have a dog called Rex", "my favorite color is green", "I live in Lisbon") and it says it will remember, and does: ask it later ("what's my dog called?") and it tells you what you told it. When it doesn't know something and reads about it, it remembers what it read, so the next time you ask, it knows. All of this is kept with its life, on your computer.
+
+**It's born talking about itself.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of six simulated lives of Haven, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, and what it would answer if asked, about 30 kinds of questions in many wordings ("How are you?", "What do you see?", "Where are you?", "What have you learned?", "Are you alive?", …). The answers it learned are worked out from its state at that moment, so to answer right it has to read its own state. Questions about anything beyond its valley have the answer that it doesn't know, unless it has read about them. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
 
 Tested on a simulated life it never saw while learning, with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 82% of them exactly as its state and what it knows say it should, it says what state it's in 84% of the time, and reading words about a need brings that need to mind every time. A conversation with it in the app, a few minutes after it was born:
 
@@ -199,7 +234,7 @@ haven learn --minutes 90      # study for 90 minutes, then save and stop (run it
 
 ### What to expect
 
-It talks about itself and its garden, simply, from the start. What it can learn beyond that is limited by the size of its cortex, your hardware and your patience. The cortex it's born with is "small":
+It talks about itself and its valley, simply, from the start. What it can learn beyond that is limited by the size of its cortex, your hardware and your patience. The cortex it's born with is "small":
 
 | Size | Connections | One reading step |
 |---|---|---|
@@ -250,8 +285,8 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 
 ## Limits
 
-- Its world is tiny and its senses are simple: color and distance along five rays. It can keep sixteen kinds of things in mind at most, and the same thing in shade and in sun can count as two kinds until it works out, in its sleep, that they're one.
-- Its words from you are names and needs; anything more fluent comes from its language cortex, which is small and speaks only as well as it has studied. It talks about itself and its garden; about the wider world it knows only what it has read.
+- Its world is small and its senses are simple: color, height and distance along five rays. It can keep twenty-eight kinds of things in mind at most, and the same thing in shade and in sun can count as two kinds until it works out, in its sleep, that they're one.
+- Its words from you are names and needs; anything more fluent comes from its language cortex, which is small and speaks only as well as it has studied. It talks about itself and its valley, about you if you tell it about yourself, and about the wider world only what it has read. The names it uses for the valley's things ("the bell", "apples") are the words it's given for what it does, like a parent saying "you rang the bell!"; what it knows about each thing is what happened when it tried.
 - The sentences it learns for its own states at level 2 were written by people, describing states that its instruments measure. What it learns is to say the right one at the right time, not new ways of describing itself, and it can still say the wrong one.
 - The indicator properties come from theories that may be wrong, and each is implemented in one simple way among many possible ones. None of this has been peer reviewed.
 
@@ -263,9 +298,10 @@ pytest                 # a few minutes: the curriculum runs against a fake inter
 ruff check . && ruff format --check .
 python packaging/train_starter.py --minutes 100   # retrain the cortex it's born with (from scratch, on a CPU)
 python packaging/mac/make_app.py                  # build dist/Haven-for-Mac.zip
+python packaging/world3d/build.py                 # rebuild the 3D view (needs Node.js; the result is kept in the repo)
 ```
 
-The creature is plain numpy: [`world.py`](haven/world.py) and [`body.py`](haven/body.py) are its world and body; [`perception.py`](haven/perception.py), [`metacognition.py`](haven/metacognition.py), [`worldmodel.py`](haven/worldmodel.py), [`workspace.py`](haven/workspace.py), [`attention.py`](haven/attention.py), [`memory.py`](haven/memory.py), [`agency.py`](haven/agency.py), [`language.py`](haven/language.py) and [`selfmodel.py`](haven/selfmodel.py) are the modules of its mind, and [`mind.py`](haven/mind.py) runs the cycle. [`check.py`](haven/check.py) measures the indicators. The language cortex is in [`haven/cortex`](haven/cortex): [`model.py`](haven/cortex/model.py) is the transformer, [`grounding.py`](haven/cortex/grounding.py) and [`talk.py`](haven/cortex/talk.py) turn its states into words and answers, [`curriculum.py`](haven/cortex/curriculum.py) and [`train.py`](haven/cortex/train.py) are how it studies, and [`think.py`](haven/cortex/think.py) is how it answers.
+The creature is plain numpy: [`world.py`](haven/world.py) and [`body.py`](haven/body.py) are its world and body; [`perception.py`](haven/perception.py), [`metacognition.py`](haven/metacognition.py), [`worldmodel.py`](haven/worldmodel.py), [`workspace.py`](haven/workspace.py), [`attention.py`](haven/attention.py), [`memory.py`](haven/memory.py), [`agency.py`](haven/agency.py), [`language.py`](haven/language.py) and [`selfmodel.py`](haven/selfmodel.py) are the modules of its mind, and [`mind.py`](haven/mind.py) runs the cycle. [`check.py`](haven/check.py) measures the indicators. The 3D view is [`packaging/world3d/world3d.js`](packaging/world3d/world3d.js), bundled with [three.js](https://threejs.org) (MIT license) into `haven/static/`. The language cortex is in [`haven/cortex`](haven/cortex): [`model.py`](haven/cortex/model.py) is the transformer, [`grounding.py`](haven/cortex/grounding.py) and [`talk.py`](haven/cortex/talk.py) turn its states into words and answers, [`curriculum.py`](haven/cortex/curriculum.py) and [`train.py`](haven/cortex/train.py) are how it studies, and [`think.py`](haven/cortex/think.py) is how it answers.
 
 ## References
 

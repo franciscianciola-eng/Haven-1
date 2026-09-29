@@ -19,9 +19,10 @@ from .nets import Prototypes, QualityCoder
 from .workspace import Candidate, Q
 from .world import DIRECTIONS, RAY_RANGE, RAYS, Senses
 
+KINDS = 28  # how many kinds of things it can keep in mind
 N_RAYS = len(RAYS)
-VISION_FEATURES = N_RAYS * 4  # color and nearness along each ray
-BODY_FEATURES = ("scent", "warmth", "pain", "bump", "touch", "fed")
+VISION_FEATURES = N_RAYS * 5  # color, how tall it is, and nearness, along each ray
+BODY_FEATURES = ("scent", "warmth", "pain", "bump", "touch", "fed", "sound")
 
 
 @dataclass
@@ -30,6 +31,7 @@ class Observation:
 
     light: float
     colors: np.ndarray  # (5, 3), corrected for the light (color constancy), so noisier in the dark
+    heights: np.ndarray  # (5,)
     nearness: np.ndarray
     scent: float
     warmth: float
@@ -37,6 +39,7 @@ class Observation:
     pain: float
     touch: float
     fed: float
+    sound: float = 0.0
     words: list[str] = field(default_factory=list)
 
     @classmethod
@@ -45,6 +48,7 @@ class Observation:
         return cls(
             light=senses.light,
             colors=np.clip(senses.colors / brightness, 0.0, 1.5),
+            heights=senses.heights.copy(),
             nearness=senses.nearness.copy(),
             scent=senses.scent,
             warmth=senses.warmth,
@@ -52,11 +56,16 @@ class Observation:
             pain=senses.pain,
             touch=senses.touch,
             fed=senses.fed,
+            sound=senses.sound,
             words=list(senses.words),
         )
 
+    def looks(self) -> np.ndarray:
+        """What each ray shows: its color and how tall it is (N_RAYS, 4)."""
+        return np.concatenate([self.colors, self.heights[:, None]], axis=1)
+
     def vision(self) -> np.ndarray:
-        return np.concatenate([self.colors, self.nearness[:, None]], axis=1).ravel()
+        return np.concatenate([self.looks(), self.nearness[:, None]], axis=1).ravel()
 
     def body(self) -> np.ndarray:
         return np.array([getattr(self, name) for name in BODY_FEATURES])
@@ -70,6 +79,7 @@ class Percept:
     distance: int  # cells away, RAY_RANGE + 1 if nothing is in range
     cell: tuple[int, int] | None  # where it is, if something is in range
     color: np.ndarray
+    height: float  # how tall it looks, 0 (flat) to 1 (as tall as a tree)
     code: np.ndarray
     kind: int
     typicality: float  # 1 if it looks just like its kind, lower if it's hard to make out
@@ -79,11 +89,15 @@ class Percept:
 
 
 class Vision:
-    """Sees along five rays and learns, by itself, what kinds of things there are."""
+    """Sees along five rays and learns, by itself, what kinds of things there are.
+
+    What it sees of a thing is its color and how tall it is, so a red berry on a bush and a
+    red apple on the ground look different to it.
+    """
 
     def __init__(self, rng: np.random.Generator):
-        self.coder = QualityCoder(3, Q, rng, width=0.16, active=3)
-        self.kinds = Prototypes(Q, capacity=16, radius=0.55, lr=0.04)
+        self.coder = QualityCoder(4, Q, rng, width=0.16, active=3)
+        self.kinds = Prototypes(Q, capacity=KINDS, radius=0.55, lr=0.04)
         self.seen = 0  # ticks of looking
 
     def perceive(
@@ -96,13 +110,14 @@ class Vision:
     ) -> list[Percept]:
         self.seen += 1
         x, y, heading = pose
-        features = obs.vision().reshape(N_RAYS, 4)
-        expected = None if predicted is None else predicted.reshape(N_RAYS, 4)
+        features = obs.vision().reshape(N_RAYS, 5)
+        expected = None if predicted is None else predicted.reshape(N_RAYS, 5)
+        looks = obs.looks()
         percepts = []
         for i, turn in enumerate(RAYS):
-            color, nearness, r = obs.colors[i], float(obs.nearness[i]), float(reliability[i])
-            prior = None if expected is None else self.coder.tuning(np.clip(expected[i, :3], 0, 1.5))
-            code, _ = self.coder.infer(color, prior, r)
+            look, nearness, r = looks[i], float(obs.nearness[i]), float(reliability[i])
+            prior = None if expected is None else self.coder.tuning(np.clip(expected[i, :4], 0, 1.5))
+            code, _ = self.coder.infer(look, prior, r)
             first = code.copy()
             for _ in range(2):  # recognition feeds back into seeing: codes are drawn toward their kind
                 kind, distance = self.kinds.nearest(code)
@@ -110,7 +125,7 @@ class Vision:
                     break
                 code = self.coder.sparsen(0.75 * code + 0.25 * self.kinds.centers[kind])
             if learn and r > 0.3:
-                self.coder.learn(color, 0.03 * r)
+                self.coder.learn(look, 0.03 * r)
             may_create = learn and r > 0.7 and self.seen > 100
             kind = self.kinds.assign(code, weight=r if learn else 0.0, may_create=may_create)
             _, distance = self.kinds.nearest(code)
@@ -127,7 +142,8 @@ class Vision:
                     nearness=nearness,
                     distance=steps,
                     cell=cell,
-                    color=color,
+                    color=look[:3],
+                    height=float(look[3]),
                     code=code,
                     kind=kind,
                     typicality=float(np.exp(-distance / self.kinds.radius)) if kind >= 0 else 0.0,
@@ -179,17 +195,37 @@ def vision_candidates(percepts: list[Percept], values: np.ndarray, novelty: call
                 value=value,
                 novelty=fresh,
                 kind=p.kind,
-                label=f"something {color_name(p.color)} {where}, {distance}",
+                label=f"something {looks(p.color, p.height)} {where}, {distance}",
                 key=("vision", p.cell if p.cell is not None else ("far", p.ray)),
-                extra={"ray": p.ray, "cell": p.cell, "distance": p.distance, "color": color_name(p.color)},
+                extra={
+                    "ray": p.ray,
+                    "cell": p.cell,
+                    "distance": p.distance,
+                    "color": color_name(p.color),
+                    "size": size_name(p.height),
+                },
             )
         )
     return candidates
 
 
+def size_name(height: float) -> str:
+    """How tall something looks, in plain words ("" for middling)."""
+    for limit, name in ((0.03, "flat"), (0.1, "low"), (0.2, "small"), (0.45, "")):
+        if height < limit:
+            return name
+    return "tall"
+
+
+def looks(color: np.ndarray, height: float) -> str:
+    """How something looks, in a few words: "tall green", "low red", "blue"."""
+    size = size_name(height)
+    return f"{size} {color_name(color)}" if size else color_name(color)
+
+
 def color_name(rgb: np.ndarray) -> str:
     """A plain-English name for a color, for people reading about what Haven sees."""
-    r, g, b = (float(c) for c in np.clip(rgb, 0, 1))
+    r, g, b = (float(c) for c in np.clip(np.asarray(rgb)[:3], 0, 1))
     hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
     if saturation < 0.15 or max(r, g, b) - min(r, g, b) < 0.12:
         return "pale" if lightness > 0.75 else "gray" if lightness > 0.4 else "dark gray"

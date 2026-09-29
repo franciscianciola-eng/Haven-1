@@ -7,7 +7,7 @@ import threading
 import time
 from collections.abc import Callable
 
-from .mind import Mind
+from .mind import VERSION, Mind, moved
 from .report import snapshot
 from .store import Store
 
@@ -18,6 +18,11 @@ def open_mind(store: Store, seed: int | None = None, name: str = "Haven") -> Min
     """Wake the Haven that lives in this store, or bring a new one into the world."""
     if store.exists():
         state = store.load()
+        if int(state.get("version", 1)) < VERSION:  # it lived in an older world: it moves to this one
+            mind = moved(state)
+            store.archive()  # its old life stays on disk, in archive/
+            store.save(mind.to_state())
+            return mind
         mind = Mind(int(state["seed"]), state["self"]["name"])
         mind.load_state(state)
         return mind

@@ -17,7 +17,7 @@ from .workspace import SOURCES
 
 NOTHING = len(SOURCES)  # the "nothing in mind" state
 N_STATES = len(SOURCES) + 1
-GOALS = ("food", "warmth", "healing", "sleep", "explore")
+GOALS = ("food", "warmth", "healing", "sleep", "explore", "play")
 
 
 def features(focus: int, dwell: int, arousal: float, drives: np.ndarray, light: float, goal: int, heard: bool):

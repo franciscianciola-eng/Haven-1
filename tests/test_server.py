@@ -33,6 +33,10 @@ def test_dashboard_api(tmp_path):
         assert call(port, "/api/pause", {"paused": True})["paused"] is True
         assert call(port, "/api/speed", {"speed": 1000})["speed"] == 200
         assert len(call(port, "/api/check")["indicators"]) == 14
+        world = call(port, "/api/world")  # what the 3D view shows
+        assert world["heights"][4][18] == "3" and world["speed"] == 200 and len(world["flowers"]) == 9
+        with NO_PROXY.open(f"http://127.0.0.1:{port}/static/world3d.js", timeout=30) as response:
+            assert response.headers["Content-Type"].startswith("text/javascript") and b"HavenWorld" in response.read()
     finally:
         life.stop()
         server.shutdown()

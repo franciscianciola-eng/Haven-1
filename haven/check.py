@@ -22,9 +22,15 @@ import numpy as np
 from .body import Body
 from .mind import Mind
 from .workspace import SOURCES
-from .world import BUSH
+from .world import BUSH, NAMES, World
 
-TRUE_NAMES = {0: "open ground", 1: "wall", 2: "bush", 3: "thorns", 4: "stone", 5: "nest"}
+
+def true_name(world: World, x: int, y: int) -> str:
+    """What's really at a place (Haven itself never sees this, only colors and shapes)."""
+    thing = world.thing(x, y)
+    if thing == BUSH:
+        return "bush with berries" if world.berries[(x, y)] else "bare bush"
+    return NAMES[thing]
 
 
 @dataclass
@@ -54,10 +60,7 @@ def probe(mind: Mind, ticks: int = 1200) -> dict:
             if p.cell is None:
                 continue
             x, y = p.cell
-            truth = world._cell(x, y)
-            name = TRUE_NAMES[truth]
-            if truth == BUSH:
-                name = "bush with berries" if world.berries[(x, y)] else "bare bush"
+            name = true_name(world, x, y)
             records.append((name, p.kind, p.reliability, p.code.copy(), p.color.copy(), p.settled))
         return percepts
 
@@ -106,7 +109,7 @@ def probe(mind: Mind, ticks: int = 1200) -> dict:
     # Smoothness of the quality space: are nearby colors coded by nearby codes?
     rng = np.random.default_rng(0)
     coder = twin.vision.coder
-    colors = rng.uniform(0, 1, (300, 3))
+    colors = rng.uniform(0, 1, (300, 4))  # colors, and how tall things are
     codes = np.array([coder.tuning(c) for c in colors])
     i, j = rng.integers(0, 300, (2, 3000))
     color_d = np.linalg.norm(colors[i] - colors[j], axis=1)
@@ -114,14 +117,13 @@ def probe(mind: Mind, ticks: int = 1200) -> dict:
     near = color_d < 0.3
     smooth = float(np.corrcoef(np.argsort(np.argsort(color_d[near])), np.argsort(np.argsort(code_d[near])))[0, 1])
 
-    # How well do its beliefs about places match the garden? Each kind is taken to mean whatever it
+    # How well do its beliefs about places match the valley? Each kind is taken to mean whatever it
     # is mostly believed to be at; a place counts as right if what's really there is that.
     beliefs = twin.beliefs
     cells = [(x, y) for y in range(beliefs.height) for x in range(beliefs.width) if beliefs.kind[y, x] >= 0]
 
     def truth_at(x: int, y: int) -> str:
-        truth = world._cell(x, y)
-        return "bush" if truth == BUSH else TRUE_NAMES[truth]
+        return NAMES[world._cell(x, y)]  # what's on the ground there (the ball and butterflies come and go)
 
     at_kind = defaultdict(Counter)
     for x, y in cells:

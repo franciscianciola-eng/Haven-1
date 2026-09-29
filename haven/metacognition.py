@@ -17,7 +17,9 @@ import numpy as np
 
 from .workspace import SOURCES
 
-TOLERANCE = {"vision": 0.02, "smell": 0.004, "touch": 0.05, "body": 0.0005}
+# How far off a percept can be and still count as right. The valley is busier to look at than the flat
+# garden Haven first lived in (heights, butterflies, a rolling ball), so vision is judged against what's usual there.
+TOLERANCE = {"vision": 0.028, "smell": 0.004, "touch": 0.05, "body": 0.0005}
 
 
 def context(light: float, nearness: float, arousal: float, fatigue: float, moving: float) -> np.ndarray:

@@ -14,7 +14,7 @@ from .attention import NOTHING
 from .body import DRIVES
 from .mind import Mind, need_words
 from .workspace import SOURCES
-from .world import ACTIONS, BUSH, LAYOUT
+from .world import ACTIONS, BUSH, DAY, FLOWER, HEIGHTS, LAYOUT
 
 GOALS = {
     "food": "find food",
@@ -22,6 +22,7 @@ GOALS = {
     "healing": "rest and heal",
     "sleep": "get to its nest and sleep",
     "explore": "explore",
+    "play": "play with something it enjoys",
 }
 
 
@@ -84,11 +85,12 @@ def readout(mind: Mind) -> list[str]:
 def kinds(mind: Mind) -> list[dict]:
     result = []
     for k in mind.vision.kinds.alive():
-        rgb = np.clip(mind.vision.coder.reconstruct(mind.vision.kinds.centers[k]), 0, 1)
+        rgb = np.clip(mind.vision.coder.reconstruct(mind.vision.kinds.centers[k])[:3], 0, 1)
         result.append(
             {
                 "id": k,
                 "color": "#" + "".join(f"{int(c * 255):02x}" for c in rgb),
+                "looks": mind.kind_look(k),
                 "name": mind.lexicon.name_for(k),
                 "facts": mind.knowledge.describe(k),
                 "seen": int(mind.vision.kinds.counts[k]),
@@ -125,14 +127,7 @@ def snapshot(mind: Mind) -> dict:
         "day": w.day,
         "time_of_day": mind.time_of_day,
         "light": round(w.light, 2),
-        "world": {
-            "layout": list(LAYOUT),
-            "berries": [[x, y, n] for (x, y), n in w.berries.items()],
-            "bushes": [[x, y] for (x, y) in w.berries if w.grid[y, x] == BUSH],
-            "x": w.x,
-            "y": w.y,
-            "heading": w.heading,
-        },
+        "world": world(mind),
         "beliefs": {
             "kind": mind.beliefs.kind.tolist(),
             "confidence": np.round(mind.beliefs.confidence, 2).tolist(),
@@ -182,7 +177,53 @@ def snapshot(mind: Mind) -> dict:
         },
         "readout": readout(mind),
         "welfare": welfare(mind),
+        "today": mind.today,
     }
+
+
+def world(mind: Mind) -> dict:
+    """The world as it really is (for the people watching; Haven only knows what it has seen of it)."""
+    w = mind.world
+    return {
+        "layout": list(LAYOUT),
+        "heights": list(HEIGHTS),
+        "tick": w.tick,
+        "light": round(w.light, 3),
+        "berries": [[x, y, n] for (x, y), n in w.berries.items()],
+        "bushes": [[x, y] for (x, y) in w.berries if w.grid[y, x] == BUSH],
+        "fruit": [[x, y, n] for (x, y), n in w.fruit.items()],
+        "apples": [list(a) for a in w.apples],
+        "mushrooms": [[x, y, int(wait == 0)] for (x, y), wait in w.mushrooms.items()],
+        "ball": list(w.ball),
+        "butterflies": [list(b) for b in w.butterflies],
+        "rang": w.tick - w.rang,
+        "flowers": [
+            [int(x), int(y), _hex(w._color(int(x), int(y), FLOWER))] for y, x in zip(*np.nonzero(w.grid == FLOWER))
+        ],
+        "phase": round((w.tick % DAY) / DAY, 4),
+        "x": w.x,
+        "y": w.y,
+        "heading": w.heading,
+        "asleep": mind.body.asleep,
+        "did": did(mind),
+        "voice": None if w.voice is None else {"ago": w.tick - w.voice[0], "text": w.voice[1]},
+    }
+
+
+def did(mind: Mind) -> list[str]:
+    """What just happened to it, for showing: what it did, and what it felt."""
+    last = mind.last
+    if last is None:
+        return []
+    o = last.outcome
+    happened = [
+        e for e in ("ate", "drank", "rang", "pushed", "smelled", "shook", "warmed", "sick", "bumped") if getattr(o, e)
+    ]
+    return happened + ["hurt"] * bool(o.pain)
+
+
+def _hex(rgb) -> str:
+    return "#" + "".join(f"{int(round(float(c) * 255)):02x}" for c in rgb[:3])
 
 
 def welfare(mind: Mind) -> dict:

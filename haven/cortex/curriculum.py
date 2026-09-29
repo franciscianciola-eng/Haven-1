@@ -318,7 +318,7 @@ class ScratchReader:
         self.model.eval()
         tensor = torch.tensor(np.asarray(state, dtype=np.float32), device=self.device).unsqueeze(0)
         prompt = [THINK, *self.tok.encode(notes), YOU, *self.tok.encode(question), HAVEN]
-        tokens, _ = self.model.generate(prompt, tensor, max_new=48, temperature=0.0, stop=(END, YOU))
+        tokens, _ = self.model.generate(prompt, tensor, max_new=100, temperature=0.0, stop=(END, YOU))
         return self.tok.decode(tokens).strip()
 
 

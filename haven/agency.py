@@ -95,17 +95,42 @@ class BeliefMap:
         self.updates, self.weighted = int(state["counts"][0]), float(state["counts"][1])
 
 
+EFFECTS = ("drank", "rang", "pushed", "smelled", "shook", "warmed")  # what using something can do
+
+
 class KindKnowledge:
     """What Haven has found out about each kind of thing, by dealing with it."""
 
-    FIELDS = ("eat_tries", "eaten", "walk_tries", "blocked", "stepped", "pain", "warm_sum", "valence_sum", "met")
+    FIELDS = (
+        "eat_tries",
+        "eaten",
+        "sickened",
+        "walk_tries",
+        "blocked",
+        "stepped",
+        "pain",
+        "warm_sum",
+        "valence_sum",
+        "met",
+        "use_tries",
+        "use_sum",
+        *(f"use_{effect}" for effect in EFFECTS),
+    )
 
     def __init__(self, capacity: int = 16):
         for name in self.FIELDS:
             setattr(self, name, np.zeros(capacity))
 
     def edible(self, k: int) -> float:
-        return float((self.eaten[k] + 0.3) / (self.eat_tries[k] + 2))
+        return float((self.eaten[k] - 2 * self.sickened[k] + 0.5) / (self.eat_tries[k] + 1.5))
+
+    def fun(self, k: int) -> float:
+        """How it has usually felt to use it (to ring it, push it, smell it, drink from it)."""
+        return float(self.use_sum[k] / (self.use_tries[k] + 2))
+
+    def does(self, k: int, effect: str) -> bool:
+        """Whether using it has reliably done something (like ringing, or rolling away)."""
+        return bool(getattr(self, f"use_{effect}")[k] >= 2)
 
     def solid(self, k: int) -> float:
         return float((self.blocked[k] + 0.2) / (self.walk_tries[k] + 1))
@@ -122,22 +147,31 @@ class KindKnowledge:
     def values(self) -> np.ndarray:
         return self.valence_sum / (self.met + 2)
 
-    def tried_eating(self, k: int, ate: bool) -> None:
-        self.eat_tries[k] += 1
-        self.eaten[k] += ate
+    # Each lesson counts in proportion to how sure it was of what it was dealing with (`weight`, 0 to 1).
 
-    def tried_walking(self, k: int, blocked: bool) -> None:
-        self.walk_tries[k] += 1
-        self.blocked[k] += blocked
+    def tried_eating(self, k: int, ate: bool, sick: bool = False, weight: float = 1.0) -> None:
+        self.eat_tries[k] += weight
+        self.eaten[k] += weight * ate
+        self.sickened[k] += weight * sick
+
+    def tried_using(self, k: int, valence: float, effects: list[str], weight: float = 1.0) -> None:
+        self.use_tries[k] += weight
+        self.use_sum[k] += weight * valence
+        for effect in effects:
+            getattr(self, f"use_{effect}")[k] += weight
+
+    def tried_walking(self, k: int, blocked: bool, weight: float = 1.0) -> None:
+        self.walk_tries[k] += weight
+        self.blocked[k] += weight * blocked
 
     def stood_on(self, k: int, pain: float, warmth: float) -> None:
         self.stepped[k] += 1
         self.pain[k] += pain
         self.warm_sum[k] += warmth
 
-    def felt(self, k: int, valence: float) -> None:
-        self.met[k] += 1
-        self.valence_sum[k] += valence
+    def felt(self, k: int, valence: float, weight: float = 1.0) -> None:
+        self.met[k] += weight
+        self.valence_sum[k] += weight * valence
 
     def verdicts(self, k: int) -> tuple:
         """What it has concluded about a kind (None where it hasn't found out yet)."""
@@ -145,6 +179,7 @@ class KindKnowledge:
             None if self.walk_tries[k] < 2 else self.solid(k) > 0.6,
             None if self.eat_tries[k] < 2 else self.edible(k) > 0.5,
             None if self.stepped[k] < 1 else self.painful(k) > 0.2,
+            None if self.use_tries[k] < 2 else next((e for e in EFFECTS if self.does(k, e)), ""),
         )
 
     def merge(self, keep: int, gone: int) -> None:
@@ -156,7 +191,9 @@ class KindKnowledge:
     def describe(self, k: int) -> list[str]:
         """What it has learned about a kind, in words, for readouts."""
         facts = []
-        if self.eat_tries[k] >= 2:
+        if self.sickened[k] >= 1:
+            facts.append("makes it sick")
+        elif self.eat_tries[k] >= 2:
             facts.append("good to eat" if self.edible(k) > 0.5 else "not something to eat")
         if self.walk_tries[k] >= 2 and self.solid(k) > 0.6:
             facts.append("in the way")
@@ -164,6 +201,16 @@ class KindKnowledge:
             facts.append("it hurts")
         if self.stepped[k] >= 3 and self.warm(k) > 0.62:
             facts.append("warm")
+        for effect, words in (
+            ("drank", "good to drink"),
+            ("rang", "it rings"),
+            ("pushed", "it rolls"),
+            ("smelled", "smells lovely"),
+            ("shook", "apples fall from it"),
+            ("warmed", "warms it"),
+        ):
+            if self.does(k, effect):
+                facts.append(words)
         return facts
 
     def to_state(self) -> dict:
@@ -297,15 +344,20 @@ class Goals:
         self.since = 0
         self.switches = 0
 
-    def urgencies(self, drives: np.ndarray, cold: bool, light: float, curiosity: float) -> dict[str, float]:
+    def urgencies(
+        self, drives: np.ndarray, cold: bool, light: float, curiosity: float, playful: float = 0.0
+    ) -> dict[str, float]:
+        """How pressing each goal is. `playful` is how much it would enjoy playing just now (0 to 1)."""
         hunger, temperature, damage, tiredness = drives
         night = light < 0.3
+        content = max(0.0, 1 - 2 * float(np.max(drives)))
         return {
             "food": 1.2 * hunger,
             "warmth": temperature * (1.0 if cold else 0.6),
             "healing": 0.9 * damage,
             "sleep": tiredness + (0.45 if night else 0.0),
             "explore": 0.2 + 0.2 * curiosity,
+            "play": 0.45 * playful * content * (0.3 if night else 1.0),
         }
 
     def choose(self, urgencies: dict[str, float], tick: int) -> str:
@@ -372,12 +424,32 @@ def reflexes(
     social: bool,
     tired: float,
     rng: np.random.Generator,
+    hot: bool = False,
+    calm: bool = False,
+    sniff: float = 0.0,
 ) -> np.ndarray:
-    """Innate tendencies, like a newborn's: they get it started until it learns better."""
+    """Innate tendencies, like a newborn's: they get it started until it learns better.
+
+    `sniff` is how the sweet smell changed with its last move: hungry, it follows its nose.
+    """
     bias = np.zeros(len(ACTIONS))
     a = {name: i for i, name in enumerate(ACTIONS)}
+    if hunger > 0.25 and sniff:
+        if sniff > 0.001:
+            bias[a["forward"]] += 1.0 + hunger  # the smell is getting stronger: keep going
+        elif sniff < -0.001:
+            bias[a["left" if rng.random() < 0.5 else "right"]] += 1.0 + hunger  # fading: try another way
     bias[a["speak"]] -= 2.0  # it vocalizes now and then
     bias[a["rest"]] -= 0.5
+    if ahead_near:  # curious paws: it tries doing things with what's in front of it
+        k = ahead_kind
+        untried = k < 0 or knowledge.use_tries[k] < 3
+        bias[a["use"]] += (0.4 if untried and calm else 0.0) + (2.5 * max(0.0, knowledge.fun(k)) if k >= 0 else 0.0)
+        if hot and k >= 0 and knowledge.does(k, "drank"):
+            bias[a["use"]] += 2.0  # a drink to cool down
+        bias[a["use"]] -= 0.8
+    else:
+        bias[a["use"]] -= 2.0
     if bump:
         bias[a["left" if rng.random() < 0.5 else "right"]] += 2.0
         bias[a["forward"]] -= 2.0
@@ -405,14 +477,34 @@ def goal_cells(
     temperature: float,
     remembered: Callable[[str], tuple[int, int] | None],
     tick: int,
+    skip: set | frozenset = frozenset(),
 ) -> tuple[str, list[tuple[int, int]]]:
-    """Where it could go to pursue a goal, according to what it believes (never onto what hurts)."""
-    mode, cells = _goal_cells(goal, pose, beliefs, knowledge, cold, temperature, remembered, tick)
+    """Where it could go to pursue a goal, according to what it believes (never onto what hurts).
+
+    Exploring, or hungry without knowing yet what food is, it goes to try things it hasn't tried
+    (`skip`: places where trying something just now came to nothing).
+    """
+    x, y, _ = pose
+    if goal == "explore" or (goal == "food" and not any(knowledge.edible(k) > 0.5 for k in _tried(knowledge))):
+        new = [k for k in range(len(knowledge.eaten)) if _untried(knowledge, k)]
+        cells = [(int(cx), int(cy)) for cy, cx in zip(*np.nonzero(np.isin(beliefs.kind, new)))] if new else []
+        cells = [c for c in cells if c not in skip and abs(c[0] - x) + abs(c[1] - y) <= 10]
+        if cells:
+            return "face", sorted(cells, key=lambda c: abs(c[0] - x) + abs(c[1] - y))[:12]
+    mode, cells = _goal_cells(goal, pose, beliefs, knowledge, cold, temperature, remembered, tick, skip)
     if mode == "enter":
-        x, y, _ = pose
         cells = [c for c in cells if not hurts(c, beliefs, knowledge)]
         cells = sorted(cells, key=lambda c: abs(c[0] - x) + abs(c[1] - y))[:12]
     return mode, cells
+
+
+def _untried(knowledge: KindKnowledge, k: int) -> bool:
+    """A kind of thing it hasn't yet tried biting or using (and that hasn't hurt it)."""
+    return knowledge.eat_tries[k] + knowledge.use_tries[k] < 1.0 and knowledge.painful(k) < 0.2 and knowledge.met[k] > 0
+
+
+def _tried(knowledge: KindKnowledge) -> list[int]:
+    return [k for k in range(len(knowledge.eaten)) if knowledge.eat_tries[k] >= 1]
 
 
 def hurts(cell: tuple[int, int], beliefs: BeliefMap, knowledge: KindKnowledge) -> bool:
@@ -430,6 +522,7 @@ def _goal_cells(
     temperature: float,
     remembered: Callable[[str], tuple[int, int] | None],
     tick: int,
+    skip: set | frozenset = frozenset(),
 ) -> tuple[str, list[tuple[int, int]]]:
     x, y, _ = pose
     kinds = beliefs.kind
@@ -439,9 +532,18 @@ def _goal_cells(
         if cells:
             return "face", cells
         place = remembered("ate")
-        if place is not None and place != (x, y):
+        if place is not None and place != (x, y) and place not in skip:
             return "enter", [place]
         return "enter", frontier(beliefs, pose, tick)
+    if goal == "play":
+        fun = [k for k in range(len(knowledge.use_tries)) if knowledge.use_tries[k] >= 2 and knowledge.fun(k) > 0.1]
+        cells = [(int(cx), int(cy)) for cy, cx in zip(*np.nonzero(np.isin(kinds, fun)))] if fun else []
+        return ("face", cells) if cells else ("enter", frontier(beliefs, pose, tick))
+    if goal == "warmth" and not cold:  # too hot: a drink, if it knows where, or somewhere cooler
+        drinks = [k for k in range(len(knowledge.use_tries)) if knowledge.does(k, "drank")]
+        cells = [(int(cx), int(cy)) for cy, cx in zip(*np.nonzero(np.isin(kinds, drinks)))] if drinks else []
+        if cells:
+            return "face", cells
     if goal in ("warmth", "sleep", "healing"):
         warmth = np.nan_to_num(beliefs.warmth, nan=-1.0)
         if goal == "warmth" and not cold:
