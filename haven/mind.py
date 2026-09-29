@@ -873,7 +873,8 @@ class Mind:
     def _act(self, action: int, obs: Observation, drives: np.ndarray, tick: int, seen_kind: int = -1) -> Outcome:
         w, b = self.world, self.body
         name = ACTIONS[action]
-        target = w.thing(*w.ahead())  # what's really in front of it (Haven only knows what it sees)
+        cell = w.ahead()
+        target = w.thing(*cell)  # what's really in front of it (Haven only knows what it sees)
         outcome = w.act(name)
         in_nest = bool(w.grid[w.y, w.x] == NEST)
         b.live(outcome, w.ambient(), name == "rest", in_nest, obs.fed > 0)
@@ -934,7 +935,7 @@ class Mind:
                 self.me.milestone(f"first {event}", tick, first)
                 if content is not None:
                     self._remember(content, tick, pose, event)
-        self._experience(target, name, outcome, seen_kind, tick)
+        self._experience(target, name, outcome, seen_kind, tick, cell)
         if self.errand is not None and self.errand["action"] == name and name in ("use", "eat"):
             what = "pond" if target == WATER else NAMES.get(target)
             if what == self.errand["thing"] and (name == "use" or outcome.ate):  # a tree with no apples was shaken too
@@ -1013,8 +1014,11 @@ class Mind:
     def _note(self, tick: int, text: str) -> None:
         self.log = [*self.log[-199:], (tick, text)]
 
-    def _experience(self, target: int, action: str, outcome: Outcome, kind: int, tick: int) -> None:
-        """What happened with the thing in front of it, kept under the name people give it."""
+    def _experience(
+        self, target: int, action: str, outcome: Outcome, kind: int, tick: int, cell: tuple[int, int] | None = None
+    ) -> None:
+        """What happened with the thing in front of it (at `cell`), kept under the name people give it, with where it
+        was (so it can find its way back)."""
         if outcome.climbed:
             hill = self.things.setdefault("hill", {})
             hill["climbed"] = hill.get("climbed", 0) + 1
@@ -1035,6 +1039,8 @@ class Mind:
             return
         name = "pond" if target == WATER else NAMES[target]
         record = self.things.setdefault(name, {})
+        if cell is not None and name not in MOVING:
+            record["x"], record["y"] = int(cell[0]), int(cell[1])
         for event in happened:
             record[event] = record.get(event, 0) + 1
         record["last"] = tick
