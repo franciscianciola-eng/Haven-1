@@ -625,6 +625,8 @@ def a_lesson(rng: random.Random) -> tuple[str, str, tuple[str, ...]]:
                 f"What is the capital of {country}?",
                 f"What's the capital city of {country}?",
                 f"Do you know the capital of {country}?",
+                f"What do you know about {country}?",
+                f"Tell me about {country}.",
             ),
         )
     if roll == 1:
@@ -636,6 +638,8 @@ def a_lesson(rng: random.Random) -> tuple[str, str, tuple[str, ...]]:
                 f"What can {animals} do?",
                 f"Can {animals} {can}?",
                 f"Tell me about {animals}.",
+                f"What do you know about {animals}?",
+                f"Do you know anything about {animals}?",
             ),
         )
     if roll == 2:
@@ -647,11 +651,16 @@ def a_lesson(rng: random.Random) -> tuple[str, str, tuple[str, ...]]:
             (
                 f"What {verb} {thing} made of?",
                 f"What {verb} {thing} made from?",
+                f"What do you know about {thing}?",
             ),
         )
     if roll == 3:
         who, book = rng.choice(WROTE)
-        return f"{who} wrote {book}.", f"{who} wrote {book}", (f"Who wrote {book}?", f"What did {who} write?")
+        return (
+            f"{who} wrote {book}.",
+            f"{who} wrote {book}",
+            (f"Who wrote {book}?", f"What did {who} write?", f"Who is {who}?", f"Tell me about {book}."),
+        )
     planet, moons = rng.choice(MOONS)
     return (
         f"{planet} has {moons}.",
@@ -659,6 +668,7 @@ def a_lesson(rng: random.Random) -> tuple[str, str, tuple[str, ...]]:
         (
             f"How many moons does {planet} have?",
             f"Does {planet} have any moons?",
+            f"What do you know about {planet}?",
         ),
     )
 
@@ -1434,7 +1444,7 @@ def statement(text: str) -> str | None:
 STOP = frozenset(
     "what when where which who whom whose why how does did do is are was were be am the a an and or of to in on at "
     "for with you your yours i me my mine it its that this there their they them tell know remember told about "
-    "what's whats can could would should please haven any".split()
+    "what's whats can could would should please haven any anything something everything".split()
 )
 GENERIC = frozenset("favorite name like love have really much best".split())
 SYNONYMS = {
@@ -2212,7 +2222,7 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     person = person_name(rng) if rng.random() < 0.35 else None
     earlier = [a_fact(rng) for _ in range(rng.choice((0, 0, 1, 2, 3)))]
     told = [second_person(said) for said, _ in earlier]
-    lessons = [a_lesson(rng) for _ in range(rng.choice((0, 0, 0, 1, 2)))]  # what they taught it about the world
+    lessons = [a_lesson(rng) for _ in range(rng.choice((0, 0, 1, 1, 2)))]  # what they taught it about the world
     taught = [kept for _, kept, _ in lessons]
     pool = BOOK + tuple(moment.get("readings", ()))  # its little book, and whatever it has read since (at night)
     book = rng.sample(pool, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))  # what it has read
@@ -2236,23 +2246,25 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             person = None
     for _ in range(turns or rng.choice((1, 1, 2, 3))):
         roll = rng.random()
-        if roll < 0.28:
+        if roll < 0.26:
             intent = rng.choice(RECALLED if rng.random() < EMPHASIS else list(QUESTIONS))
             reply = answer[intent]
             if person and intent in ("hello", "bye"):
                 reply = reply.replace("Hi!", f"Hi, {person}!").replace("Bye!", f"Bye, {person}!")
             said.append(Turn(casual(rng.choice(QUESTIONS[intent]), rng), reply, intent))
-        elif roll < 0.44:
+        elif roll < 0.42:
             turn = _thing_turn(moment, rng)
             turn.said = casual(turn.said, rng)
             said.append(turn)
-        elif roll < 0.49:
+        elif roll < 0.47:
             reply = f"Your name is {person}." if person else "You haven't told me your name yet."
             said.append(Turn(casual(rng.choice(MY_NAME), rng), reply, "their name"))
         elif roll < 0.58:
-            if rng.random() < 0.3:  # something they taught it about the world (or didn't)
+            if rng.random() < 0.5:  # something they taught it about the world (or didn't)
                 _, kept, asks = rng.choice(lessons) if lessons else a_lesson(rng)
                 text = casual(rng.choice(asks), rng)
+                if mentioned(text) or about_haven(text):
+                    continue  # (its valley, or itself, would come to mind instead)
                 found = best_lesson(text, taught)
                 if found:
                     extra.append(f"You told me that {found}.")
@@ -2323,13 +2335,13 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             word = rng.choice(NAMING_WORDS)
             text = plain(rng.choice(NAMING_FORMS).format(a(word)), rng)
             said.append(Turn(text, naming_answer(word), "a word"))
-        elif roll < 0.89:  # a sum to work out
+        elif roll < 0.895:  # a sum to work out
             text = casual(sum_question(rng), rng)
             worked = sum_of(text)
             if worked:
                 extra.append(sum_note(worked))
                 said.append(Turn(text, sum_answer(worked), "sums"))
-        elif roll < 0.91:  # what it has read lately
+        elif roll < 0.915:  # what it has read lately
             own = [e.title for e in moment.get("readings", ())]  # (at night: what it really read lately)
             titles = own[-3:] if own and rng.random() < 0.5 else rng.sample(LATELY_TITLES, rng.choice((0, 1, 1, 2, 3)))
             extra.append(lately_note(titles))
