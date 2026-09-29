@@ -5,7 +5,7 @@ import pytest
 pytest.importorskip("torch")
 
 from haven.cortex import starter
-from haven.cortex.think import OwnThinker, agreement, make_thinker, topic_of
+from haven.cortex.think import OwnThinker, agreement, make_thinker, topic_of, unfounded
 from haven.cortex.train import Trainer
 from haven.life import Life
 from haven.mind import Mind
@@ -94,3 +94,10 @@ def test_it_learns_from_its_day_in_its_sleep_and_keeps_it_only_if_it_helps(corte
     assert changed == report["kept"]
     assert (cortex_home / "cortex" / "nights.jsonl").exists() and "in its sleep" in events[-1]
     assert not thinker.day  # a new day starts
+
+
+def test_it_prefers_drafts_it_can_back_up():
+    mind = "I worked it out: 12 times 7 is 84. What's 12 times 7? You can call me mehmet."
+    assert not unfounded("12 times 7 is 84.", mind) and unfounded("12 times 7 is 844.", mind)
+    assert not unfounded("Nice to meet you, Mehmet!", mind) and unfounded("Nice to meet you, Mehmetmet!", mind)
+    assert not unfounded("I feel fine. It's a nice day.", mind)

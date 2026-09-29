@@ -66,6 +66,16 @@ def repeats(text: str, context: str = "") -> bool:
     return any(n > 1 and n > known.get(gram, 0) for gram, n in grams(text).items())
 
 
+def unfounded(text: str, context: str) -> bool:
+    """Whether a draft says a number or a name that nothing in what came to mind, or was said, says (a slip in copying
+    "84" or "Mehmet"; the answers it learned never do)."""
+    numbers = set(re.findall(r"\d+(?:\.\d+)?", context))
+    if any(n not in numbers for n in re.findall(r"\d+(?:\.\d+)?", text)):
+        return True
+    low = context.lower()
+    return any(name.lower() not in low for name in re.findall(r"(?<=[a-z,;:] )[A-Z][a-z]+", text))
+
+
 def topic_of(text: str) -> str | None:
     """What a question is about: a name if there is one, else its most specific word."""
     names = re.findall(r"(?<!^)(?<![.?!] )\b([A-Z][a-z]+(?: [A-Z][a-z]+)*)", text)
@@ -409,7 +419,8 @@ class OwnThinker(Thinker):
                 words = self.tok.decode(tokens).strip()
                 found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
         mind = self.tok.decode(prompt)  # what came to mind, and what was said
-        found.sort(key=lambda d: (not repeats(d[0], mind), d[1]))  # a draft that goes round in circles loses
+        # A draft that goes round in circles loses; so does one that says a number or name it can't back up.
+        found.sort(key=lambda d: (not repeats(d[0], mind), not unfounded(d[0], mind), d[1]))
         for words, _ in found:  # the ones it didn't pick pass by as thoughts; the likeliest comes last
             self._tell("draft")
             self._tell("words", words)
