@@ -1297,6 +1297,11 @@ JOBS = (
     "firefighter scientist librarian pilot carpenter designer dentist lawyer vet electrician plumber"
 ).split()
 PETS = ("dog", "cat", "fish", "hamster", "rabbit", "parrot", "horse", "turtle")
+PET_NAMES = (
+    "Biscuit Buddy Nibbles Shadow Pepper Mittens Coco Bella Charlie Luna Max Daisy Rocky Whiskers Peanut Ginger "
+    "Pickles Muffin Oreo Bubbles Snowball Pumpkin Waffles Noodle Sprinkles Bandit Duke Rusty Smokey Tiger Patches "
+    "Mochi Tofu Pretzel Cookie Button Fluffy Socks Ziggy Bean Honey Maple Olive Pip Sunny Thor Zeus Kiwi Nugget"
+).split()
 KIN = ("sister", "brother", "mom", "dad", "friend", "son", "daughter", "wife", "husband", "grandma", "grandpa")
 MONTHS = "January February March April May June July August September October November December".split()
 PLAYED = ("the piano", "the guitar", "the violin", "the drums", "football", "tennis", "chess", "basketball")
@@ -1366,7 +1371,7 @@ def a_fact(rng: random.Random) -> tuple[str, tuple[str, ...]]:
             "What do I do?",
         )
     if roll == 5:
-        pet, name = rng.choice(PETS), person_name(rng)
+        pet, name = rng.choice(PETS), rng.choice(PET_NAMES) if rng.random() < 0.5 else person_name(rng)
         return rng.choice(
             (f"I have a {pet} named {name}.", f"I have a {pet} called {name}.", f"My {pet}'s name is {name}.")
         ), (f"What's my {pet}'s name?", f"What's my {pet} called?", "Do I have a pet?")

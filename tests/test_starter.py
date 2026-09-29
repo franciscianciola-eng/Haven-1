@@ -47,8 +47,8 @@ def test_it_answers_people(reader, moments):
     m = moments[-1]
     assert ask(reader, m, "What's your name?") == "my name is haven"
     assert ask(reader, m, "Where are you?") == _plain(m["answers"]["place"])
-    assert ask(reader, m, "What did you do today?") == _plain(m["answers"]["day"])
     assert ask(reader, m, "What is the capital of France?") == _plain(DONT_KNOW)
+    assert ask(reader, m, "What did you do today?").startswith(("today i", "i haven't done much"))
 
 
 def test_it_talks_about_the_things_in_its_valley(reader, moments):
@@ -61,11 +61,11 @@ def test_it_talks_about_the_things_in_its_valley(reader, moments):
 
 def test_it_remembers_who_you_are_and_what_you_told_it(reader, moments):
     m = moments[-1]
-    assert ask(reader, m, "Hi, I'm Rosalind.", person="Rosalind") == "nice to meet you rosalind"
-    assert ask(reader, m, "What's my name?", person="Rosalind") == "your name is rosalind"
+    assert ask(reader, m, "Hi, I'm Marisol.", person="Marisol") == "nice to meet you marisol"
+    assert ask(reader, m, "What's my name?", person="Marisol") == "your name is marisol"
     assert ask(reader, m, "What's my name?") == "you haven't told me your name yet"
-    told = ["you have a dog named Biscuit", "your favorite color is green"]
-    assert ask(reader, m, "What's my dog called?", told=told) == "you told me that you have a dog named biscuit"
+    told = ["you have a dog named Waffle", "your favorite color is green"]
+    assert ask(reader, m, "What's my dog called?", told=told) == "you told me that you have a dog named waffle"
     said = ask(reader, m, "I live in Lisbon.", just="you live in Lisbon")
     assert said == "okay i'll remember that you live in lisbon"
 

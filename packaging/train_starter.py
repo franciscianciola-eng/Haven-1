@@ -75,9 +75,14 @@ def main() -> None:
             if score > best - 0.01:  # within the tests' noise, the later (better studied) one is kept
                 best, best_state = max(score, best), copy.deepcopy(trainer.model.state_dict())
                 trainer.save()
-    if best_state is not None:
+    results = trainer.evaluate(level, data)  # where it ended up, once it settled down
+    score = results.get("conversation", 0) + 0.5 * results.get("self-report", 0)
+    print(f"ended at step {record['steps']:,}: {describe(level, results)}", flush=True)
+    if best_state is not None and score < best - 0.01:  # clearly worse than an earlier point: go back to that
         trainer.model.load_state_dict(best_state)
-    results = trainer.evaluate(level, data)
+        results = trainer.evaluate(level, data)
+    else:
+        trainer.save()
     record["tests"], record["status"] = (
         results,
         "passed"
