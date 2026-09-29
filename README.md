@@ -157,7 +157,20 @@ Words it learns from you stay few. For language beyond that, Haven has a languag
 
 **It's born talking about itself.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of six simulated lives of Haven, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, and what it would answer if asked, about 30 kinds of questions in many wordings ("How are you?", "What do you see?", "Where are you?", "What have you learned?", "Are you alive?", …). The answers it learned are worked out from its state at that moment, so to answer right it has to read its own state. Questions about anything beyond its garden have the answer that it doesn't know. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
 
-How well it does, tested on a simulated life it never saw while learning, is on its report card (`haven learn --report`).
+Tested on a simulated life it never saw while learning, with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 82% of them exactly as its state and what it knows say it should, it says what state it's in 84% of the time, and reading words about a need brings that need to mind every time. A conversation with it in the app, a few minutes after it was born:
+
+```
+you: hi
+Haven: Hi! I'm hot.   (96% sure)
+you: where are you?
+Haven: I'm near some thorns.   (100% sure)
+you: what time is it
+Haven: It's morning.   (99% sure)
+you: are you alive
+Haven: I might be alive, in some way. I'm still finding out.   (67% sure)
+you: what is the capital of France?
+Haven: I don't know. I haven't learned about that.   (100% sure)
+```
 
 **It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over what it read and what people said to it.
 
