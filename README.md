@@ -223,7 +223,7 @@ you: bye
 Haven: Bye, Francis! Come back soon.   (100% sure)
 ```
 
-**It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over what it read and what people said to it.
+**It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over moments of its day (see [What it learns as it lives](#what-it-learns-as-it-lives)).
 
 ### The curriculum
 

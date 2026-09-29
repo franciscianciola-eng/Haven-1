@@ -164,8 +164,8 @@ def read(args: argparse.Namespace, store, term) -> int:
     path = store.root / "cortex" / "readings.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as f:
-        f.write(json.dumps({"title": title, "text": text[:20000], "time": time.time()}) + "\n")
-    term.say(f"Haven read “{title}” ({len(text.split()):,} words). It will learn from it the next times it sleeps.")
+        f.write(json.dumps({"title": title, "text": text[:20000], "time": time.time(), "why": "asked"}) + "\n")
+    term.say(f"Haven read “{title}” ({len(text.split()):,} words). It keeps what it read: ask it about {title}.")
     term.dim(" ".join(text.split())[:500] + "…")
     if store.exists():
         from ..life import open_mind
