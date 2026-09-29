@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 pytest.importorskip("torch")
@@ -78,6 +80,10 @@ def test_it_learns_from_its_day_in_its_sleep_and_keeps_it_only_if_it_helps(corte
     events = []
     life.listeners.append(lambda kind, text: events.append(text))
     assert thinker.sleep_on_it(life) is None  # nothing to go over yet
+    with (cortex_home / "cortex" / "readings.jsonl").open("a") as f:  # and something it read, to go over too
+        f.write(json.dumps({"title": "Frog", "text": "A frog is a small animal. It can jump far.", "why": "curious"}))
+        f.write("\n")
+    assert [e.title for e in thinker.own_readings()] == ["Frog"]
     for _ in range(45):
         life.mind.live(10)
         thinker.notice(life.mind)

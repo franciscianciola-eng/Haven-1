@@ -418,14 +418,24 @@ class OwnThinker(Thinker):
 
         self.day.append(moment_of(mind))
 
+    def own_readings(self, most: int = 20) -> tuple:
+        """What it has read besides its little book (the latest), to practise telling about in its sleep."""
+        from .book import Entry
+
+        library = self.library
+        titles = [t for t in library.titles() if library.sources[t] != "book"][-most:]
+        return tuple(Entry(re.sub(r"\s*\(.*?\)", "", t), t, tuple(library.docs[t][:3])) for t in titles)
+
     def sleep_on_it(self, life=None) -> dict | None:
-        """Practise talking about moments of its day on a copy of its cortex, and keep the copy only if it talks at
-        least as well (see sleep.py)."""
+        """Practise talking about moments of its day (and what it read) on a copy of its cortex, and keep the copy
+        only if it talks at least as well (see sleep.py)."""
         from . import sleep
 
         day = list(self.day)
         if len(day) < MOMENTS:
             return None
+        readings = self.own_readings()
+        day = [{**m, "readings": readings} for m in day]  # it goes over what it read, too
         if self._others is None:
             self._others = sleep.other_lives()
         with self.model_lock:

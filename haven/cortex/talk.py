@@ -2214,7 +2214,8 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     told = [second_person(said) for said, _ in earlier]
     lessons = [a_lesson(rng) for _ in range(rng.choice((0, 0, 0, 1, 2)))]  # what they taught it about the world
     taught = [kept for _, kept, _ in lessons]
-    book = rng.sample(BOOK, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))  # what it has read
+    pool = BOOK + tuple(moment.get("readings", ()))  # its little book, and whatever it has read since (at night)
+    book = rng.sample(pool, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))  # what it has read
     shown: dict[str, int] = {}  # how much of each thing it read it has told them so far
     extra: list[str] = []  # what else comes to mind: what it read that answers them, being asked to do something
     said: list[Turn] = []
@@ -2329,7 +2330,8 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
                 extra.append(sum_note(worked))
                 said.append(Turn(text, sum_answer(worked), "sums"))
         elif roll < 0.91:  # what it has read lately
-            titles = rng.sample(LATELY_TITLES, rng.choice((0, 1, 1, 2, 3)))
+            own = [e.title for e in moment.get("readings", ())]  # (at night: what it really read lately)
+            titles = own[-3:] if own and rng.random() < 0.5 else rng.sample(LATELY_TITLES, rng.choice((0, 1, 1, 2, 3)))
             extra.append(lately_note(titles))
             said.append(Turn(casual(rng.choice(LATELY_FORMS), rng), lately_answer(titles), "lately"))
         elif roll < 0.94:  # something it read, to tell them
