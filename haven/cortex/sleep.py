@@ -23,7 +23,7 @@ from .tokenizer import END, HAVEN, THINK, YOU
 
 STEPS = 60  # practice steps a night
 BATCH = 8
-LR = 5e-5
+LR = 1e-4  # (a sweep: 5e-5 helped less; 2e-4 helped its day more but cost it on other lives)
 HELD = 4  # one moment in this many is kept back, to test on
 TOLERANCE = 0.02  # how much worse on other lives still counts as no worse (the tests are small)
 
