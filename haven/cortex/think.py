@@ -101,14 +101,17 @@ class Thinker:
             f.write(json.dumps(exchange) + "\n")
 
     def readings(self) -> list[tuple[str, str]]:
-        """What it has read: (title, first sentence), oldest first."""
-        from .talk import first_sentence
+        """What it has read, (title, first sentence), oldest first: the little book it was born having read, then
+        whatever it has looked up since."""
+        from .talk import READINGS, first_sentence
+
+        book = [(title, sentence) for _, title, sentence in READINGS]
 
         path = self.root / "cortex" / "readings.jsonl"
         try:
             stamp = path.stat().st_mtime
         except FileNotFoundError:
-            return []
+            return book
         if getattr(self, "_read_stamp", None) != stamp:
             found = []
             for line in path.read_text().splitlines()[-500:]:
@@ -116,7 +119,7 @@ class Thinker:
                     item = json.loads(line)
                     found.append((str(item["title"]), first_sentence(str(item["text"]))))
             self._read, self._read_stamp = found, stamp
-        return self._read
+        return [*book, *self._read]
 
     def listen(self, mind, text: str) -> str | None:
         """What it takes from what someone said: their name, or something about themselves to remember."""

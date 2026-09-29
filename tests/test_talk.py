@@ -135,3 +135,11 @@ def test_what_they_just_said_comes_to_mind_as_just_said():
     mind.told = [(1, "you like tea"), (2, "you live in Lisbon")]
     thought = notes(mind, "I live in Lisbon.", just="you live in Lisbon")
     assert "You just told me that you live in Lisbon." in thought and "You told me that you live" not in thought
+
+
+def test_it_is_born_having_read_a_little_book(tmp_path):
+    from haven.cortex.think import Thinker
+
+    read = Thinker(tmp_path).readings()
+    assert ("Moon", "The Moon is the Earth's only natural satellite.") in read
+    assert best_reading("tell me about dinosaurs", read)[0] == "Dinosaur"
