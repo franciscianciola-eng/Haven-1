@@ -193,6 +193,8 @@ def test_it_reads_about_what_it_is_curious_about(tmp_path, internet, monkeypatch
     assert thinker.wonder(life) == "Boston"  # chess it has read about already, in its little book
     assert [thinker.read_for_fun(life) for _ in range(3)] == ["Boston", "Bell", "Butterfly"]
     assert "read about Boston, out of curiosity" in events
+    assert [text for _, text in life.news][:1] == ["read about Boston, out of curiosity"]  # the app shows it
+    assert life.snapshot()["news"][0]["text"] == "read about Boston, out of curiosity"
     assert thinker.library.find("Tell me about Boston") == ("Boston", 0)
     assert Thinker(tmp_path).library.sources["Bell"] == "curious"  # it keeps what it read
 

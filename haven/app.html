@@ -169,7 +169,7 @@ const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const TILE = {".": "#5a9e54", "#": "#4a4852", "T": "#9e38c7", "S": "#9e9e99", "N": "#dbbd4c", "B": "#1f6630",
   "A": "#2f6f34", "W": "#3f86d0", ":": "#dcc990", "f": "#e889b8", "m": "#8e5b32", "t": "#d8344f", "b": "#d6a531", "F": "#ff7a2a"};
-let name = "Haven", ready = false, busy = null, failures = 0, gone = false;
+let name = "Haven", ready = false, busy = null, failures = 0, gone = false, lastNews = -1;
 
 async function api(path, body) {
   const options = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
@@ -378,6 +378,10 @@ function render(s) {
   $("welfare").hidden = s.welfare.ok;
   $("welfare").textContent = s.welfare.message;
   $("cortex").textContent = s.cortex ? `Its language area: ${s.cortex}.` : "";
+  for (const n of s.news || []) {  // what it has done since: an errand, something it read, a night's learning
+    if (n.id > lastNews && lastNews >= 0) addEvent(`${s.name} ${n.text}.`);
+  }
+  lastNews = Math.max(lastNews, 0, ...(s.news || []).map((n) => n.id));
   setComposer();
 }
 

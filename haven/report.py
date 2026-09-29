@@ -164,7 +164,7 @@ def snapshot(mind: Mind) -> dict:
             "captured": schema.captured,
         },
         "goal": mind.goals.current,
-        "goal_text": GOALS[mind.goals.current],
+        "goal_text": f"{mind.errand['do']}, as it was asked" if mind.errand else GOALS[mind.goals.current],
         "next": mind.suggestion,
         "said": [{"tick": t, "text": text} for t, text in mind.said[-6:]][::-1],
         "log": [{"tick": t, "text": text} for t, text in mind.log[-14:]][::-1],

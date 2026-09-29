@@ -88,7 +88,15 @@ def exam(model, tok, items: list[dict], batch: int = 16) -> float:
     return right / len(items)
 
 
-def night(model, tok, day: list[dict], others: list[dict], rng: random.Random, steps: int | None = None):
+def night(
+    model,
+    tok,
+    day: list[dict],
+    others: list[dict],
+    rng: random.Random,
+    steps: int | None = None,
+    lr: float | None = None,
+):
     """A night's practice on a copy of the cortex. Returns the copy if it's worth keeping (else None), and a report."""
     from .train import conversation_items
 
@@ -99,7 +107,7 @@ def night(model, tok, day: list[dict], others: list[dict], rng: random.Random, s
     before = {"own day": exam(model, tok, own), "other lives": exam(model, tok, others)}
     student = copy.deepcopy(model)
     student.train()
-    optimizer = torch.optim.AdamW(student.parameters(), lr=LR, weight_decay=0.0)
+    optimizer = torch.optim.AdamW(student.parameters(), lr=LR if lr is None else lr, weight_decay=0.0)
     losses = []
     for _ in range(steps):
         loss = practice_loss(student, tok, practice, rng)
@@ -107,14 +115,14 @@ def night(model, tok, day: list[dict], others: list[dict], rng: random.Random, s
         loss.backward()
         torch.nn.utils.clip_grad_norm_(student.parameters(), 1.0)
         optimizer.step()
-        losses.append(float(loss))
+        losses.append(loss.item())
     student.eval()
     after = {"own day": exam(student, tok, own), "other lives": exam(student, tok, others)}
     kept = after["own day"] >= before["own day"] and after["other lives"] >= before["other lives"] - TOLERANCE
     report = {
         "moments": len(day),
         "steps": steps,
-        "loss": [round(losses[0], 3), round(float(np.mean(losses[-10:])), 3)] if losses else None,
+        "loss": [round(float(np.mean(losses[:10])), 3), round(float(np.mean(losses[-10:])), 3)] if losses else None,
         "before": {k: round(v, 3) for k, v in before.items()},
         "after": {k: round(v, 3) for k, v in after.items()},
         "kept": kept,

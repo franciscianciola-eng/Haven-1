@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -16,6 +17,10 @@ QUIET = 180.0  # seconds nobody has said anything before Haven reads about somet
 CURIOUS_EVERY = 900.0  # seconds, at least, between the things it reads out of curiosity
 SLEEP_EVERY = 1800.0  # seconds, at least, between nights it learns from its day (its days are short)
 NOTICE = 25  # ticks between the moments of its day it notes down, to learn from
+NEWS = re.compile(  # what it does that's worth telling the person talking with it
+    r"^(?:set off to|did what it was asked|stopped trying to|gave up trying to|couldn't .*: it didn't know where|"
+    r"read about|went over its day|learned the word|was taught that)"
+)
 
 
 def open_mind(store: Store, seed: int | None = None, name: str = "Haven") -> Mind:
@@ -51,6 +56,8 @@ class Life:
         self._last_words = self._last_wonder = time.monotonic() - CURIOUS_EVERY  # when it last talked, and read
         self._last_night = time.monotonic()  # when it last learned in its sleep
         self._learning = threading.Lock()
+        self.news: list[tuple[int, str]] = []  # (number, what): what it did lately that's worth telling
+        self._news = 0
 
     # --- running --------------------------------------------------------------------
 
@@ -176,6 +183,7 @@ class Life:
         state["paused"] = self.paused
         state["speed"] = self.speed
         state["conversation"] = self.conversation[-20:]
+        state["news"] = [{"id": n, "text": text} for n, text in self.news]
         state["cortex"] = None if self.thinker is None else self.thinker.describe()
         return state
 
@@ -192,6 +200,9 @@ class Life:
                 self._emit("event", item[1])
 
     def _emit(self, kind: str, text: str) -> None:
+        if kind == "event" and NEWS.match(text):
+            self._news += 1
+            self.news = [*self.news[-19:], (self._news, text)]
         for listener in self.listeners:
             with contextlib.suppress(Exception):  # a broken listener mustn't stop a life
                 listener(kind, text)
