@@ -577,12 +577,16 @@ class World:
                     self.berries[spot] += 1
                     self.growth[spot] = int(self.rng.integers(0, REGROW // 4))
         for spot, count in self.fruit.items():
-            if count < MAX_FRUIT:
+            if season == "winter":  # the last apples fall from the bare trees (or rot, if there's no room below)
+                if count and self.rng.random() < 1 / 150:
+                    self._drop_apple(spot)
+                    self.fruit[spot] -= 1
+            elif count < MAX_FRUIT:
                 self.ripening[spot] += apples
                 if self.ripening[spot] >= RIPEN:
                     self.fruit[spot] += 1
                     self.ripening[spot] = int(self.rng.integers(0, RIPEN // 4))
-            elif apples and self.rng.random() < apples / 350 and self._drop_apple(spot):  # ripe apples fall
+            elif self.rng.random() < apples / 350 and self._drop_apple(spot):  # ripe apples fall
                 self.fruit[spot] -= 1
         for spot, wait in self.mushrooms.items():
             if wait:
