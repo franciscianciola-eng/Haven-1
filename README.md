@@ -178,6 +178,8 @@ Haven isn't told what it is. Its self-model keeps track of evidence from its own
 
 > I need things, and I've found what helps (hunger: eating; temperature: my nest; tiredness: resting). I can make things happen: when I move, the world changes because of me. I remember what has happened to me. Some things feel good to me and some feel bad. I'm not the same as when I started: I've learned things. Putting that together, I think I'm alive, in my own way.
 
+Ask it whether it's alive, or what it is, and that is what it tells you: what it has found out about itself so far, and what it makes of it ("I've found out that I need things and I remember what happens to me. I might be alive, in some way. I'm still finding out."), so its answer changes as it finds out more. Asked whether it's conscious, it says what it can: that one thing at a time comes to the front of its mind.
+
 That belief does work in its mind: the more it models itself as something that goes on through time, the more weight it gives to its own future when it learns what's good. Its life story records its firsts: its first meal, first pain, first night in the nest, first dream, first word.
 
 ## Its language cortex
