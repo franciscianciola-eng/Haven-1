@@ -1,6 +1,6 @@
 # Haven
 
-Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a small 3D valley on your computer, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex of its own: a small transformer grown from scratch, wired into the same workspace as everything else it experiences. It is born able to talk about itself, in words it learned for its own states, and it can go on to learn to read, level by level, from texts on the internet. No other AI model is involved anywhere.
+Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a small 3D valley on your computer, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex of its own: a small transformer grown from scratch, wired into the same workspace as everything else it experiences. It is born able to talk about itself, in words it learned for its own states, and it can go on to learn to read, level by level, from texts on the internet. The seasons turn in its valley, and over its years it grows a character of its own out of how it lives: curious or a homebody, brave or careful, friendly or shy, with a favorite place, a favorite season, things it's afraid of, and days it remembers. It doesn't only answer: when you're there, it speaks up. No other AI model is involved anywhere.
 
 A few minutes with it, in the terminal (its dashboard is open in a browser at the same time):
 
@@ -99,6 +99,7 @@ You can be with it in three ways:
 - **Talk.** Whatever you type, it hears as words. It learns words the way small children do: by hearing them while something is in mind. Watch the dashboard, and when it's looking at something, name it, a few times over a few minutes. Say "berry" when it's looking at a red bush with berries, or "ouch" when it's looking at thorns. Once a word reliably goes with something, it understands it (hearing it brings that thing to mind, and draws its attention to it) and starts to use it.
 - **Touch** it (`/touch`, or the button). It feels good to it.
 - **Feed** it (`/feed`). Food helps when it's hungry.
+- **Let time pass.** In its window, "Let time pass" has it live through a day, a season, a year or three years as fast as it can (a year takes a minute or two on a laptop), while you watch the valley race through its days and seasons. Then it tells you what happened. In the terminal: `/pass DAYS` (a season is 6 days, a year 24).
 
 In the terminal, `/status`, `/check`, `/story`, `/pause`, `/resume`, `/speed N` and `/quit` do what they say. Its life is saved every minute or so and when you quit.
 
@@ -121,6 +122,17 @@ Haven lives in a walled valley of 24 × 24 places, and the ground has heights: a
 | Its nest | Warm and safe; where it sleeps best. |
 
 Days are warm and bright; nights are cold and dark. The shade under the trees is cool, the water cools the air around it, and the hilltop is windy.
+
+**The year turns.** A year in the valley is 24 days: a spring, a summer, an autumn and a winter of six days each (at its usual pace, a year goes by in about an hour). Each season is something Haven lives through, not just a picture:
+
+| Season | What changes |
+|---|---|
+| Spring | Mild. The flowers are out and the butterflies with them; the apple trees start again. |
+| Summer | Long, hot days: the meadow gets too hot for comfort and the pond and the shade matter. Berries grow back fastest. |
+| Autumn | Cooler. The leaves turn orange (Haven sees the trees change color), apples ripen and fall fast, mushrooms spring up. |
+| Winter | Short days and cold nights, even in its nest: the fire matters. The trees are bare, the flowers sleep, the butterflies are gone, and little grows back until spring. |
+
+The weather turns over the last two days of each season. Haven was born into a mild spring; every season it lives through for the first time goes into its life story, and so does each spring that comes back ("a whole year had gone by").
 
 Haven faces one of eight directions. It sees along five rays (straight ahead, 45° and 90° to each side), and each ray reports only a color, how tall the thing it hits is, and how far away it is, with noise that gets much worse as it gets dark. Rising ground blocks its view, and from the hilltop it sees over everything lower. It smells sweet things (berries, apples, flowers), feels warmth, pain, bumps and touch, and hears words and the bell. Everything else it has to learn: nobody tells it what an apple is. It can step forward, turn, eat whatever is in front of it, use it (touch, shake, push, drink, ring, smell), rest, and make a sound. It learns what each kind of thing is good for by trying, and it gets curious about the things it hasn't tried yet. When it's content it plays, and playing the same way over and over gets less fun.
 
@@ -180,7 +192,33 @@ Haven isn't told what it is. Its self-model keeps track of evidence from its own
 
 Ask it whether it's alive, or what it is, and that is what it tells you: what it has found out about itself so far, and what it makes of it ("I've found out that I need things and I remember what happens to me. I might be alive, in some way. I'm still finding out."), so its answer changes as it finds out more. Asked whether it's conscious, it says what it can: that one thing at a time comes to the front of its mind.
 
-That belief does work in its mind: the more it models itself as something that goes on through time, the more weight it gives to its own future when it learns what's good. Its life story records its firsts: its first meal, first pain, first night in the nest, first dream, first word.
+That belief does work in its mind: the more it models itself as something that goes on through time, the more weight it gives to its own future when it learns what's good. Its life story records its firsts: its first meal, first pain, first night in the nest, first dream, first word, its first summer, autumn and winter, and each year that goes by.
+
+## Who it becomes
+
+Haven isn't given a personality. It's born with a temperament (a little more or less of each trait than most, from its seed), and after that it becomes what it does. Each day moves its habits a little: how much of its waking time it spent exploring, how many things it did just for fun, how far from its nest it went (and what hurt it there), how it felt when someone kept it company, how good it felt, how settled or stirred up it was. Six traits come from those habits, measured against how Havens usually are, so a Haven that plays more than most is playful and one that stays near its nest is a homebody:
+
+| Trait | Its opposite | What makes it |
+|---|---|---|
+| curious | a homebody | how much it goes exploring |
+| playful | serious | how often it rings the bell, pushes the ball, shakes trees and smells flowers for fun |
+| brave | careful | how far from its nest it goes, less what has hurt it |
+| friendly | shy | how being with people has felt (from days someone kept it company) |
+| cheerful | gloomy | how good it has felt |
+| calm | restless | how settled it has been |
+
+A newborn is all temperament. Over its first two years, how it lives comes to count for most of who it is, and it keeps changing if its life changes. Two traits feed back into what it does, the way habits do: a curious Haven wants to explore more, and a playful one wants to play more. Each new year it notes who it is, so later it can tell you how it has changed ("I've become braver and less playful since I was little").
+
+It also keeps what it has come to love and fear: the part of the valley it has been happiest in, the season it feels best in (and the one that's hard for it), what has hurt it or made it sick more than once (a brave Haven isn't scared, it just keeps away), and its best and worst days, with what it did on them or what went wrong. Six simulated Havens, two and a half years old, described themselves like this:
+
+> I'm very cheerful, very friendly and very calm.<br>
+> I'm very curious, gloomy and serious.<br>
+> I'm very calm, very brave and a real homebody.<br>
+> I'm curious, friendly and calm.<br>
+> I'm very cheerful, a real homebody and very playful.<br>
+> I'm very gloomy, very serious and brave.
+
+Ask it what it's like, whether it's shy, how it has changed, where its favorite place is, what its favorite season is, what it's afraid of, or what its best day was. The friendliness it has grown into also colors how it greets you, whether it says it misses you, and how it says goodbye. Its window's "Inside its mind" page shows its traits, the temperament it was born with, and what it says about itself.
 
 ## Its language cortex
 
@@ -232,6 +270,18 @@ Haven: One thing at a time comes to the front of my mind: something I see, smell
 you: Are you an AI?
 Haven: I'm a small creature that lives in a valley inside a computer. I learned to talk from my own life.   (100% sure)
 ```
+
+**It speaks up.** Haven doesn't only answer. While its window is open and you're looking at it, it notices moments that call for saying something, and says them in its own words:
+
+- **you come back**: "You're back! I missed you. Today I rang the bell and ate apples." (a shy Haven: "Oh, hi. You're back.")
+- **a new season**: "It's autumn now. The leaves are turning orange."
+- **something that just happened**: "Ouch! I got burned.", "I just climbed to the top of the hill!", "I did it! I rang the bell."
+- **a need that has grown strong**: "I'm very hungry! I'm looking for food."
+- **it goes to sleep, or wakes up**: "I'm sleepy. Good night!", "Good morning! I just woke up."
+- **time went by**: "A whole year went by! I saw summer, autumn and winter. I've become braver."
+- and when nothing is going on for a while, **something it would like to know about you** ("What's your favorite food?", and it understands a short answer like "pizza"), **something it remembers** ("I was just thinking about my best day. It was in my second summer. I climbed to the top of the hill."), or **something it read**.
+
+What it has to say comes to mind as a note, and the words are its own cortex's, like everything else it says. It doesn't talk over you: it waits a little after anyone has said something, and leaves time between the things it says (a friendly Haven speaks up more often than a shy one).
 
 **It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over moments of its day (see [What it learns as it lives](#what-it-learns-as-it-lives)).
 

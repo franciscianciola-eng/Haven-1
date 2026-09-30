@@ -247,4 +247,5 @@ def test_asked_about_itself_it_says_what_it_has_found_out(lived):
     said = found_out(lived)
     assert said.endswith(lived.me.conclusions()[-1])  # what it makes of it
     assert said in recall(memo(lived), "Are you alive?") and said not in recall(memo(lived), "How are you?")
-    assert answers(lived)["alive"] == said and answers(lived)["what"].endswith(lived.me.conclusions()[-1])
+    assert answers(lived)["alive"] == said
+    assert answers(lived)["what"].endswith(answers(lived)["personality"])  # what it is: a creature, and what it's like

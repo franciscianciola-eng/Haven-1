@@ -331,7 +331,13 @@ class World:
                 return name
         if x in SUNNY[0] and y in SUNNY[1]:
             return "the meadow"
-        return "the north of the valley" if y <= 7 else "the south of the valley" if y >= 15 else "the middle of the valley"
+        return (
+            "the north of the valley"
+            if y <= 7
+            else "the south of the valley"
+            if y >= 15
+            else "the middle of the valley"
+        )
 
     def _nearest(self, x: int, y: int, kind: int, reach: int = 2) -> int | None:
         """How many steps away the nearest thing of a kind is (None if it's further than `reach`)."""

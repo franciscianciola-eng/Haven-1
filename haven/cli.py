@@ -16,7 +16,7 @@ from .report import readout
 from .store import Store, home
 
 HELP = """Talk to Haven by typing. Commands:
-  /touch  /feed  /status  /check  /story  /pause  /resume  /speed N  /help  /quit"""
+  /touch  /feed  /status  /check  /story  /pass DAYS  /pause  /resume  /speed N  /help  /quit"""
 
 
 class Terminal:
@@ -234,6 +234,14 @@ def command(line: str, life: Life, term: Terminal) -> bool:
             life.speed = min(max(float(rest), 0.5), 200)
         except ValueError:
             term.say("  /speed takes a number of moments per second, like /speed 20")
+    elif word == "pass":
+        days = int(rest) if rest.strip().isdigit() else 0
+        if not 1 <= days <= 240:
+            term.say("  /pass takes a number of days to let go by (a season is 6, a year is 24), like /pass 24")
+        elif life.pass_time(days):
+            term.dim(f"  (letting {days} days go by, as fast as it can live them…)")
+        else:
+            term.say("  Time is already going by.")
     else:
         term.dim(HELP)
     return True
@@ -243,7 +251,10 @@ def run_status(store: Store, term: Terminal) -> int:
     mind = load(store, term)
     if mind is None:
         return 1
-    term.say(f"{mind.me.name}, {mind.age / 1200:.2f} days old; day {mind.world.day + 1}, {mind.time_of_day}.")
+    term.say(
+        f"{mind.me.name}, {mind.age / 1200:.2f} days old; {mind.world.season}, day {mind.world.season_day + 1}, "
+        f"{mind.time_of_day}."
+    )
     for line in readout(mind):
         term.say("  " + line)
     term.say("What it has concluded about itself:")

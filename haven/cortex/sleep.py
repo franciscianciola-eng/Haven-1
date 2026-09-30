@@ -76,7 +76,8 @@ def exam(model, tok, items: list[dict], batch: int = 16) -> float:
         chunk = items[start : start + batch]
         seqs, answers = [], []
         for item in chunk:
-            prompt = [THINK, *tok.encode(item["notes"]), YOU, *tok.encode(item["question"]), HAVEN]
+            asked = [] if item["question"] is None else [YOU, *tok.encode(item["question"])]  # (None: it spoke up)
+            prompt = [THINK, *tok.encode(item["notes"]), *asked, HAVEN]
             answer = tok.encode(item["answer"])
             seq = (prompt + answer + [END])[-model.cfg.context :]
             seqs.append(seq)

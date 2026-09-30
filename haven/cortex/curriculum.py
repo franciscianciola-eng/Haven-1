@@ -313,11 +313,13 @@ class ScratchReader:
         return self.model.meaning([HAVEN, *self.tok.encode(text)]).float().cpu().numpy()
 
     @torch.no_grad()
-    def reply(self, state: np.ndarray, notes: str, question: str) -> str:
-        """Its answer to a question, with its state in mind and what it knows recalled first."""
+    def reply(self, state: np.ndarray, notes: str, question: str | None) -> str:
+        """Its answer to a question, with its state in mind and what it knows recalled first (or, with no question,
+        what it says of its own accord)."""
         self.model.eval()
         tensor = torch.tensor(np.asarray(state, dtype=np.float32), device=self.device).unsqueeze(0)
-        prompt = [THINK, *self.tok.encode(notes), YOU, *self.tok.encode(question), HAVEN]
+        asked = [] if question is None else [YOU, *self.tok.encode(question)]
+        prompt = [THINK, *self.tok.encode(notes), *asked, HAVEN]
         tokens, _ = self.model.generate(prompt, tensor, max_new=100, temperature=0.0, stop=(END, YOU))
         return self.tok.decode(tokens).strip()
 

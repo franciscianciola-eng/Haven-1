@@ -357,16 +357,20 @@ class OwnThinker(Thinker):
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
         from .library import asked_to_read
-        from .talk import DONT_KNOW, MORE, notes, request, sum_of
+        from .talk import DONT_KNOW, MORE, answer_to, notes, request, sum_of
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
-        wanted = asked_to_read(text)
+        asked = (
+            life.question() if hasattr(life, "question") else None
+        )  # it asked them something, and this is the answer
+        meant = answer_to(asked, text) if asked else None  # ("pizza": "My favorite food is pizza.")
+        wanted = None if meant else asked_to_read(text)
         if wanted and self.web is not None and not self.library.title_for(wanted):
             self.look_up(wanted, life)  # asked to read about something: it reads it first
         with life.lock:  # what it's experiencing as it's asked, and what comes to mind
             mind = life.mind
-            just = self.listen(mind, text)
+            just = self.listen(mind, meant or text)
             req = None if just else request(text)
             extra = [] if just else self.recollect(mind, text, req)
             state = torch.tensor(mind_state(mind), device=self.device).unsqueeze(0)
@@ -400,6 +404,24 @@ class OwnThinker(Thinker):
             meaning = self.model.meaning([HAVEN, *self.tok.encode(words)], state).float().cpu().numpy()
         with life.lock:
             mind.think(words, meaning, confidence)  # what it says enters its workspace
+        return words, confidence
+
+    def speak_up(self, life, note: str, drafts: int = 3) -> tuple[str, float]:
+        """Say something of its own accord: what it has to say comes to mind last (see speaking.py), and it puts it
+        into words from there, as it answers anything."""
+        from .talk import notes
+        from .tokenizer import HAVEN, THINK
+
+        torch = self.torch
+        with life.lock:
+            mind = life.mind
+            state = torch.tensor(mind_state(mind), device=self.device).unsqueeze(0)
+            known = notes(mind, "", (), None, [note])
+        words, confidence = self._say([THINK, *self.tok.encode(known), HAVEN], state, drafts)
+        with self.model_lock:
+            meaning = self.model.meaning([HAVEN, *self.tok.encode(words)], state).float().cpu().numpy()
+        with life.lock:
+            mind.think(words, meaning, confidence)  # what it says enters its workspace, like anything it says
         return words, confidence
 
     def _say(self, prompt: list[int], state, drafts: int) -> tuple[str, float]:

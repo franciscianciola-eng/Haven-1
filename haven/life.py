@@ -10,7 +10,9 @@ from collections.abc import Callable
 
 from .mind import VERSION, Mind, moved
 from .report import snapshot
+from .speaking import Initiative
 from .store import Store
+from .world import DAY
 
 AUTOSAVE = 600  # ticks between saves
 QUIET = 180.0  # seconds nobody has said anything before Haven reads about something out of curiosity
@@ -18,6 +20,9 @@ CURIOUS_EVERY = 900.0  # seconds, at least, between the things it reads out of c
 SLEEP_EVERY = 1800.0  # seconds, at least, between nights it learns from its day (its days are short)
 FIRST_NIGHT = 600.0  # seconds after it wakes up in the app before the first time it can
 NOTICE = 25  # ticks between the moments of its day it notes down, to learn from
+SPEAK = 10  # ticks between looks at whether there's something to say of its own accord
+PASSING_SAVE = 6000  # ticks between saves while time goes by quickly
+ASKED = 600.0  # seconds a question it asked stays open for an answer
 NEWS = re.compile(  # what it does that's worth telling the person talking with it
     r"^(?:set off to|did what it was asked|stopped trying to|gave up trying to|couldn't .*: it didn't know where|"
     r"read about|went over its day|learned the word|was taught that)"
@@ -59,6 +64,11 @@ class Life:
         self._learning = threading.Lock()
         self.news: list[tuple[int, str]] = []  # (number, what): what it did lately that's worth telling
         self._news = 0
+        self.initiative = Initiative()  # when it speaks up of its own accord, and what about
+        self.spoken: list[tuple[int, str]] = []  # (number, what): what it said of its own accord lately
+        self._spoken = 0
+        self.asked: tuple[str, float] | None = None  # what it asked the person, and when, until they answer
+        self.passing: dict | None = None  # while time goes by quickly: how far along it is
 
     # --- running --------------------------------------------------------------------
 
@@ -76,7 +86,7 @@ class Life:
     def _run(self) -> None:
         next_tick = time.monotonic()
         while not self._stop.is_set():
-            if self.paused:
+            if self.paused or self.passing is not None:
                 time.sleep(0.05)
                 next_tick = time.monotonic()
                 continue
@@ -104,6 +114,105 @@ class Life:
                 self._sleep_on_it()
             elif not asleep and tick % 50 == 0:
                 self._wonder()
+            if tick % SPEAK == 0:
+                self._speak_up()
+
+    # --- time going by quickly ---------------------------------------------------------------
+
+    def pass_time(self, days: int) -> bool:
+        """Let `days` of its life go by as fast as it can live them (in the background). Its language cortex rests
+        meanwhile: no reading, no learning in its sleep. Returns False if time is already going by."""
+        with self.lock:
+            if self.passing is not None:
+                return False
+            mind = self.mind
+            self.passing = {
+                "days": int(days),
+                "done": 0,
+                "total": int(days) * DAY,
+                "from": mind.tick,
+                "before": dict(mind.character.traits),
+            }
+        threading.Thread(target=self._pass, name="haven-time-passing", daemon=True).start()
+        return True
+
+    def _pass(self) -> None:
+        passing = self.passing
+        try:
+            while passing["done"] < passing["total"] and not self._stop.is_set():
+                with self.lock:
+                    for _ in range(min(200, passing["total"] - passing["done"])):
+                        self.mind.step()
+                        passing["done"] += 1
+                    self._announce(quietly=True)
+                if passing["done"] % PASSING_SAVE < 200:
+                    self.save()
+        finally:
+            from .cortex.talk import passed_highlights, passed_note
+
+            with self.lock:
+                mind = self.mind
+                days = passing["done"] // DAY
+                if days:
+                    self.initiative.passed = passed_note(
+                        days, passed_highlights(mind, passing["from"], passing["before"])
+                    )
+                    self.initiative.pending.clear()
+                if self.thinker is not None and hasattr(self.thinker, "day"):
+                    self.thinker.day.clear()  # what it noted of its day before is long ago now
+                self._last_night = time.monotonic()
+            self.save()
+            self.passing = None
+            self._emit("event", f"lived {days} days" + ("" if days == passing["days"] else " (it was stopped)"))
+
+    # --- speaking up ----------------------------------------------------------------------------
+
+    def present(self) -> None:
+        """Someone is looking at its window."""
+        self.initiative.looked()
+
+    def _speak_up(self) -> None:
+        thinker = self.thinker
+        if thinker is None or not hasattr(thinker, "speak_up") or thinker.busy.locked() or self.passing:
+            return
+        with self.lock:
+            mind = self.mind
+            found = self.initiative.occasion(mind, mind.tick, mind.character.traits["friendly"], self._lately)
+        if found is None:
+            return
+        self.initiative.spoke()
+        threading.Thread(target=self._say_up, args=found, name="haven-speaking-up", daemon=True).start()
+
+    def _lately(self) -> list[tuple[str, str]]:
+        """What it read out of curiosity lately: (title, first sentence)."""
+        library = getattr(self.thinker, "_library", None)
+        if library is None:
+            return []
+        return [(t, library.sentence(t, 0)) for t in library.titles("curious")[-3:]]
+
+    def _say_up(self, kind: str, note: str, asked: str | None) -> None:
+        thinker = self.thinker
+        if not thinker.busy.acquire(blocking=False):
+            return  # it's answering someone
+        try:
+            words, confidence = thinker.speak_up(self, note)
+        except Exception as error:  # noqa: BLE001  thinking going wrong mustn't end a life
+            self._emit("event", f"couldn't put a thought into words ({error})")
+            return
+        finally:
+            thinker.busy.release()
+        if words:
+            self.reply(words, "", spoken=True)
+            thinker.remember(
+                {"you": None, "haven": words, "confidence": confidence, "time": time.time(), "about": kind}
+            )
+            if asked:
+                self.asked = (asked, time.monotonic())
+
+    def question(self) -> str | None:
+        """What it asked the person, if it's still waiting for an answer (and it's no longer waiting after this)."""
+        asked, self.asked = self.asked, None
+        return asked[0] if asked and time.monotonic() - asked[1] < ASKED else None
 
     def _sleep_on_it(self) -> None:
         """While Haven sleeps (at most every so often), its language cortex goes over moments of its day."""
@@ -154,6 +263,7 @@ class Life:
 
     def say(self, text: str) -> list[str]:
         self._last_words = time.monotonic()
+        self.initiative.talked()
         with self.lock:
             words = self.mind.hear(text)
             self.conversation = [*self.conversation[-99:], {"tick": self.mind.tick, "who": "you", "text": text}]
@@ -169,13 +279,17 @@ class Life:
         with self.lock:
             self.mind.feed()
 
-    def reply(self, text: str, source: str) -> None:
-        """Something Haven says in words, from its language cortex."""
+    def reply(self, text: str, source: str, spoken: bool = False) -> None:
+        """Something Haven says in words, from its language cortex (`spoken`: of its own accord)."""
         self._last_words = time.monotonic()
+        self.initiative.talked()
         with self.lock:
             self.mind.world.voice = (self.mind.tick, text)
             self.mind.said = [*self.mind.said[-49:], (self.mind.tick, text)]
             self.conversation = [*self.conversation[-99:], {"tick": self.mind.tick, "who": "haven", "text": text}]
+            if spoken:
+                self._spoken += 1
+                self.spoken = [*self.spoken[-19:], (self._spoken, text)]
         self._emit("said", text + (f"   [{source}]" if source else ""))
 
     def snapshot(self) -> dict:
@@ -185,6 +299,9 @@ class Life:
         state["speed"] = self.speed
         state["conversation"] = self.conversation[-20:]
         state["news"] = [{"id": n, "text": text} for n, text in self.news]
+        state["spoken"] = [{"id": n, "text": text} for n, text in self.spoken]
+        passing = self.passing
+        state["passing"] = None if passing is None else {k: passing[k] for k in ("days", "done", "total")}
         library = getattr(self.thinker, "_library", None)  # what it has read, besides the book it was born with
         sources = dict(library.sources) if library else {}  # (a copy: it may be reading something right now)
         state["read"] = [title for title, source in sources.items() if source != "book"][-8:][::-1]
@@ -193,15 +310,18 @@ class Life:
 
     # --- telling the people watching -------------------------------------------------
 
-    def _announce(self) -> None:
+    def _announce(self, quietly: bool = False) -> None:
+        """Tell the people watching what it said and did (`quietly`: while time goes by, only keep up with it)."""
         mind = self.mind
         for item in after(mind.said, self._seen_said):
             self._seen_said = item
-            self._emit("said", item[1])
+            if not quietly:
+                self._emit("said", item[1])
         for item in after(mind.log, self._seen_log):
             self._seen_log = item
-            if not item[1].startswith("said "):
+            if not item[1].startswith("said ") and not quietly:
                 self._emit("event", item[1])
+                self.initiative.noticed(item[1], item[0], mind.body.asleep, mind.time_of_day)
 
     def _emit(self, kind: str, text: str) -> None:
         if kind == "event" and NEWS.match(text):

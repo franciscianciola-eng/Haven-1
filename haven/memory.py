@@ -127,15 +127,15 @@ class ReplayBuffer:
         return rng.choice(self.size, size=min(k, self.size), p=weights / weights.sum())
 
     def to_state(self) -> dict:
-        n = self.size
-        order = (np.arange(n) + (self.head if n == self.capacity else 0)) % self.capacity
+        n = self.size  # (kept as it lies, with where the next moment goes, so replay picks the same moments)
         return {
-            "states": self.states[order],
-            "next_states": self.next_states[order],
-            "actions": self.actions[order],
-            "rewards": self.rewards[order],
-            "model_in": self.model_in[order],
-            "model_out": self.model_out[order],
+            "states": self.states[:n],
+            "next_states": self.next_states[:n],
+            "actions": self.actions[:n],
+            "rewards": self.rewards[:n],
+            "model_in": self.model_in[:n],
+            "model_out": self.model_out[:n],
+            "head": self.head,
         }
 
     def load_state(self, state: dict) -> None:
@@ -146,4 +146,8 @@ class ReplayBuffer:
             if values.ndim > 1 and values.shape[1] != target.shape[1]:
                 return  # saved by a different version of the mind; start the buffer afresh
             target[:n] = values
-        self.size, self.head = n, n % self.capacity
+        # (saved oldest first by earlier versions: then the next moment goes after the last)
+        self.size, self.head = (
+            n,
+            int(state["head"]) if "head" in state and n == len(state["actions"]) else n % self.capacity,
+        )

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import math
+import multiprocessing
 import os
 import random
 import time
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict
 from pathlib import Path
 
@@ -200,7 +202,7 @@ class Trainer:
             rng = random.Random(0)
             for m in moments["train"][::2]:  # conversations: what comes to mind, what's asked, and what it says
                 thought, turns = converse(m, rng)
-                train_texts += [thought, *(t.said for t in turns), *(t.answer for t in turns)]
+                train_texts += [thought, *(t.said for t in turns if t.said), *(t.answer for t in turns)]
             data = {
                 "grounded": moments["train"],
                 "items": {
@@ -456,7 +458,24 @@ def read_level(level: Level, web: Web, cache: Path, urls: dict, scale: dict) -> 
     raise ValueError(f"unknown source {s}")
 
 
-LIVES = ((101, 4.0), (202, 4.0), (404, 4.0), (505, 3.0), (606, 3.0), (303, 3.0))  # (seed, days); the last is held out
+LIVES = (  # (seed, days, how often to note a moment after its first four days: None for as often as at first)
+    (101, 4.0, None),
+    (202, 4.0, None),
+    (404, 4.0, None),
+    (505, 3.0, None),
+    (606, 3.0, None),
+    (707, 60.0, 120),  # lives of years: through the seasons, growing up
+    (808, 72.0, 120),
+    (909, 48.0, 120),
+    (303, 3.0, None),  # the last two are held out, for testing
+    (1010, 50.0, 120),
+)
+HELD = 2
+
+
+def _live(life: tuple) -> list[dict]:
+    seed, days, later = (*life, None)[:3]
+    return gather(seed=seed, days=days, later=later)
 
 
 def simulated_moments(cache: Path, log: Callable[[str], None], lives: tuple = LIVES) -> dict:
@@ -468,7 +487,9 @@ def simulated_moments(cache: Path, log: Callable[[str], None], lives: tuple = LI
             states = npz["states"]
     else:
         log("  living a few simulated lives to learn words for its own states…")
-        moments = [m for seed, days in lives for m in gather(seed=seed, days=days)]
+        workers = max(1, min(len(lives), os.cpu_count() or 1))
+        with ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("spawn")) as pool:
+            moments = [m for lived in pool.map(_live, lives) for m in lived]
         states = np.stack([m.pop("state") for m in moments]).astype(np.float32)
         meta = moments
         cache.mkdir(parents=True, exist_ok=True)
@@ -476,7 +497,10 @@ def simulated_moments(cache: Path, log: Callable[[str], None], lives: tuple = LI
             np.savez_compressed(f, states=states, meta=np.array(json.dumps(meta)))
     for m, state in zip(meta, states, strict=True):
         m["state"] = state
-    cut = int(len(meta) * 0.86)  # about the last simulated life is held out for testing
+    held = {life[0] for life in lives[len(lives) - min(HELD, len(lives) - 1) :]}  # (always one, at least, to learn from)
+    if held and all("life" in m for m in meta):  # the last lives are held out for testing
+        return {"train": [m for m in meta if m["life"] not in held], "held": [m for m in meta if m["life"] in held]}
+    cut = int(len(meta) * 0.86)  # (moments noted before they said which life they're from: about the last life)
     return {"train": meta[:cut], "held": meta[cut:]}
 
 
@@ -531,9 +555,11 @@ def conversation_ids(tok: Tokenizer, moment: dict, rng: random.Random) -> tuple[
     ids = [THINK, *tok.encode(thought)]
     mark = [False] * len(ids)
     for question, answer in ((t.said, t.answer) for t in turns):
-        asked = [YOU, *tok.encode(question), HAVEN]
+        asked = [HAVEN] if question is None else [YOU, *tok.encode(question), HAVEN]  # (None: it speaks up)
         ids += asked
-        mark += [bool(mark) and mark[-1]] + [False] * (len(asked) - 1)  # the turn after its answer ends it
+        mark += [bool(mark) and mark[-1] and question is not None] + [False] * (
+            len(asked) - 1
+        )  # a turn after its answer ends it
         said = tok.encode(answer)
         ids += said
         mark += [True] * len(said)

@@ -209,6 +209,11 @@ class Mind:
     def age(self) -> int:
         return self.world.tick - self.me.born
 
+    @property
+    def years(self) -> int:
+        """How many years old it is: how many times spring has come back since it was born."""
+        return self.world.day // YEAR - self.me.born // DAY // YEAR
+
     def live(self, ticks: int) -> None:
         for _ in range(ticks):
             self.step()
@@ -350,9 +355,11 @@ class Mind:
         self._note(tick, f"saw {w.season} come to the valley")
         if w.season in SEASON_FIRSTS:
             self.me.milestone(f"first {w.season}", tick, SEASON_FIRSTS[w.season])
-        years = round(self.age / (DAY * YEAR))
+        years = self.years
         if w.season == "spring" and years >= 1:
-            gone = "a whole year had" if years == 1 else f"{YEARS[years - 1] if years <= len(YEARS) else years} years had"
+            gone = (
+                "a whole year had" if years == 1 else f"{YEARS[years - 1] if years <= len(YEARS) else years} years had"
+            )
             self.me.milestone(f"year {years}", tick, f"saw spring come back: {gone} gone by")
 
     # --- learning from the last moment ---------------------------------------------

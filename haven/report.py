@@ -179,6 +179,7 @@ def snapshot(mind: Mind) -> dict:
             "milestones": [{"tick": t, "text": text} for t, text in mind.me.milestones[-12:]][::-1],
         },
         "readout": readout(mind),
+        "character": character(mind),
         "welfare": welfare(mind),
         "today": mind.today,
         "things": things(mind),
@@ -187,6 +188,22 @@ def snapshot(mind: Mind) -> dict:
             "told": [fact for _, fact in mind.told[-12:]][::-1],
             "taught": [lesson for _, lesson in mind.lessons[-12:]][::-1],
         },
+    }
+
+
+def character(mind: Mind) -> dict:
+    """Who it's becoming: its traits (and the temperament it was born with), and what it says about itself."""
+    from .cortex.talk import TRAIT_WORDS, best_day, favorites, fears, worst_day
+    from .cortex.talk import character as in_words
+
+    c = mind.character
+    return {
+        "traits": [
+            {"trait": t, "less": TRAIT_WORDS[t][1], "value": round(v, 3), "born": round(c.temperament[t], 3)}
+            for t, v in c.traits.items()
+        ],
+        "says": [p for p in (in_words(mind), favorites(mind), fears(mind), best_day(mind), worst_day(mind)) if p],
+        "days": c.days,
     }
 
 

@@ -53,6 +53,13 @@ const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -
 const SKY_DAY = new Color("#9fd4f5");
 const SKY_DUSK = new Color("#f2b38a");
 const SKY_NIGHT = new Color("#0c1230");
+// How the valley looks in each season (Haven feels the seasons, and sees the leaves turn and the flowers go).
+const SEASONS = {
+  spring: { leaves: ["#5aae52", "#6fbd5f"], ground: "#ffffff", frost: "#000000", water: "#3d8fd1", sky: "#9fd4f5", bush: "#2f7b3c" },
+  summer: { leaves: ["#3f8f45", "#4a9d4e"], ground: "#f6f4df", frost: "#000000", water: "#3d8fd1", sky: "#93d0f7", bush: "#2f7b3c" },
+  autumn: { leaves: ["#d9792b", "#c4532a"], ground: "#efdcb2", frost: "#000000", water: "#4a88bd", sky: "#b7cfe0", bush: "#5b7a3a" },
+  winter: { leaves: null, ground: "#dde4ec", frost: "#2c3139", water: "#a7c5e2", sky: "#c3d3e2", bush: "#5a6e52" },
+};
 
 const mats = {};
 function mat(color, options = {}) {
@@ -139,7 +146,7 @@ function buildGround(world) {
   geometry.setAttribute("position", new Float32BufferAttribute(pos, 3));
   geometry.setAttribute("color", new Float32BufferAttribute(col, 3));
   geometry.setAttribute("normal", new Float32BufferAttribute(nor, 3));
-  const ground = new Mesh(geometry, new MeshLambertMaterial({ vertexColors: true }));
+  const ground = new Mesh(geometry, new MeshLambertMaterial({ vertexColors: true }));  // (tinted by the season)
   ground.receiveShadow = true;
   ground.castShadow = true;
   return ground;
@@ -177,7 +184,17 @@ function tree(x, y) {
   const side = mesh(new IcosahedronGeometry(0.55, 1), mat("#4a9d4e", { flatShading: true }));
   side.position.set(0.45 * (hash(x, y) - 0.5) * 2, 1.7, 0.4);
   crown.add(big, side);
-  g.add(trunk, crown);
+  const branches = new Group(); // what's left of it in winter
+  for (let i = 0; i < 6; i++) {
+    const branch = mesh(new CylinderGeometry(0.018, 0.045, 0.95, 5), mat("#6e4b2c"));
+    const a = (i / 6) * Math.PI * 2 + hash(x, y, i + 30);
+    branch.position.set(Math.cos(a) * 0.28, 1.72 + 0.2 * hash(x, y, i + 40), Math.sin(a) * 0.28);
+    branch.rotation.set(Math.sin(a) * 0.75, 0, -Math.cos(a) * 0.75);
+    branches.add(branch);
+  }
+  branches.visible = false;
+  g.add(trunk, crown, branches);
+  Object.assign(g.userData, { crown, branches, big, side });
   g.userData.apples = [0, 1, 2].map((i) => {
     const apple = mesh(new SphereGeometry(0.1, 10, 8), mat("#d8261f"));
     const a = (i / 3) * Math.PI * 2 + hash(x, y, i) * 0.8;
@@ -601,7 +618,8 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
 
   function build(world) {
     view.world = world;
-    scene.add(buildGround(world));
+    view.ground = buildGround(world);
+    scene.add(view.ground);
     view.water = buildWater(world);
     if (view.water) scene.add(view.water);
     const flowerColors = new Map((world.flowers || []).map(([x, y, c]) => [`${x},${y}`, c]));
@@ -648,9 +666,31 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     view.effects.push(sprite);
   }
 
+  function seasonal(season) {
+    const look = SEASONS[season] || SEASONS.summer;
+    view.look = look;
+    for (const [key, thing] of view.cells) {
+      const ud = thing.userData;
+      if (ud.crown) {
+        ud.crown.visible = !!look.leaves;
+        ud.branches.visible = !look.leaves;
+        if (look.leaves) {
+          ud.big.material = mat(look.leaves[0], { flatShading: true });
+          ud.side.material = mat(look.leaves[1], { flatShading: true });
+        }
+      }
+      if (ud.label === "flowers") thing.visible = season !== "winter"; // they sleep until spring
+      void key;
+    }
+  }
+
   function update(world, extra = {}) {
     if (!view.built) build(world);
     view.world = world;
+    if (world.season && world.season !== view.season) {
+      view.season = world.season;
+      seasonal(world.season);
+    }
     view.speed = extra.speed || view.speed;
     view.light = world.light;
     view.phase = world.phase ?? view.phase;
@@ -658,7 +698,7 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       const b = view.cells.get(`${x},${y}`);
       if (!b) continue;
       b.userData.berries.forEach((berry, i) => { berry.visible = i < count; });
-      b.userData.leaves.material = mat(count ? "#2f7b3c" : "#4f7d45", { flatShading: true });
+      b.userData.leaves.material = mat(count ? view.look?.bush || "#2f7b3c" : "#4f7d45", { flatShading: true });
       b.userData.label = count ? `a berry bush, with ${count} ${count === 1 ? "berry" : "berries"}` : "a bush with no berries yet";
       b.traverse((o) => { o.userData.label = b.userData.label; });
     }
@@ -693,6 +733,7 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     }
     for (const a of view.apples) if (!kept.has(a)) a.visible = false;
     view.ballAt = spot(...world.ball);
+    view.butterflies.forEach((b, i) => { b.visible = i < world.butterflies.length; }); // (in winter they're gone)
     world.butterflies.forEach(([x, y], i) => {
       const b = view.butterflies[i];
       if (b) b.userData.to = spot(x, y, 0.75 + 0.25 * hash(x, y, i));
@@ -792,6 +833,7 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
   let last = performance.now(), running = true;
   const skyNow = new Color();
   const sunDir = new Vector3();
+  const tint = new Color(), frost = new Color(), pond = new Color(), skyDay = SKY_DAY.clone();
   function frame(now) {
     if (!running) return;
     requestAnimationFrame(frame);
@@ -804,7 +846,14 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     // Day and night.
     const light = view.light;
     const dusk = Math.max(0, 1 - Math.abs(light - 0.35) / 0.2) * 0.6;
-    skyNow.copy(SKY_NIGHT).lerp(SKY_DAY, Math.min(1, light * 1.1)).lerp(SKY_DUSK, dusk * 0.5);
+    if (view.look) {  // the season comes over the valley gradually
+      const turn = 1 - Math.exp(-dt * 1.5);
+      view.ground.material.color.lerp(tint.set(view.look.ground), turn);
+      view.ground.material.emissive.lerp(frost.set(view.look.frost), turn);
+      if (view.water) view.water.material.color.lerp(pond.set(view.look.water), turn);
+      skyDay.lerp(tint.set(view.look.sky), turn);
+    }
+    skyNow.copy(SKY_NIGHT).lerp(skyDay, Math.min(1, light * 1.1)).lerp(SKY_DUSK, dusk * 0.5);
     scene.background.lerp(skyNow, 0.08);
     scene.fog.color.copy(scene.background);
     hemi.intensity = 0.25 + 0.85 * light;

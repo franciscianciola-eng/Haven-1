@@ -39,6 +39,7 @@ li { margin: 2px 0; }
 .stream li { list-style: none; margin-left: -18px; }
 .muted { color: var(--muted); }
 .bar { display: grid; grid-template-columns: 90px 1fr 42px; align-items: center; gap: 8px; margin: 4px 0; }
+#traits .bar { grid-template-columns: 150px 1fr 42px; }
 .bar .track { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; }
 .bar .fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
 .bar .num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -98,6 +99,7 @@ td.code { white-space: nowrap; font-weight: 600; }
     <section id="welfare" class="alert" style="display:none"><p id="welfareMsg"></p></section>
     <section><h2>Body and feeling</h2><div id="bars"></div><div class="muted" id="goal" style="margin-top:6px"></div></section>
     <section><h2>What it has concluded about itself</h2><ul id="self"></ul></section>
+    <section><h2>Who it's becoming</h2><div id="traits"></div><ul id="character"></ul></section>
     <section><h2>Words it understands</h2><div class="words" id="words"></div><div class="muted" id="said"></div></section>
     <section><h2>Kinds of things it has learned</h2><ul id="kinds"></ul></section>
     <section><h2>The valley's things, as it knows them</h2><ul id="things"></ul></section>
@@ -184,7 +186,8 @@ function bar(label, value, color) {
 function render(s) {
   state = s;
   $("name").textContent = s.name;
-  $("age").textContent = `${s.age_days} days old · day ${s.day + 1}, ${s.time_of_day}${s.paused ? " · paused" : ""}`;
+  const years = Math.floor(s.age_days / 24);
+  $("age").textContent = `${years >= 1 ? `${years} year${years > 1 ? "s" : ""}, ` : ""}${s.age_days} days old · ${s.season}, day ${s.season_day + 1} · ${s.time_of_day}${s.paused ? " · paused" : ""}`;
   $("pause").textContent = s.paused ? "Resume" : "Pause";
   drawWorld(s); drawBeliefs(s);
   $("where").textContent = s.body.asleep ? "Asleep." : `Trying to ${s.goal_text}${s.next ? `; next: ${s.next}` : ""}.`;
@@ -199,6 +202,9 @@ function render(s) {
     bar("hunger", d.hunger) + bar("temperature", d.temperature) + bar("damage", d.damage, "var(--bad)") + bar("tiredness", d.tiredness) +
     bar("feeling", (f.valence + 1) / 2, f.valence >= 0 ? "var(--good)" : "var(--bad)") + bar("arousal", f.arousal, "var(--warn)");
   $("goal").textContent = `Mood ${f.mood >= 0 ? "+" : ""}${f.mood.toFixed(2)} · body temperature ${b.temperature.toFixed(2)}${b.asleep ? " · asleep" : ""}`;
+  $("traits").innerHTML = s.character.traits.map((t) => bar(`${t.trait} / ${t.less.replace(/^a /, "")}`, t.value)).join("");
+  $("character").innerHTML = s.character.says.map((line) => `<li>${esc(line)}</li>`).join("") +
+    `<li class="muted">A trait's bar is how much more so than most Havens it is (50%: like most). It was born at ${s.character.traits.map((t) => `${t.trait} ${Math.round(t.born * 100)}%`).join(", ")}; how it lives counts more as it grows up.</li>`;
   $("self").innerHTML = s.self.conclusions.map((c) => `<li>${esc(c)}</li>`).join("") +
     `<li class="muted">sense of being alive: ${Math.round(s.self.alive * 100)}% (${Object.entries(s.self.evidence).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(", ")})</li>`;
   $("words").innerHTML = s.words.length ? s.words.map((w) => `<span title="heard ${w.heard}×, said ${w.said}×">${esc(w.word)} → ${esc(w.means)}</span>`).join("") :

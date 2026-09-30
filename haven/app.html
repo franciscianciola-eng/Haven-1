@@ -95,6 +95,14 @@ canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
 .small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .cortex { padding: 0 16px 10px; }
 .welfare { border-color: var(--warn); color: var(--warn); font-weight: 600; }
+.menuwrap { position: relative; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 6px 24px #0003; display: flex; flex-direction: column; gap: 4px; }
+.menu p { margin: 4px 6px 6px; font-size: 12px; color: var(--muted); }
+.menu button { text-align: left; background: transparent; border-color: transparent; }
+.menu button:hover { background: var(--chip); }
+.passing { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100% - 32px)); text-align: center; }
+.passing h2 { margin: 0 0 2px; font-size: 16px; }
+.passing p { margin: 0; font-size: 13px; color: var(--muted); }
 .gone { position: fixed; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 88%, transparent); padding: 16px; }
 .gone div { max-width: 420px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
 .gone h2 { margin: 0 0 6px; font-size: 18px; }
@@ -121,6 +129,16 @@ canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
     <span class="meta" id="age"></span>
     <nav>
       <a href="/dashboard" target="_blank" rel="noopener">Inside its mind</a>
+      <span class="menuwrap">
+        <button id="pass" type="button" aria-haspopup="true" aria-expanded="false" title="Let Haven live through a stretch of time, as fast as it can">Let time pass</button>
+        <div class="menu" id="passMenu" role="menu" hidden>
+          <p>Haven lives through it as fast as it can: exploring, playing, getting through the seasons. Then it tells you what happened.</p>
+          <button type="button" role="menuitem" data-days="1">A day</button>
+          <button type="button" role="menuitem" data-days="6">A season</button>
+          <button type="button" role="menuitem" data-days="24">A year</button>
+          <button type="button" role="menuitem" data-days="72">Three years</button>
+        </div>
+      </span>
       <button id="rest" type="button" title="Save and let Haven rest until you come back">Rest</button>
     </nav>
   </header>
@@ -138,6 +156,11 @@ canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
         <button id="sound" type="button" aria-pressed="false" title="Hear the bell when Haven rings it">Sound off</button>
       </div>
       <div class="card welfare" id="welfare" hidden></div>
+      <div class="overlay passing" id="passing" hidden aria-live="polite">
+        <h2>Time is going by</h2>
+        <div class="progress"><div id="passingBar"></div></div>
+        <p id="passingText"></p>
+      </div>
       <div class="overlay now">
         <h2>In its mind now</h2>
         <div id="focus"></div>
@@ -169,7 +192,7 @@ const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const TILE = {".": "#5a9e54", "#": "#4a4852", "T": "#9e38c7", "S": "#9e9e99", "N": "#dbbd4c", "B": "#1f6630",
   "A": "#2f6f34", "W": "#3f86d0", ":": "#dcc990", "f": "#e889b8", "m": "#8e5b32", "t": "#d8344f", "b": "#d6a531", "F": "#ff7a2a"};
-let name = "Haven", ready = false, busy = null, failures = 0, gone = false, lastNews = -1, version = "";
+let name = "Haven", ready = false, busy = null, failures = 0, gone = false, lastNews = -1, lastSpoken = -1, version = "", passing = null;
 
 async function api(path, body) {
   const options = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
@@ -264,9 +287,11 @@ async function follow(id) {
 
 function setComposer() {
   const text = $("text");
-  text.disabled = !ready || gone;
-  $("send").disabled = !ready || !!busy || gone;
-  text.placeholder = !ready ? "Haven's language area is getting ready…" : busy ? `${name} is answering…` : `Talk to ${name}…`;
+  text.disabled = !ready || gone || !!passing;
+  $("send").disabled = !ready || !!busy || gone || !!passing;
+  $("pass").disabled = !!busy || !!passing || gone;
+  text.placeholder = !ready ? "Haven's language area is getting ready…" : passing ? "Time is going by…"
+    : busy ? `${name} is answering…` : `Talk to ${name}…`;
 }
 
 function autosize() { const t = $("text"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 160) + "px"; }
@@ -364,7 +389,9 @@ function render(s) {
   name = s.name;
   $("name").textContent = s.name;
   document.title = s.name;
-  $("age").textContent = `${s.age_days} days old · day ${s.day + 1}, ${s.time_of_day}${s.body.asleep ? " · asleep" : ""}`;
+  const years = Math.floor(s.age_days / 24), days = Math.floor(s.age_days);
+  const age = years >= 1 ? `${years} year${years > 1 ? "s" : ""} old` : `${days} day${days === 1 ? "" : "s"} old`;
+  $("age").textContent = `${age} · ${s.season}, day ${s.season_day + 1} · ${s.time_of_day}${s.body.asleep ? " · asleep" : ""}`;
   const inNest = s.world.layout[s.world.y][s.world.x] === "N";
   $("where").textContent = s.body.asleep ? (inNest ? "Asleep in its nest." : "Asleep.") : `Trying to ${s.goal_text}${s.next ? `; next: ${s.next}` : ""}.`;
   const b = s.body, d = s.drives, f = s.feeling;
@@ -384,12 +411,24 @@ function render(s) {
     if (n.id > lastNews && lastNews >= 0) addEvent(`${s.name} ${n.text}.`);
   }
   lastNews = Math.max(lastNews, 0, ...(s.news || []).map((n) => n.id));
+  for (const m of s.spoken || []) {  // what it said of its own accord, without being asked
+    if (m.id > lastSpoken && lastSpoken >= 0) havenMessage(m.text);
+  }
+  lastSpoken = Math.max(lastSpoken, 0, ...(s.spoken || []).map((m) => m.id));
+  passing = s.passing;
+  $("passing").hidden = !passing;
+  if (passing) {
+    const pct = Math.round(100 * passing.done / Math.max(passing.total, 1));
+    $("passingBar").style.width = pct + "%";
+    const day = Math.floor(passing.done / 1200);
+    $("passingText").textContent = `Day ${Math.min(day + 1, passing.days)} of ${passing.days} · it's ${s.season} in the valley · ${age}`;
+  }
   setComposer();
 }
 
 function showHistory(conversation) {
   if (!conversation.length) {
-    const hello = el("div", "hello", `Say hello. ${name} answers in words of its own, from what it's feeling and what it knows. It's new to language, so it speaks simply, mostly about itself and its valley. Tell it your name, and things about you or the world: it remembers. Ask it to ring the bell or eat some berries, ask it what it has read, or ask it a sum.`);
+    const hello = el("div", "hello", `Say hello. ${name} talks in words of its own, from what it's feeling and what it knows, and sometimes it speaks up first. It's new to language, so it speaks simply, mostly about itself and its valley. Tell it your name, and things about you or the world: it remembers. Ask it what it's like, what its best day was, or to ring the bell. To see who it becomes, let some time pass: it lives through the seasons and grows up.`);
     hello.id = "hello";
     $("log").append(hello);
     return;
@@ -402,7 +441,7 @@ function showHistory(conversation) {
 
 async function pollState() {
   while (!gone) {
-    try { render(await api("/api/state")); failures = 0; }
+    try { render(await api(document.visibilityState === "visible" ? "/api/state?seen=1" : "/api/state")); failures = 0; }
     catch (e) { if (++failures >= 3) { goneNow("Haven is resting", "Its window was closed, so it's resting. To be with it again, start Haven the way you did before."); return; } }
     await sleep(1000);
   }
@@ -470,6 +509,28 @@ $("sound").onclick = () => {
   $("sound").textContent = sound ? "Sound on" : "Sound off";
   if (sound) chime();
 };
+function closeMenu() { $("passMenu").hidden = true; $("pass").setAttribute("aria-expanded", "false"); }
+$("pass").onclick = (e) => {
+  e.stopPropagation();
+  const open = $("passMenu").hidden;
+  $("passMenu").hidden = !open;
+  $("pass").setAttribute("aria-expanded", String(open));
+  if (open) $("passMenu").querySelector("button").focus();
+};
+document.addEventListener("click", (e) => { if (!$("passMenu").contains(e.target)) closeMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+for (const b of $("passMenu").querySelectorAll("button[data-days]")) {
+  b.onclick = async () => {
+    closeMenu();
+    const days = Number(b.dataset.days);
+    try {
+      await api("/api/pass", {days});
+      addEvent(`You let ${b.textContent.toLowerCase()} go by for ${name}.`);
+      passing = {days, done: 0, total: days * 1200};
+      setComposer();
+    } catch (err) { addEvent(`Couldn't let time pass (${err.message}).`); }
+  };
+}
 $("rest").onclick = async () => {
   try { await api("/api/rest", {}); } catch (e) { /* already gone */ }
   goneNow("Haven is resting", "Its life is saved. To be with it again, start Haven the way you did before. (You can close this tab.)");

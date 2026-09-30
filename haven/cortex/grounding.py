@@ -185,8 +185,11 @@ def visit(mind: Mind, rng: np.random.Generator) -> None:
         mind.hear(str(rng.choice(["hello haven", "hi", "good morning haven", "hello"])))
 
 
-def gather(seed: int, days: float, every: int = 7, company: bool = True) -> list[dict]:
-    """Live a simulated life and note down the moments: state tokens, words for them, and what it would answer."""
+def gather(seed: int, days: float, every: int = 7, company: bool = True, later: int | None = None) -> list[dict]:
+    """Live a simulated life and note down the moments: state tokens, words for them, and what it would answer.
+
+    For lives of years, `later` is how often (in ticks) to note a moment after its first four days.
+    """
     mind = Mind(seed)
     rng = np.random.default_rng(seed)
     moments = []
@@ -196,9 +199,10 @@ def gather(seed: int, days: float, every: int = 7, company: bool = True) -> list
         mind.step()
         # Moments of need are rarer than moments of feeling fine, so they're noted more often.
         needy = dominant_need(mind) != "fine" or (mind.workspace.content and mind.workspace.content.source != "vision")
-        if tick % (2 if needy else every):
+        gap = every if later is None or tick < 4 * 1200 else later
+        if tick % (max(2, gap // 3) if needy else gap):
             continue
-        moments.append(moment_of(mind))
+        moments.append({**moment_of(mind), "life": seed})
     return moments
 
 
@@ -215,6 +219,7 @@ def moment_of(mind: Mind) -> dict:
         "notes": recall(known, ""),
         "answers": answers(mind),
         "body": body_now(mind),
+        "recent": [done for t, done in mind.log if mind.tick - t <= 100][-4:],  # what just happened
         **facts,
     }
 

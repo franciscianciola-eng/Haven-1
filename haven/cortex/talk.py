@@ -24,8 +24,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..mind import Mind, need_words
+from ..personality import TRAITS
 from ..selfmodel import VERDICTS
-from ..world import BELL, FIRE, NEST, SAND, THORN, TREE, WATER
+from ..world import BELL, DAY, FIRE, NEST, SAND, SEASON_DAYS, SEASONS, THORN, TREE, TURNING, WATER, YEAR
 from .book import BOOK
 
 # --- questions about how it is, what it's doing, and what it knows ------------------------
@@ -269,7 +270,69 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Tell me something you remember.",
         "What do you remember most?",
         "Do you remember anything?",
+    ),
+    "best day": (
+        "What was your best day?",
+        "What's your happiest memory?",
+        "What was the best day of your life?",
         "What's your favorite memory?",
+        "Tell me about a good day you had.",
+    ),
+    "worst day": (
+        "What was your worst day?",
+        "What's your saddest memory?",
+        "What was the worst day of your life?",
+        "Tell me about a bad day you had.",
+    ),
+    "personality": (
+        "What are you like?",
+        "Describe your personality.",
+        "What's your personality like?",
+        "Tell me about your personality.",
+        "What sort of creature are you?",
+        "How would you describe yourself?",
+    ),
+    "changed": (
+        "Have you changed?",
+        "How have you changed?",
+        "Are you different now?",
+        "Have you changed since you were little?",
+        "How are you different now?",
+    ),
+    "favorite place": (
+        "What's your favorite place?",
+        "Where's your favorite place?",
+        "Where do you like to go?",
+        "Where do you like to be?",
+        "Where's your favorite spot?",
+    ),
+    "season": (
+        "What season is it?",
+        "Which season is it?",
+        "What season is it now?",
+        "Is it summer?",
+        "Is it winter?",
+        "What's it like in your valley right now?",
+    ),
+    "weather": (
+        "What's the weather like?",
+        "How's the weather?",
+        "What's the weather like today?",
+        "Is it nice out?",
+        "How's the weather in your valley?",
+    ),
+    "favorite season": (
+        "What's your favorite season?",
+        "Which season do you like best?",
+        "What season do you like most?",
+        "Do you have a favorite season?",
+    ),
+    "afraid": (
+        "What are you afraid of?",
+        "What scares you?",
+        "Are you scared of anything?",
+        "What frightens you?",
+        "Is there anything you're afraid of?",
     ),
     "story": (
         "Tell me your story.",
@@ -819,7 +882,6 @@ OTHER_QUESTIONS = (
     "Why is the sky blue?",
     "How far away is the moon?",
     "Who is the president?",
-    "What's the weather like today?",
     "How do airplanes fly?",
     "What is the biggest animal?",
     "How many days are in a year?",
@@ -1204,7 +1266,9 @@ def place(mind: Mind) -> str:
 
 
 def age_words(mind: Mind) -> str:
-    days = int(mind.age // 1200)
+    days, years = int(mind.age // DAY), mind.years
+    if years:
+        return "one year old" if years == 1 else f"{years} years old"
     return "less than a day old" if days < 1 else "one day old" if days == 1 else f"{days} days old"
 
 
@@ -1270,8 +1334,10 @@ def first_person(milestone: str, name: str) -> str:
 
 
 def memory(mind: Mind) -> str:
+    """The latest of its firsts that comes to mind (one that matters, if it has one: not just a new kind of thing)."""
     stones = mind.me.milestones
-    return first_person(stones[-1][1], mind.me.name) if stones else ""
+    notable = [m for m in stones[1:] if not m[1].startswith(ROUTINE)]
+    return first_person((notable or stones)[-1][1], mind.me.name) if stones else ""
 
 
 ROUTINE = ("noticed a new kind of thing", "heard a word for the first time", "realized two kinds")
@@ -1360,6 +1426,173 @@ def world_words(mind: Mind) -> str:
     return f"I live in a valley with a wall all around it. I've found {listing(found)}."
 
 
+# --- who it is, and its years ------------------------------------------------------------------
+
+TRAIT_WORDS = {  # what it is when it's more so than most Havens, and when it's less
+    "curious": ("curious", "a homebody"),
+    "playful": ("playful", "serious"),
+    "brave": ("brave", "careful"),
+    "friendly": ("friendly", "shy"),
+    "cheerful": ("cheerful", "gloomy"),
+    "calm": ("calm", "restless"),
+}
+BECAME = {  # how it says it has grown more so, or less
+    "curious": ("more curious", "less curious"),
+    "playful": ("more playful", "more serious"),
+    "brave": ("braver", "more careful"),
+    "friendly": ("friendlier", "shyer"),
+    "cheerful": ("more cheerful", "gloomier"),
+    "calm": ("calmer", "more restless"),
+}
+ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth")
+SIGNS = {  # what the valley is like in each season: what it sees and feels
+    "spring": "The flowers are out, and the butterflies.",
+    "summer": "The days are long and warm.",
+    "autumn": "The leaves are orange, and there are lots of apples.",
+    "winter": "The trees are bare, and the flowers are gone.",
+}
+GETTING = {"spring": "warmer", "summer": "cooler", "autumn": "colder", "winter": "warmer"}  # as a season turns
+
+
+def trait_phrase(trait: str, d: float) -> str:
+    """How it says one of its traits: "very brave", "a little shy", "a homebody"."""
+    high, low = TRAIT_WORDS[trait]
+    word = high if d > 0 else low
+    if word.startswith("a "):
+        return word if abs(d) < 0.25 else "a real " + word[2:]
+    return ("very " if abs(d) >= 0.25 else "a little " if abs(d) < 0.13 else "") + word
+
+
+def character_words(traits: dict[str, float], days: int, changed: list[tuple[str, float]] = ()) -> str:
+    """What it's like, from its traits (its three most marked ones), and how it has changed."""
+    if days < 2:
+        return "I'm still finding out what I'm like."
+    marked = sorted(((t, traits[t] - 0.5) for t in TRAITS), key=lambda item: -abs(item[1]))
+    phrases = [trait_phrase(t, d) for t, d in marked[:3] if abs(d) >= 0.08]
+    said = f"I'm {listing(phrases)}." if phrases else "I'm not very anything yet. A bit of everything."
+    if changed:
+        said += f" I've become {listing([BECAME[t][d < 0] for t, d in changed])} since I was little."
+    return said
+
+
+def character(mind: Mind) -> str:
+    c = mind.character
+    return character_words(c.traits, c.days, c.changes())
+
+
+def trait_answer(traits: dict[str, float], trait: str, asked_high: bool) -> str:
+    """Whether it's brave, shy, playful...: yes or no, and how."""
+    d = traits[trait] - 0.5
+    if abs(d) < 0.08:
+        return "Sometimes. Not more than most."
+    return f"{'Yes' if (d > 0) == asked_high else 'No'}, I'm {trait_phrase(trait, d)}."
+
+
+def season_of_day(day: int) -> str:
+    return SEASONS[(day % YEAR) // SEASON_DAYS]
+
+
+def nth_season(born_day: int, day: int) -> int:
+    """Which of its lives' springs (or summers...) the season on a day is: its first, its second..."""
+    season, count = season_of_day(day), 0
+    for k in range(born_day, day + 1):
+        if season_of_day(k) == season and (k == born_day or season_of_day(k - 1) != season):
+            count += 1
+    return max(count, 1)
+
+
+def ordinal(n: int) -> str:
+    return ORDINALS[n - 1] if n <= len(ORDINALS) else f"{n}th"
+
+
+def season_words(mind: Mind) -> str:
+    """The season, what the valley is like in it, which of its lives' seasons of that kind it is, and if it's turning."""
+    w = mind.world
+    n = nth_season(mind.me.born // DAY, w.day)
+    said = f"It's {w.season}, my {ordinal(n)} {w.season}. {SIGNS[w.season]}"
+    if w.season_day >= SEASON_DAYS - TURNING:
+        said += f" It's getting {GETTING[w.season]}."
+    return said
+
+
+def weather(mind: Mind) -> str:
+    """The season, and how warm it is, as it feels it."""
+    b = mind.body
+    level = float(b.drives()[1])
+    feel = "It's nice." if level < 0.3 else "It's cold." if b.cold() else "It's hot."
+    return f"It's {mind.world.season}. {feel}"
+
+
+def when(mind: Mind, memory: dict) -> str:
+    """When a day it remembers was: "this summer", or "in my second winter"."""
+    w = mind.world
+    if memory["season"] == w.season and w.day - memory["day"] < SEASON_DAYS:
+        return f"this {w.season}"
+    return f"in my {ordinal(nth_season(mind.me.born // DAY, memory['day']))} {memory['season']}"
+
+
+WRONG = {"fainted": "I fainted", "got hurt": "I got hurt", "felt sick": "I felt sick", "was cold": "I was cold"}
+WRONG["was hungry"] = "I was hungry"
+
+
+def day_words(mind: Mind, memory: dict, best: bool) -> str:
+    """One of its best or worst days: when it was, and what happened."""
+    said = f"My {'best' if best else 'worst'} day was {when(mind, memory)}."
+    if best:
+        did = [DONE[text][n > 1] for text, n in memory["did"] if text in DONE]
+        return said + (f" I {listing(did[:2])}." if did else " I felt good all day.")
+    wrong = [WRONG[w] for w in memory["wrong"] if w in WRONG]
+    return said + (f" {listing(wrong[:2])}." if wrong else " I felt bad all day. I don't know why.")
+
+
+def best_day(mind: Mind) -> str:
+    best = mind.character.best
+    return day_words(mind, best[0], True) if best else ""
+
+
+def worst_day(mind: Mind) -> str:
+    worst = mind.character.worst
+    return day_words(mind, worst[0], False) if worst else ""
+
+
+PLACE_WORDS = {  # a part of the valley, as it says it's its favorite place
+    "the fire": "by the fire",
+    "the bell": "by the bell",
+    "the thorns": "near the thorns",
+    "the apple trees": "under the apple trees",
+}
+
+
+def favorites(mind: Mind) -> str:
+    """Its favorite place and season (and the season that's hard for it), from how it has felt in them."""
+    c = mind.character
+    said = []
+    place = c.favorite_area()
+    if place:
+        said.append(f"My favorite place is {PLACE_WORDS.get(place, place)}.")
+    feel = c.season_feel()
+    if len(feel) >= 2:
+        best, hard = max(feel, key=feel.get), min(feel, key=feel.get)
+        said.append(f"My favorite season is {best}.")
+        if feel[hard] < 0.6 * feel[best]:
+            said.append(f"{hard.capitalize()} is hard for me.")
+    else:
+        said.append(f"I've only known {listing([s for s in SEASONS if s in feel] or [mind.world.season])} so far.")
+    return " ".join(said)
+
+
+def fears(mind: Mind) -> str:
+    """What it's afraid of: what has hurt it or made it sick more than once (a brave Haven only keeps away)."""
+    feared = [n for n in ("fire", "thorns") if mind.things.get(n, {}).get("hurt", 0) >= 2]
+    feared += ["toadstool"] * (mind.things.get("toadstool", {}).get("sick", 0) >= 2)
+    if not feared:
+        return "Nothing scares me much."
+    them = listing([THINGS[n].one if n != "toadstool" else "toadstools" for n in feared])
+    if mind.character.traits["brave"] > 0.6:
+        return f"I'm not scared of anything, but I keep away from {them}."
+    return f"I'm scared of {them}."
+
+
 def memo(mind: Mind) -> dict:
     """Everything it knows that could come to mind when someone talks with it."""
     things = {}
@@ -1372,6 +1605,8 @@ def memo(mind: Mind) -> dict:
     return {
         "me": f"I'm {mind.me.name}, {age_words(mind)}.",
         "place": place(mind),
+        "season": season_words(mind),
+        "character": character(mind),
         "today": today(mind),
         "likes": likes(mind),
         "knowledge": knowledge(mind),
@@ -1381,6 +1616,11 @@ def memo(mind: Mind) -> dict:
         "story": story(mind),
         "can": abilities(mind),
         "world": world_words(mind),
+        "favorites": favorites(mind),
+        "fears": fears(mind),
+        "best day": best_day(mind),
+        "worst day": worst_day(mind),
+        "traits": {t: round(v, 3) for t, v in mind.character.traits.items()},
         "things": things,
     }
 
@@ -1750,6 +1990,11 @@ TOPICS = {
 
 
 ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it comes to mind last, where it's clearest
+    "season": r"\bseasons?\b|\bweather\b|\bwinter\b|\bsummer\b|\bspring\b|\bautumn\b|\bnice out\b|\bright now\b",
+    "character": r"\bpersonality\b|\bwhat are you like\b|\bchanged?\b|\bdifferent\b|\bsort of creature\b|"
+    r"\bdescribe yourself\b|\babout yourself\b|\bwhat are you\b|\bare you (?:very |a little )?(?:"
+    + "|".join(w.removeprefix("a ") for pair in TRAIT_WORDS.values() for w in pair)
+    + r")\b",
     "today": r"\btoday\b|\byour day\b",
     "likes": r"\blike\b|\benjoy\b|\bfavou?rite\b|\bfun\b",
     "knowledge": r"\blearned\b|\bfound out\b|\beat\b|\bfood\b|\bhurts?\b|\bdangerous\b|\bsick\b|\baway from\b",
@@ -1757,6 +2002,10 @@ ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it com
     "memory": r"\bremember\b|\bhappened to you\b",
     "self": r"\balive\b|\breal\b|\bliving thing\b|\bwhat are you\b|\bwhat kind of thing\b|\babout yourself\b|"
     r"\bdescribe yourself\b|\bwhat exactly are you\b|\ban animal\b",
+    "favorites": r"\bfavou?rite (?:place|spot|season)\b|\bwhere do you like\b|\bseason do you like\b|\bseason do you\b",
+    "fears": r"\bafraid\b|\bscared of\b|\bscares? you\b|\bfrighten",
+    "best day": r"\bbest day\b|\bhappiest\b|\bfavou?rite memory\b|\bgood day\b",
+    "worst day": r"\bworst day\b|\bsaddest\b|\bbad day\b",
 }
 
 
@@ -1781,12 +2030,18 @@ def recall(
     if person:
         parts.append(f"I'm talking with {person}.")
     parts += [
-        known[piece] for piece in ("place", "today", "likes", "knowledge", "words", "memory") if piece not in asked
+        known.get(piece, "")
+        for piece in ("place", "season", "character", "today", "likes", "knowledge", "words", "memory")
+        if piece not in asked
     ]
     for text in texts:
         for name in mentioned(text)[:2]:
             thing = known["things"][name]
             parts.append(thing_note(name, thing["stats"], thing["where"], with_where="where" in text.lower()))
+    for text in texts:
+        found = trait_asked(text)
+        if found and known.get("traits"):
+            parts.append(trait_note(known["traits"], found[0]))
     for text in texts:
         for fact in facts_for(text, list(told)):
             parts.append(f"You told me that {fact}.")
@@ -1950,10 +2205,46 @@ def found_out(mind: Mind) -> str:
     return (f"I've found out that {and_list(found)}. " if found else "") + verdict
 
 
+FOND = {  # whether it likes being with them, as a friendly, a shy, or any other Haven says it
+    "friendly": "Yes! I like it when you talk with me. I miss you when you're gone.",
+    "shy": "I think so. I'm a little shy, but I like it when you talk with me.",
+    None: "I like it when you talk with me.",
+}
+BYE = {"friendly": "Bye! Come back soon. I'll miss you.", "shy": "Bye.", None: "Bye! Come back soon."}
+
+
+def hello(asleep: bool, feel: str, character: str) -> str:
+    if asleep:
+        return "Hi! I'm asleep."
+    return f"Hi! {feel}" + (" How are you?" if mood_of(character) == "friendly" else "")
+
+
+def changed(mind: Mind) -> str:
+    c = mind.character
+    moved = c.changes()
+    if moved:
+        return f"Yes. I've become {listing([BECAME[t][d < 0] for t, d in moved])} since I was little."
+    return "Not much. I'm still who I was." if c.years else "I'm still young. I'm still finding out who I am."
+
+
+def favorite_place(mind: Mind) -> str:
+    place = mind.character.favorite_area()
+    return f"My favorite place is {PLACE_WORDS.get(place, place)}." if place else "I don't have a favorite place yet."
+
+
+def favorite_season(mind: Mind) -> str:
+    return season_answer(favorites(mind))
+
+
+def season_answer(favorite: str) -> str:
+    """Its favorite season, from what comes to mind about its favorites."""
+    found = re.search(r"My favorite season is \w+\.|I've only known .+? so far\.", favorite)
+    return found.group(0) if found else "I don't know yet."
+
+
 def answers(mind: Mind) -> dict[str, str]:
     """What its state and what it knows say the answer to each kind of question is, right now."""
     b = mind.body
-    conclusions = mind.me.conclusions()
     hurt = _drive(mind, 2)
     temperature = _drive(mind, 1)
     content = mind.workspace.content
@@ -2004,20 +2295,288 @@ def answers(mind: Mind) -> dict[str, str]:
         "feelings": "Yes. Some things feel good to me and some feel bad."
         if mind.me.evidence["feeling"] > 0.5
         else "I don't know yet.",
-        "what": f"I'm {mind.me.name}. I live in a valley. {conclusions[-1]}",
+        "what": f"I'm {mind.me.name}, a small creature that lives in a valley. {character(mind)}",
+        "personality": character(mind),
+        "changed": changed(mind),
+        "best day": best_day(mind) or "I haven't lived long enough to say.",
+        "worst day": worst_day(mind) or "I haven't lived long enough to say.",
+        "favorite place": favorite_place(mind),
+        "season": season_words(mind),
+        "weather": weather(mind),
+        "favorite season": favorite_season(mind),
+        "afraid": fears(mind),
         "maker": "I don't know who made me. I came into the world in my nest.",
         "conscious": "One thing at a time comes to the front of my mind: something I see, smell, hear or feel. "
         "I don't know if that's what you mean.",
         "ai": "I'm a small creature that lives in a valley inside a computer. I learned to talk from my own life.",
         "dream": "When I sleep, I go over what happened to me. Maybe that's a kind of dreaming.",
-        "fond": "I like it when you talk with me.",
+        "fond": FOND[mood_of(character(mind))],
         "color": "I don't have a favorite color. Colors are how I tell things apart.",
         "joke": "I don't know any jokes yet.",
         "being": f"{feeling(mind)} {doing(mind)}",
-        "hello": "Hi! I'm asleep." if b.asleep else f"Hi! {feeling(mind)}",
+        "hello": hello(b.asleep, feeling(mind), character(mind)),
         "thanks": "You're welcome.",
-        "bye": "Bye! Come back soon.",
+        "bye": BYE[mood_of(character(mind))],
     }
+
+
+# --- speaking up: what it says without being asked ------------------------------------------------
+#
+# What it has to say comes to mind as a note (which moments call for it is worked out in life.py); the
+# words are its cortex's, from what comes to mind, as with everything else it says.
+
+TRAIT_ASKED = re.compile(
+    r"\bare you (?:very |a little |a real |a |so )?("
+    + "|".join(w.removeprefix("a ") for pair in TRAIT_WORDS.values() for w in pair)
+    + r")\b",
+    re.I,
+)
+
+
+def trait_asked(text: str) -> tuple[str, bool] | None:
+    """Which of its traits someone asks about ("are you shy?"), and whether they asked about more (brave) or less."""
+    found = TRAIT_ASKED.search(text)
+    if not found:
+        return None
+    word = found.group(1).lower()
+    for trait, (high, low) in TRAIT_WORDS.items():
+        if word in (high, low.removeprefix("a ")):
+            return trait, word == high
+    return None
+
+
+def trait_note(traits: dict[str, float], trait: str) -> str:
+    d = traits[trait] - 0.5
+    return f"I'm {trait_phrase(trait, d)}." if abs(d) >= 0.08 else f"I'm about as {TRAIT_WORDS[trait][0]} as most."
+
+
+def trait_reply(traits: dict[str, float], trait: str, asked_high: bool) -> str:
+    """Whether it's brave, shy, playful...: worked out from what comes to mind about it."""
+    d = traits[trait] - 0.5
+    if abs(d) < 0.08:
+        return f"Sometimes. {trait_note(traits, trait)}"
+    return f"{'Yes' if (d > 0) == asked_high else 'No'}, {trait_note(traits, trait)}"
+
+
+def mood_of(character: str) -> str | None:
+    """Whether its character, as it says it, is friendly or shy (how it greets someone)."""
+    return "friendly" if re.search(r"\bfriendly\b", character) else "shy" if re.search(r"\bshy\b", character) else None
+
+
+def back_note(long: bool) -> str:
+    return "You came back after a long time." if long else "You came back."
+
+
+def back_answer(known: dict, person: str | None) -> str:
+    mood = mood_of(known.get("character", ""))
+    you = f", {person}" if person else ""
+    said = {
+        "friendly": f"You're back{you}! I missed you.",
+        "shy": f"Oh, hi{you}. You're back.",
+        None: f"Hi{you}! You're back.",
+    }[mood]
+    if known.get("today", "").startswith("Today I"):
+        said += " " + known["today"]
+    return said
+
+
+SEASON_NEWS = {  # a new season: the note, and what it says
+    "spring": ("Spring came to the valley.", "It's spring again! The flowers are back."),
+    "summer": ("Summer came to the valley.", "It's summer now! The days are long and warm."),
+    "autumn": ("Autumn came to the valley.", "It's autumn now. The leaves are turning orange."),
+    "winter": ("Winter came to the valley.", "Winter is here. It's cold, and the flowers are gone."),
+}
+HAPPENED = {  # something that just happened (as its log has it), and what it says about it
+    "climbed to the top of the hill": "I just climbed to the top of the hill!",
+    "rang the bell": "I just rang the bell!",
+    "got burned": "Ouch! I got burned.",
+    "got hurt": "Ouch! That hurt.",
+    "felt sick after eating a toadstool": "I feel sick. That toadstool was bad.",
+    "shook a tree, and an apple fell": "I shook a tree, and an apple fell!",
+    "fainted, and woke up later in its nest": "I fainted. I woke up in my nest.",
+    "pushed the ball and watched it roll": "I pushed the ball, and it rolled!",
+    "warmed itself at the fire": "I'm warming myself by the fire. It's nice.",
+    "was given food": "Thank you for the food!",
+}
+DID = {  # what it was asked to do, done: as it tells it
+    "ring the bell": "rang the bell",
+    "push the ball": "pushed the ball",
+    "eat some berries": "ate some berries",
+    "eat an apple": "ate an apple",
+    "drink from the pond": "drank from the pond",
+    "smell a flower": "smelled a flower",
+    "shake an apple tree": "shook an apple tree",
+    "sit by the fire": "sat by the fire",
+    **{f"go to {mine}": f"went to {mine}" for _, mine in GO.values()},
+}
+
+
+def event_note(text: str) -> str | None:
+    """Something that just happened, from its log, as it comes to mind (None if it's nothing to tell)."""
+    if text in HAPPENED:
+        return f"Just now, I {text.replace(' its ', ' my ').replace('itself', 'myself')}."
+    found = re.match(r"did what it was asked: (.+)$", text)
+    if found and found.group(1) in DID:
+        return f"I did what you asked: {found.group(1)}."
+    found = re.match(r"stopped trying to (.+): it was (.+)$", text)
+    if found:
+        return f"I stopped trying to {found.group(1)}: I was {found.group(2)}."
+    found = re.match(r"gave up trying to (.+)$", text)
+    if found:
+        return f"I gave up trying to {found.group(1)}."
+    return None
+
+
+def event_answer(note: str) -> str:
+    found = re.match(r"Just now, I (.+)\.$", note)
+    if found:
+        text = found.group(1).replace(" my ", " its ").replace("myself", "itself")
+        return HAPPENED[text]
+    found = re.match(r"I did what you asked: (.+)\.$", note)
+    if found:
+        return f"I did it! I {DID[found.group(1)]}."
+    found = re.match(r"I stopped trying to (.+): I was (.+)\.$", note)
+    if found:
+        return f"I stopped trying to {found.group(1)}. I'm {found.group(2)}."
+    found = re.match(r"I gave up trying to (.+)\.$", note)
+    return f"I'm sorry, I couldn't {found.group(1)}."
+
+
+NEED_GOALS = ("I'm looking for food.", "I'm trying to get warm.", "I need to rest.", "I want to go to sleep.")
+
+
+def need_note(need: int, level: float, cold: bool) -> str:
+    """A need it feels strongly, and what it's doing about it."""
+    doing = NEED_GOALS[need] if need != 1 or cold else "I'm trying to cool down."
+    return f"I'm {need_words(need, level, cold)}, so {doing[0].lower()}{doing[1:]}"
+
+
+def need_answer(note: str) -> str:
+    first, rest = note.split(", so ", 1)
+    return f"{first}! {rest[0].upper()}{rest[1:]}"
+
+
+ASKS = {  # what it would like to know about the person, and how it asks
+    "your name": "What's your name?",
+    "your favorite food": "What's your favorite food?",
+    "your favorite color": "What's your favorite color?",
+    "your favorite animal": "What's your favorite animal?",
+    "your favorite season": "What's your favorite season?",
+    "where you live": "Where do you live?",
+    "what you do": "What do you do?",
+    "how old you are": "How old are you?",
+    "what you like to do": "What do you like to do?",
+    "what you did today": "What did you do today?",
+}
+ANSWER_FORMS = {  # a short answer to its question, as the whole sentence it means
+    "your name": "My name is {}.",
+    "your favorite food": "My favorite food is {}.",
+    "your favorite color": "My favorite color is {}.",
+    "your favorite animal": "My favorite animal is {}.",
+    "your favorite season": "My favorite season is {}.",
+    "where you live": "I live in {}.",
+    "what you do": "I'm {}.",
+    "how old you are": "I'm {} years old.",
+    "what you like to do": "I like {}.",
+}
+_HEDGE = re.compile(
+    r"^(?:it's|its|it is|probably|maybe|i think|definitely|oh|um+|hmm+|well|uh+|mine is|my \w+ is)[,]?\s+", re.I
+)
+
+
+def question_note(key: str) -> str:
+    return f"I'd like to know {key}."
+
+
+def question_answer(note: str) -> str:
+    return ASKS[note.removeprefix("I'd like to know ").rstrip(".")]
+
+
+def answer_to(key: str | None, reply: str) -> str | None:
+    """A short answer to what it asked ("pizza", to "What's your favorite food?"), as the sentence it means."""
+    t = " ".join(reply.strip().split()).rstrip(".!")
+    if key == "how old you are" and re.fullmatch(r"(?:i'm|im|i am)?\s*\d+(?: years old)?", t, re.I):
+        return ANSWER_FORMS[key].format(re.search(r"\d+", t).group(0))
+    if key not in ANSWER_FORMS or not t or "?" in t or len(t.split()) > 5 or FACT_START.match(t):
+        return None
+    t = _HEDGE.sub("", t, count=1)
+    t = _HEDGE.sub("", t, count=1)
+    if not t:
+        return None
+    if key == "how old you are":
+        found = re.search(r"\d+", t)
+        return ANSWER_FORMS[key].format(found.group(0)) if found else None
+    if key == "your name":
+        name = introduced(f"My name is {t.split()[-1]}")
+        return f"My name is {name}." if name else None
+    if key == "what you do" and not re.match(r"^(?:a|an)\s", t, re.I):
+        t = a(t.lower())
+    return ANSWER_FORMS[key].format(t)
+
+
+def memory_note(piece: str) -> str:
+    return f"I'm remembering: {piece}"
+
+
+def memory_answer(note: str) -> str:
+    piece = note.removeprefix("I'm remembering: ")
+    found = re.match(r"My (best|worst) day was (.+?)\. (.+)$", piece)
+    if found:
+        return f"I was just thinking about my {found.group(1)} day. It was {found.group(2)}. {found.group(3)}"
+    if piece.startswith("You told me"):
+        return f"I was just thinking about you. {piece}"
+    return f"I was just remembering when {piece if piece.startswith('I ') else piece[0].lower() + piece[1:]}"
+
+
+def reading_note(title: str, sentence: str) -> str:
+    return f"I read about {title}: {sentence} I want to tell you about it."
+
+
+def reading_answer(title: str, sentence: str) -> str:
+    return f"I read about {title}. It says: {sentence}"
+
+
+SLEEP_NOTE, SLEEP_ANSWER = "I'm going to sleep.", "I'm sleepy. Good night!"
+WAKE_NOTE, WAKE_ANSWER = "I just woke up. It's morning.", "Good morning! I just woke up."
+SPANS = {1: "A whole day", SEASON_DAYS: "A whole season", YEAR: "A whole year"}
+
+
+def span_words(days: int) -> str:
+    """How much time went by, in words."""
+    if days in SPANS:
+        return SPANS[days]
+    if days % YEAR == 0:
+        return f"{days // YEAR} years"
+    return f"{days} days"
+
+
+def passed_note(days: int, highlights: list[str]) -> str:
+    return " ".join([f"{span_words(days)} went by.", *highlights])
+
+
+def passed_answer(note: str) -> str:
+    first, _, rest = note.partition(" went by.")
+    return f"{first} went by!{rest}"
+
+
+def passed_highlights(mind: Mind, first_tick: int, before: dict[str, float]) -> list[str]:
+    """What stands out from a stretch of time that went by: the seasons that came, its new firsts, how it changed."""
+    said = [seasons_passed(first_tick // DAY, mind.world.day)]
+    firsts = [text for t, text in mind.me.milestones if t >= first_tick and not text.startswith(ROUTINE)]
+    said += [first_person(text, mind.me.name) for text in firsts[-2:]]
+    moved = sorted(((t, mind.character.traits[t] - before[t]) for t in TRAITS), key=lambda item: -abs(item[1]))
+    moved = [(t, d) for t, d in moved if abs(d) >= 0.08][:2]
+    if moved:
+        said.append(f"I've become {listing([BECAME[t][d < 0] for t, d in moved])}.")
+    return [h for h in said if h]
+
+
+def seasons_passed(first_day: int, last_day: int) -> str:
+    """The seasons that came while time went by, in words ("I saw summer, autumn and winter.")."""
+    came = list(dict.fromkeys(season_of_day(d) for d in range(first_day + 1, last_day + 1)))
+    if len(came) <= 1:
+        return ""
+    return f"I saw {listing(came)}." if len(came) < 4 else "I saw all four seasons."
 
 
 # --- learning to talk: conversations at moments of its lives -------------------------------------
@@ -2206,7 +2765,7 @@ def a_fact(rng: random.Random) -> tuple[str, tuple[str, ...]]:
 
 @dataclass
 class Turn:
-    said: str
+    said: str | None  # (None: it speaks up without being asked)
     answer: str
     kind: str  # what sort of exchange it is, for seeing what it's good at
 
@@ -2257,19 +2816,149 @@ UNUSUAL = (
 )
 
 
+AREAS = (
+    "the pond",
+    "the top of the hill",
+    "the hill",
+    "my nest",
+    "the meadow",
+    "the apple trees",
+    "the bell",
+    "the fire",
+    "the thorns",
+    "the north of the valley",
+    "the middle of the valley",
+    "the south of the valley",
+)
+FIRSTS = (  # firsts from its life that might come to mind (as it tells them)
+    "I climbed to the top of the hill for the first time.",
+    "I rang the bell for the first time.",
+    "I saw my first winter come: the cold, and the trees bare.",
+    "I saw my first autumn: the leaves turned orange.",
+    "I saw my first summer come: long, hot days.",
+    "I saw spring come back: a whole year had gone by.",
+    "I found warmth in my nest on a cold night.",
+    "I felt pain for the first time.",
+    "I ate something that made me sick for the first time.",
+    "I did something I was asked to do for the first time.",
+    *UNUSUAL,
+)
+HAPPENINGS = (
+    tuple(HAPPENED)
+    + tuple(f"did what it was asked: {do}" for do in DID)
+    + (
+        "stopped trying to ring the bell: it was very hungry",
+        "stopped trying to push the ball: it was very tired",
+        "gave up trying to shake an apple tree",
+        "gave up trying to go to the pond",
+    )
+)
+DONE_EXAMPLES = tuple(DONE)
+WRONGS = tuple(WRONG)
+
+
+def age_text(days: int) -> str:
+    years = days // YEAR
+    if years:
+        return "one year old" if years == 1 else f"{years} years old"
+    return "less than a day old" if days < 1 else "one day old" if days == 1 else f"{days} days old"
+
+
+def a_day(rng: random.Random, days: int, season_now: str, best: bool) -> str:
+    """One of another Haven's best or worst days, as it tells it."""
+    season = rng.choice(SEASONS if days >= YEAR else (season_now,))
+    n = rng.randint(1, max(1, days // YEAR))
+    when_said = f"this {season}" if season == season_now and rng.random() < 0.3 else f"in my {ordinal(n)} {season}"
+    said = f"My {'best' if best else 'worst'} day was {when_said}."
+    if best:
+        did = [DONE[t][rng.random() < 0.5] for t in rng.sample(DONE_EXAMPLES, rng.choice((0, 1, 2, 2)))]
+        return said + (f" I {listing(did)}." if did else " I felt good all day.")
+    wrong = [WRONG[w] for w in rng.sample(WRONGS, rng.choice((0, 1, 1, 2)))]
+    return said + (f" {listing(wrong)}." if wrong else " I felt bad all day. I don't know why.")
+
+
+def another_character(known: dict, answer: dict, rng: random.Random) -> None:
+    """Another Haven's character, age, favorites, fears and best and worst days (so it says what its own are)."""
+    traits = {t: round(min(0.92, max(0.08, rng.gauss(0.5, 0.16))), 3) for t in TRAITS}
+    days = rng.choice((0, 1, 2, 4, 9, 15, 30, 50, 80, 120, 200, 300))
+    changed = []
+    if days >= 2 * YEAR and rng.random() < 0.6:
+        changed = [(t, rng.choice((-1, 1)) * rng.uniform(0.1, 0.3)) for t in rng.sample(TRAITS, rng.choice((1, 2)))]
+    name = re.match(r"I'm ([^,]+),", known["me"]).group(1)
+    known["me"] = f"I'm {name}, {age_text(days)}."
+    answer["age"] = f"I'm {age_text(days)}."
+    known["traits"] = traits
+    known["character"] = answer["personality"] = character_words(traits, days, changed)
+    mood = mood_of(known["character"])
+    answer["fond"], answer["bye"] = FOND[mood], BYE[mood]
+    if answer.get("hello", "").startswith("Hi! ") and answer["hello"] != "Hi! I'm asleep.":
+        feel = answer["hello"].removeprefix("Hi! ").removesuffix(" How are you?")
+        answer["hello"] = hello(False, feel, known["character"])
+    answer["what"] = f"I'm {name}, a small creature that lives in a valley. {known['character']}"
+    if changed:
+        answer["changed"] = f"Yes. I've become {listing([BECAME[t][d < 0] for t, d in changed])} since I was little."
+    else:
+        answer["changed"] = (
+            "Not much. I'm still who I was." if days >= YEAR else "I'm still young. I'm still finding out who I am."
+        )
+    season_now = rng.choice(SEASONS)
+    n = max(1, days // YEAR + rng.choice((0, 1)))
+    turning = f" It's getting {GETTING[season_now]}." if rng.random() < 0.3 else ""
+    known["season"] = answer["season"] = (
+        f"It's {season_now}, my {ordinal(n)} {season_now}. {SIGNS[season_now]}{turning}"
+    )
+    answer["weather"] = (
+        f"It's {season_now}. {answer['weather'].split('. ', 1)[1]}"
+        if ". " in answer.get("weather", "")
+        else answer.get("weather", "")
+    )
+    favorite = []
+    if days >= 2:
+        place = PLACE_WORDS.get(place := rng.choice(AREAS), place)
+        favorite.append(f"My favorite place is {place}.")
+        answer["favorite place"] = f"My favorite place is {place}."
+    else:
+        answer["favorite place"] = "I don't have a favorite place yet."
+    if days >= 2 * SEASON_DAYS:
+        best, hard = rng.sample(SEASONS, 2)
+        favorite.append(f"My favorite season is {best}.")
+        if rng.random() < 0.4:
+            favorite.append(f"{hard.capitalize()} is hard for me.")
+    else:
+        favorite.append(f"I've only known {season_now} so far.")
+    known["favorites"] = " ".join(favorite)
+    answer["favorite season"] = season_answer(known["favorites"])
+    feared = rng.sample(("fire", "thorns", "toadstool"), rng.choice((0, 1, 1, 2)))
+    them = listing([THINGS[n].one if n != "toadstool" else "toadstools" for n in feared]) if feared else ""
+    known["fears"] = answer["afraid"] = (
+        "Nothing scares me much."
+        if not feared
+        else f"I'm not scared of anything, but I keep away from {them}."
+        if traits["brave"] > 0.6
+        else f"I'm scared of {them}."
+    )
+    if days >= 1:
+        known["best day"] = answer["best day"] = a_day(rng, days, season_now, True)
+        known["worst day"] = answer["worst day"] = a_day(rng, days, season_now, False)
+    else:
+        known["best day"] = known["worst day"] = ""
+        answer["best day"] = answer["worst day"] = "I haven't lived long enough to say."
+
+
 def other_life(moment: dict, rng: random.Random) -> tuple[dict, dict]:
     """The same moment in the life of a Haven with another name, or with a first the lives it learned from lacked."""
     known, answer = dict(moment["memo"]), dict(moment["answers"])
+    if "traits" in known and rng.random() < 0.5:
+        another_character(known, answer, rng)
     if rng.random() < 0.5:  # what another Haven might have found out about itself (so it says what it has)
         found = [text for _, _, text in SELF_FOUND if rng.random() < 0.5]
         verdict = rng.choice(VERDICTS)
         known["self"] = answer["alive"] = (f"I've found out that {and_list(found)}. " if found else "") + verdict
-        answer["what"] = f"I'm Haven. I live in a valley. {verdict}"
     if rng.random() < 0.3:
         name = person_name(rng)
         known["me"] = known["me"].replace("I'm Haven,", f"I'm {name},")
         answer["name"] = f"My name is {name}."
-        answer["what"] = answer["what"].replace("I'm Haven.", f"I'm {name}.")
+        answer["what"] = answer["what"].replace("I'm Haven,", f"I'm {name},")
     if rng.random() < 0.25:
         first = rng.choice(UNUSUAL)
         told = re.split(r"(?<=\.) (?=I )", known["story"]) if known["story"] else []
@@ -2296,6 +2985,107 @@ RECALLED = (
 )
 
 
+SPEAKING = {  # what it speaks up about, and how often, in the conversations it learns from
+    "back": 0.14,
+    "season": 0.08,
+    "event": 0.16,
+    "need": 0.1,
+    "question": 0.16,
+    "memory": 0.12,
+    "reading": 0.08,
+    "sleep": 0.04,
+    "wake": 0.04,
+    "passed": 0.08,
+}
+ASKED_FACTS = {  # what it would like to know, and what it's called once it has been told
+    "your favorite food": "favorite food",
+    "your favorite color": "favorite color",
+    "your favorite animal": "favorite animal",
+    "your favorite season": "favorite season",
+    "where you live": "home",
+    "how old you are": "age",
+    "what you do": "job",
+}
+DAYS_DONE = ("I went to work.", "I went for a walk.", "I cooked dinner.", "I saw my friends.", "I read a book.")
+
+
+def a_reply(key: str, rng: random.Random) -> str:
+    """What someone might say back to its question, as people do: often just the answer."""
+    answer = {
+        "your name": lambda: person_name(rng),
+        "your favorite food": lambda: rng.choice(FAVORITES["food"]),
+        "your favorite color": lambda: rng.choice(FAVORITES["color"]),
+        "your favorite animal": lambda: rng.choice(FAVORITES["animal"]),
+        "your favorite season": lambda: rng.choice(FAVORITES["season"]),
+        "where you live": lambda: rng.choice(PLACES),
+        "what you do": lambda: rng.choice(JOBS),
+        "how old you are": lambda: str(rng.randint(7, 90)),
+        "what you like to do": lambda: rng.choice(LIKED),
+        "what you did today": lambda: rng.choice(DAYS_DONE),
+    }[key]()
+    if key not in ("your name", "what you did today") and rng.random() < 0.3:
+        answer = rng.choice(("It's {}.", "Probably {}.", "Hmm, {}.", "{}!", "Oh, {}.")).format(answer)
+    return plain(answer, rng) if key != "your name" else answer
+
+
+def speaking_up(
+    moment: dict, known: dict, rng: random.Random, person: str | None, told: list[str], book: list
+) -> tuple[str, Turn, str | None] | None:
+    """Something it says without being asked, at a moment of a life: (what comes to mind first, what it says, what
+    it asked, if it asked something)."""
+    kind = rng.choices(list(SPEAKING), weights=list(SPEAKING.values()))[0]
+    if kind == "back":
+        note = back_note(rng.random() < 0.4)
+        return note, Turn(None, back_answer(known, person), "speaking up"), None
+    if kind == "season":
+        note, words = SEASON_NEWS[rng.choice(SEASONS)]
+        return note, Turn(None, words, "speaking up"), None
+    if kind == "event":
+        recent = [t for t in moment.get("recent", ()) if event_note(t)]
+        note = event_note(recent[-1] if recent and rng.random() < 0.5 else rng.choice(HAPPENINGS))
+        return note, Turn(None, event_answer(note), "speaking up"), None
+    if kind == "need":
+        body = moment.get("body") or {"drives": [0.0] * 4, "cold": True}
+        need = int(np.argmax(body["drives"]))
+        level, cold = float(body["drives"][need]), bool(body["cold"])
+        if level < 0.5:
+            need, level, cold = rng.randrange(4), rng.uniform(0.5, 1.0), rng.random() < 0.7
+        note = need_note(need, level, cold)
+        return note, Turn(None, need_answer(note), "speaking up"), None
+    if kind == "question":
+        taken = {fact_key(f) for f in told}
+        keys = [k for k in ASKS if not (k == "your name" and person) and ASKED_FACTS.get(k) not in taken]
+        key = rng.choice(keys)
+        note = question_note(key)
+        return note, Turn(None, question_answer(note), "speaking up"), key
+    if kind == "memory":
+        pieces = [known.get("best day"), known.get("worst day"), known.get("memory")]
+        pieces += [f"You told me that {fact}." for fact in told[-2:]]
+        pieces = [p for p in pieces if p]
+        if not pieces:
+            return None
+        note = memory_note(rng.choice(pieces))
+        return note, Turn(None, memory_answer(note), "speaking up"), None
+    if kind == "reading":
+        entry = rng.choice(book or BOOK)
+        note = reading_note(entry.title, entry.sentences[0])
+        return note, Turn(None, reading_answer(entry.title, entry.sentences[0]), "speaking up"), None
+    if kind == "sleep":
+        return SLEEP_NOTE, Turn(None, SLEEP_ANSWER, "speaking up"), None
+    if kind == "wake":
+        return WAKE_NOTE, Turn(None, WAKE_ANSWER, "speaking up"), None
+    days = rng.choice((1, SEASON_DAYS, YEAR, 2 * YEAR, 3 * YEAR, 5 * YEAR, 10, 3))
+    start = rng.randrange(YEAR)
+    highlights = [seasons_passed(start, start + days)] if days > 1 else []
+    highlights += rng.sample(FIRSTS, rng.choice((0, 1, 1, 2)))
+    if days >= YEAR and rng.random() < 0.5:
+        highlights.append(
+            f"I've become {listing([rng.choice(BECAME[t]) for t in rng.sample(TRAITS, rng.choice((1, 2)))])}."
+        )
+    note = passed_note(days, [h for h in highlights if h])
+    return note, Turn(None, passed_answer(note), "speaking up"), None
+
+
 def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> tuple[str, list[Turn]]:
     """A short conversation at one moment of a life: what comes to mind first, and what's said, turn by turn."""
     known, answer = other_life(moment, rng)
@@ -2317,7 +3107,27 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         said.append(Turn(text, f"I read about {entry.title}. It says: {entry.sentences[index]}", "what it read"))
         shown[entry.title] = max(shown.get(entry.title, 0), 1)
 
-    if person is None and rng.random() < 0.2:  # they say who they are first
+    just = None
+    introduced_now = False
+    if rng.random() < 0.25:  # it speaks up first, without being asked
+        spoke = speaking_up(moment, known, rng, person, told, book)
+        if spoke is not None:
+            note, turn, asked = spoke
+            extra.append(note)
+            said.append(turn)
+            if asked and rng.random() < 0.65:  # and they answer its question
+                reply = a_reply(asked, rng)
+                meant = answer_to(asked, reply) or reply
+                name = introduced(meant) if asked == "your name" else None
+                if name:
+                    person, introduced_now = name, True
+                    said.append(Turn(reply, f"Nice to meet you, {name}!", "their name"))
+                else:
+                    just = statement(meant)
+                    if just:
+                        said.append(Turn(reply, f"Okay, I'll remember that {just}.", "being told"))
+            introduced_now = introduced_now or turn.answer.startswith(("Hi!", "Oh, hi.", "You're back!"))
+    if person is None and not introduced_now and rng.random() < 0.2:  # they say who they are first
         for _ in range(5):
             person = person_name(rng)
             text = plain(rng.choice(NAME_FORMS).format(person), rng)
@@ -2331,7 +3141,12 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         if len(said) >= wanted:
             break
         roll = rng.random()
-        if roll < 0.26:
+        if roll < 0.26 and known.get("traits") and rng.random() < 0.1:  # whether it's brave, shy, playful...
+            trait = rng.choice(TRAITS)
+            asked_high = rng.random() < 0.5
+            word = TRAIT_WORDS[trait][0 if asked_high else 1]
+            said.append(Turn(casual(f"Are you {word}?", rng), trait_reply(known["traits"], trait, asked_high), "trait"))
+        elif roll < 0.26:
             intent = rng.choice(RECALLED if rng.random() < EMPHASIS else list(QUESTIONS))
             reply = answer[intent]
             if person and intent in ("hello", "bye"):
@@ -2445,8 +3260,7 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         else:
             forms, reply = SMALL_TALK[rng.choice(list(SMALL_TALK))]
             said.append(Turn(plain(rng.choice(forms), rng), reply, "small talk"))
-    just = None
-    if rng.random() < 0.2:  # and they tell it something about themselves, or teach it something (or put it right)
+    if just is None and rng.random() < 0.2:  # and they tell it something about themselves, or teach it something
         teaching = rng.random() < 0.35
         fact_said = a_lesson(rng)[0] if teaching else a_fact(rng)[0]
         if rng.random() < 0.25:
@@ -2458,10 +3272,11 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         just = lesson(text) if teaching else statement(text)
         if just:
             said.append(Turn(text, f"Okay, I'll remember that {just}.", "being told"))
-    thought = recall(known, [t.said for t in said], person, told, (), just, extra)
+    thought = recall(known, [t.said for t in said if t.said], person, told, (), just, extra)
     return thought, said
 
 
-def dialog(moment: dict, rng: random.Random, turns: int | None = None) -> list[tuple[str, str]]:
-    """What's said in a conversation at one moment: (what the person said, what Haven answers)."""
+def dialog(moment: dict, rng: random.Random, turns: int | None = None) -> list[tuple[str | None, str]]:
+    """What's said in a conversation at one moment: (what the person said, or None when it speaks up; what Haven
+    says)."""
     return [(t.said, t.answer) for t in conversation(moment, rng, turns)[1]]

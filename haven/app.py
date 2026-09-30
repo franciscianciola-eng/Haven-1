@@ -27,6 +27,7 @@ from .store import Store
 from .web import Web
 
 PORTS = 10  # if the usual port is taken, try the next few
+MAX_PASS = 24 * 10  # days of its life that can go by at once (ten of its years)
 
 
 class NotReady(Exception):
@@ -104,7 +105,7 @@ class Chat:
     def ask(self, text: str) -> dict:
         """Start answering what the person said. The turn fills in as Haven answers."""
         with self._lock:
-            if self.thinker is None:
+            if self.thinker is None or self.life.passing is not None:
                 raise NotReady
             if any(not t["done"] for t in self.turns.values()):
                 raise Busy
@@ -130,6 +131,7 @@ class Chat:
     def _answer(self, turn: dict) -> None:
         life, thinker, text = self.life, self.thinker, turn["text"]
         life._last_words = time.monotonic()  # someone's talking with it: no reading out of curiosity just now
+        life.initiative.talked()  # (and it doesn't speak up over them)
         with life.lock:
             life.conversation = [*life.conversation[-99:], {"tick": life.mind.tick, "who": "you", "text": text}]
         answer, confidence = "", 0.0
@@ -177,16 +179,18 @@ class Chat:
         path = self.life.store.root / "cortex" / "conversations.jsonl"
         if not path.exists():
             return
-        turns = []
+        turns, last = [], None
         for line in path.read_text().splitlines()[-n:]:
-            with contextlib.suppress(ValueError, KeyError):
+            with contextlib.suppress(ValueError, KeyError, TypeError):
                 item = json.loads(line)
-                turns += [
-                    {"tick": 0, "who": "you", "text": item["you"], "earlier": True},
-                    {"tick": 0, "who": "haven", "text": item["haven"], "earlier": True},
-                ]
+                if item.get("you"):  # (None: something it said of its own accord)
+                    turns.append({"tick": 0, "who": "you", "text": item["you"], "earlier": True})
+                turns.append({"tick": 0, "who": "haven", "text": item["haven"], "earlier": True})
+                last = float(item.get("time") or 0) or last
         with self.life.lock:
             self.life.conversation = turns + self.life.conversation
+        if last is not None:  # they have talked before: when they come back, it can say so
+            self.life.initiative.away_for(time.time() - last)
 
     def describe(self) -> dict:
         with self._lock:
@@ -205,6 +209,10 @@ class AppHandler(Handler):
             self._send(HTTPStatus.OK, resources.files("haven").joinpath(page).read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/chat":
             self._json(self.chat.describe())
+        elif self.path in ("/api/state", "/api/state?seen=1"):
+            if self.path.endswith("seen=1"):  # the page is open and looked at: someone is there
+                self.life.present()
+            self._json(self.life.snapshot())
         elif self.path.startswith("/api/chat/"):
             number = self.path.rsplit("/", 1)[1]
             turn = self.chat.turn(int(number)) if number.isdigit() else None
@@ -216,7 +224,7 @@ class AppHandler(Handler):
             super().do_GET()
 
     def do_POST(self) -> None:
-        if self.path not in ("/api/chat", "/api/rest"):
+        if self.path not in ("/api/chat", "/api/rest", "/api/pass"):
             super().do_POST()
             return
         body = self._body()
@@ -225,6 +233,17 @@ class AppHandler(Handler):
         if self.path == "/api/rest":
             self._json({"ok": True})
             self.chat.resting.set()
+            return
+        if self.path == "/api/pass":  # let time go by: a day, a season, a year, years
+            days = body.get("days")
+            if not isinstance(days, int) or not 1 <= days <= MAX_PASS:
+                self._json({"error": f"days: 1 to {MAX_PASS}"}, HTTPStatus.BAD_REQUEST)
+            elif any(not t["done"] for t in self.chat.turns.values()):
+                self._json({"error": "it's still answering"}, HTTPStatus.CONFLICT)
+            elif not self.life.pass_time(days):
+                self._json({"error": "time is already going by"}, HTTPStatus.CONFLICT)
+            else:
+                self._json({"ok": True, "days": days})
             return
         text = str(body.get("text", "")).strip()[:1000]
         if not text:
