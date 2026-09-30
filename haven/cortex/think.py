@@ -357,10 +357,11 @@ class OwnThinker(Thinker):
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
         from .library import asked_to_read
-        from .talk import DONT_KNOW, MORE, answer_to, notes, request, sum_of
+        from .talk import DONT_KNOW, MORE, addressed, answer_to, notes, request, sum_of
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
+        text = addressed(text, life.mind.me.name)  # ("Hi Pip!" is being greeted, as "Hi Haven!" is)
         asked = (
             life.question() if hasattr(life, "question") else None
         )  # it asked them something, and this is the answer

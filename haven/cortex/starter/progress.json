@@ -3,18 +3,18 @@
  "level": 1,
  "levels": {
   "2": {
-   "status": "passed",
-   "steps": 23473,
+   "status": "studied",
+   "steps": 28917,
    "tests": {
-    "self-report": 0.7761194029850746,
-    "understanding": 0.99,
-    "conversation": 0.9333333333333333
+    "self-report": 0.6811594202898551,
+    "understanding": 1.0,
+    "conversation": 0.9833333333333333
    },
    "pieces": 1200
   }
  },
- "steps": 23473,
+ "steps": 28917,
  "tokens": 0,
  "started": 1790655379.0371344,
- "starter": "20260930-035731"
+ "starter": "20260930-103426"
 }
