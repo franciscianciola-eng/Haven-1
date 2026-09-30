@@ -260,6 +260,9 @@ def run_status(store: Store, term: Terminal) -> int:
     term.say("What it has concluded about itself:")
     for line in mind.me.conclusions():
         term.say("  " + line)
+    from .cortex.talk import character, favorites
+
+    term.say("Who it's becoming: " + " ".join(p for p in (character(mind), favorites(mind)) if p))
     words = mind.lexicon.vocabulary()
     term.say("Words it understands: " + (", ".join(words) if words else "none yet"))
     return 0
