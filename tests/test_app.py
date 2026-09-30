@@ -131,7 +131,7 @@ def test_it_speaks_up_when_someone_is_there(app):
 
 
 def test_letting_time_pass_in_the_app(app):
-    life, chat, port = app
+    life, _, port = app
     for days in (0, 241, "a year", 2.5):
         assert status(port, "/api/pass", {"days": days}) == 400
     assert call(port, "/api/pass", {"days": 1}) == {"ok": True, "days": 1}
