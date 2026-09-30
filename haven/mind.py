@@ -65,7 +65,6 @@ SEASON_FIRSTS = {  # the first time each season comes, as its life story tells i
     "autumn": "saw its first autumn: the leaves turned orange",
     "winter": "saw its first winter come: the cold, and the trees bare",
 }
-YEARS = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
 
 
 def name_of(world: World, x: int, y: int) -> str | None:
@@ -357,10 +356,8 @@ class Mind:
             self.me.milestone(f"first {w.season}", tick, SEASON_FIRSTS[w.season])
         years = self.years
         if w.season == "spring" and years >= 1:
-            gone = (
-                "a whole year had" if years == 1 else f"{YEARS[years - 1] if years <= len(YEARS) else years} years had"
-            )
-            self.me.milestone(f"year {years}", tick, f"saw spring come back: {gone} gone by")
+            gone = "a whole year" if years == 1 else f"{years} years"
+            self.me.milestone(f"year {years}", tick, f"saw spring come back: {gone} had gone by")
 
     # --- learning from the last moment ---------------------------------------------
 

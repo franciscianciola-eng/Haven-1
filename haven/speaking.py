@@ -56,7 +56,7 @@ class Initiative:
     def away_for(self, seconds: float) -> None:
         """They were last here this long ago (from the last conversation, when it wakes up)."""
         self.met = True
-        self.gone_since = time.monotonic() - max(seconds, 0.0)
+        self.watched = self.gone_since = time.monotonic() - max(seconds, 0.0)
 
     def present(self, now: float | None = None) -> bool:
         now = time.monotonic() if now is None else now

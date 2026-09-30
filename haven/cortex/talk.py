@@ -1326,11 +1326,22 @@ def knowledge(mind: Mind) -> str:
     return " ".join(p for p in (good_to_eat(mind), bad_things(mind)) if p)
 
 
+YEARS_GONE = re.compile(r"\b(two|three|four|five|six|seven|eight|nine|ten) years had gone by")
+NUMBERS = {w: str(i) for i, w in enumerate("zero one two three four five six seven eight nine ten".split())}
+
+
 def first_person(milestone: str, name: str) -> str:
     text = milestone.replace(f"{name} came into the world", "came into the world").replace("it knows", "I know")
     text = text.replace(" its ", " my ").replace(": of ", ": ").replace("itself", "myself")
     text = text.replace("made it sick", "made me sick")
+    text = YEARS_GONE.sub(lambda m: f"{NUMBERS[m.group(1)]} years had gone by", text)  # (as it tells years now)
     return f"I {text}."
+
+
+def latest_year(stones: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """Its firsts, with only the latest of the springs that came back (they'd tell the same thing over and over)."""
+    years = [m for m in stones if m[1].startswith("saw spring come back")]
+    return [m for m in stones if m not in years[:-1]]
 
 
 def memory(mind: Mind) -> str:
@@ -1348,7 +1359,7 @@ def story(mind: Mind) -> str:
     stones = mind.me.milestones
     if not stones:
         return ""
-    rest = stones[1:]
+    rest = latest_year(stones[1:])
     notable = [m for m in rest if not m[1].startswith(ROUTINE)]
     others = [m for m in rest if m not in notable]
     chosen = notable[-3:] if len(notable) >= 3 else sorted(notable + others[len(others) - (3 - len(notable)) :])
@@ -2569,7 +2580,7 @@ def passed_answer(note: str) -> str:
 def passed_highlights(mind: Mind, first_tick: int, before: dict[str, float]) -> list[str]:
     """What stands out from a stretch of time that went by: the seasons that came, its new firsts, how it changed."""
     said = [seasons_passed(first_tick // DAY, mind.world.day)]
-    firsts = [text for t, text in mind.me.milestones if t >= first_tick and not text.startswith(ROUTINE)]
+    firsts = [text for t, text in latest_year(mind.me.milestones) if t >= first_tick and not text.startswith(ROUTINE)]
     said += [first_person(text, mind.me.name) for text in firsts[-2:]]
     moved = sorted(((t, mind.character.traits[t] - before[t]) for t in TRAITS), key=lambda item: -abs(item[1]))
     moved = [(t, d) for t, d in moved if abs(d) >= 0.08][:2]

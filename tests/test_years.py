@@ -232,9 +232,14 @@ def test_it_greets_them_when_they_come_back():
     i.away_for(8 * 3600)  # (when it wakes up: they last talked eight hours ago)
     i.looked(t + 1)
     assert i.occasion(mind, mind.tick, 0.5, list, now=t + 1) == ("back", "You came back after a long time.", None)
-    i.looked(t + 700)  # they looked away for a while, and back: not a return
-    i.looked(t + 1400 + 2 * 600)  # they were gone for twenty minutes
-    assert i.occasion(mind, mind.tick, 0.5, list, now=t + 2600) == ("back", "You came back.", None)
+    i.looked(t + 300)  # a glance five minutes later: they never went away
+    assert i.back is None
+    i.looked(t + 1500)  # twenty minutes later: they're back
+    assert i.occasion(mind, mind.tick, 0.5, list, now=t + 1500) == ("back", "You came back.", None)
+    i = Initiative(random.Random(0))
+    i.away_for(120)  # (it woke up two minutes after they last talked: they haven't been away)
+    i.looked(t + 1)
+    assert i.back is None
 
 
 def test_letting_time_pass(tmp_path):
