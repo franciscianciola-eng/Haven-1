@@ -1797,7 +1797,7 @@ def recall(
             parts.append(f"I read about {found[0]}: {found[1]}")
     parts += extra
     parts += [known[topic] for topic, pattern in TOPICS.items() if re.search(pattern, everything)]
-    parts += [known[piece] for piece in asked]
+    parts += [known.get(piece, "") for piece in asked]  # (lives noted down before it knew some pieces lack them)
     return " ".join(dict.fromkeys(p for p in parts if p))
 
 
