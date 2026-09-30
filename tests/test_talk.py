@@ -117,7 +117,7 @@ def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(live
                 told = turn.answer.split("You told me that ", 1)[1].removesuffix(".")
                 for fact in re.split(r",(?: and)? that ", told):  # everything it knows about them, or one thing
                     assert f"You told me that {fact}." in thought
-            if turn.kind == "what it was taught":
+            if turn.kind in ("what it was taught", "alive"):  # (what it found out about itself comes to mind)
                 assert turn.answer in thought
             if turn.kind == "request":
                 assert "You asked me to " in thought
@@ -239,3 +239,12 @@ def test_questions_about_it_are_not_about_what_it_read():
         assert about_haven(said), said
     for said in ("What do you know about volcanoes?", "Do you know who wrote Hamlet?", "What is the capital of France?"):
         assert not about_haven(said), said
+
+
+def test_asked_about_itself_it_says_what_it_has_found_out(lived):
+    from haven.cortex.talk import found_out
+
+    said = found_out(lived)
+    assert said.endswith(lived.me.conclusions()[-1])  # what it makes of it
+    assert said in recall(memo(lived), "Are you alive?") and said not in recall(memo(lived), "How are you?")
+    assert answers(lived)["alive"] == said and answers(lived)["what"].endswith(lived.me.conclusions()[-1])

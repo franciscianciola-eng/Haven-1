@@ -324,10 +324,42 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Are you alive?",
         "Do you think you're alive?",
         "Are you real?",
-        "Are you conscious?",
         "Are you a real creature?",
         "Are you a living thing?",
+        "Are you alive or not?",
+    ),
+    "conscious": (
+        "Are you conscious?",
         "Are you aware?",
+        "Are you self-aware?",
+        "Are you aware of yourself?",
+        "Do you know you exist?",
+        "Do you have a mind?",
+    ),
+    "ai": (
+        "Are you an AI?",
+        "Are you a robot?",
+        "Are you a computer program?",
+        "Are you a machine?",
+        "Are you a chatbot?",
+        "Are you just a program?",
+    ),
+    "dream": ("Do you dream?", "Do you have dreams?", "What do you dream about?", "Did you dream last night?"),
+    "fond": (
+        "Do you like me?",
+        "Do you like talking to me?",
+        "Are you happy to see me?",
+        "Do you get lonely?",
+        "Are you lonely?",
+        "Do you miss me?",
+    ),
+    "color": ("What's your favorite color?", "What is your favourite colour?", "Do you have a favorite color?"),
+    "joke": ("Tell me a joke.", "Do you know any jokes?", "Say something funny.", "Can you tell jokes?"),
+    "being": (
+        "What does it feel like to be you?",
+        "What is it like to be you?",
+        "What's it like being you?",
+        "How does it feel to be you?",
     ),
     "feelings": (
         "Do you have feelings?",
@@ -343,7 +375,6 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Tell me about yourself.",
         "Describe yourself.",
         "What exactly are you?",
-        "Are you a robot?",
         "Are you an animal?",
     ),
     "maker": (
@@ -372,6 +403,10 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Good afternoon",
         "Yo",
         "Morning",
+        "Are you there?",
+        "You there?",
+        "Hello?",
+        "Is anyone there?",
     ),
     "thanks": (
         "Thank you",
@@ -1341,6 +1376,7 @@ def memo(mind: Mind) -> dict:
         "knowledge": knowledge(mind),
         "words": known_words(mind.lexicon.vocabulary()),
         "memory": memory(mind),
+        "self": found_out(mind),
         "story": story(mind),
         "can": abilities(mind),
         "world": world_words(mind),
@@ -1718,6 +1754,8 @@ ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it com
     "knowledge": r"\blearned\b|\bfound out\b|\beat\b|\bfood\b|\bhurts?\b|\bdangerous\b|\bsick\b|\baway from\b",
     "words": r"\bwords?\b",
     "memory": r"\bremember\b|\bhappened to you\b",
+    "self": r"\balive\b|\breal\b|\bliving thing\b|\bwhat are you\b|\bwhat kind of thing\b|\babout yourself\b|"
+    r"\bdescribe yourself\b|\bwhat exactly are you\b|\ban animal\b",
 }
 
 
@@ -1895,6 +1933,22 @@ def playing(mind: Mind) -> str:
     return "Yes! I'm still finding out what's fun."
 
 
+SELF_FOUND = (  # what it can find out about itself (selfmodel.py), and how it says it
+    ("needs", 0.3, "I need things"),
+    ("agency", 0.5, "I can make things happen"),
+    ("memory", 0.5, "I remember what happens to me"),
+    ("feeling", 0.5, "some things feel good to me and some feel bad"),
+    ("change", 0.5, "I've learned things"),
+)
+
+
+def found_out(mind: Mind) -> str:
+    """What it has found out about itself, and what it makes of that (from the evidence it keeps about itself)."""
+    found = [text for key, limit, text in SELF_FOUND if mind.me.evidence[key] > limit]
+    verdict = mind.me.conclusions()[-1]
+    return (f"I've found out that {and_list(found)}. " if found else "") + verdict
+
+
 def answers(mind: Mind) -> dict[str, str]:
     """What its state and what it knows say the answer to each kind of question is, right now."""
     b = mind.body
@@ -1945,12 +1999,20 @@ def answers(mind: Mind) -> dict[str, str]:
         "likes": likes(mind) or "I'm still finding out what I like.",
         "play": playing(mind),
         "can": abilities(mind),
-        "alive": conclusions[-1],
+        "alive": found_out(mind),
         "feelings": "Yes. Some things feel good to me and some feel bad."
         if mind.me.evidence["feeling"] > 0.5
         else "I don't know yet.",
         "what": f"I'm {mind.me.name}. I live in a valley. {conclusions[-1]}",
         "maker": "I don't know who made me. I came into the world in my nest.",
+        "conscious": "One thing at a time comes to the front of my mind: something I see, smell, hear or feel. "
+        "I don't know if that's what you mean.",
+        "ai": "I'm a small creature that lives in a valley inside a computer. I learned to talk from my own life.",
+        "dream": "When I sleep, I go over what happened to me. Maybe that's a kind of dreaming.",
+        "fond": "I like it when you talk with me.",
+        "color": "I don't have a favorite color. Colors are how I tell things apart.",
+        "joke": "I don't know any jokes yet.",
+        "being": f"{feeling(mind)} {doing(mind)}",
         "hello": "Hi! I'm asleep." if b.asleep else f"Hi! {feeling(mind)}",
         "thanks": "You're welcome.",
         "bye": "Bye! Come back soon.",
@@ -2211,7 +2273,21 @@ def other_life(moment: dict, rng: random.Random) -> tuple[dict, dict]:
     return known, answer
 
 
-RECALLED = ("day", "world", "words", "story", "can", "learned", "remember", "likes", "danger", "eat", "name", "what")
+RECALLED = (
+    "day",
+    "world",
+    "words",
+    "story",
+    "can",
+    "learned",
+    "remember",
+    "likes",
+    "danger",
+    "eat",
+    "name",
+    "what",
+    "alive",
+)
 
 
 def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> tuple[str, list[Turn]]:
