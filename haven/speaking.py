@@ -95,7 +95,7 @@ class Initiative:
         from .cortex.talk import back_note, need_note
 
         now = time.monotonic() if now is None else now
-        self.pending = [p for p in self.pending if tick - p[0] <= KEEP or p[1] == "season"]
+        self.pending = [p for p in self.pending if tick - p[0] <= KEEP or p[1] in ("season", "heard")]
         if not self.present(now) or now - self.last_words < QUIET:
             return None
         if self.passed is not None:

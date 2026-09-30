@@ -44,8 +44,17 @@ class Tokenizer:
 
     # --- learning -------------------------------------------------------------------------
 
-    def learn(self, texts: Iterable[str], new_pieces: int, min_count: int = 3) -> int:
-        """Learn up to `new_pieces` more merges from these texts. Returns how many were added."""
+    def learn(self, texts: Iterable[str], new_pieces: int, min_count: int = 3, keep: Iterable[str] = ()) -> int:
+        """Learn up to `new_pieces` more merges from these texts. Returns how many were added.
+
+        `keep`: texts that must still be read in exactly the same pieces (no new merge joins two pieces that sit side by
+        side in them), so what the cortex already knows how to read and say stays as it was.
+        """
+        fixed: set[tuple[int, int]] = set()
+        for word in {
+            w for text in keep for part in _SPECIAL.split(text) if part not in SPECIALS for w in PIECES.findall(part)
+        }:
+            fixed.update(pairwise(self._encode_piece(word)))
         counts = Counter()
         for text in texts:
             for part in _SPECIAL.split(text):
@@ -64,8 +73,8 @@ class Tokenizer:
         added = 0
         while added < new_pieces and heap:
             negative, pair = heapq.heappop(heap)
-            if -negative != pair_counts.get(pair, 0):
-                continue  # stale entry
+            if -negative != pair_counts.get(pair, 0) or pair in fixed:
+                continue  # stale entry, or a pair to keep apart
             if -negative < min_count:
                 break
             new = self._add(pair)

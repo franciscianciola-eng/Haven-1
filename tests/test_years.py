@@ -173,6 +173,8 @@ def test_conversations_where_it_speaks_up_first():
         derived |= {a for n, a in talk.SEASON_NEWS.values() if n in thought}
         derived |= {talk.SLEEP_ANSWER} if talk.SLEEP_NOTE in thought else set()
         derived |= {talk.WAKE_ANSWER} if talk.WAKE_NOTE in thought else set()
+        for title, begins in re.findall(r"I heard a story last night: (.+?)\. It begins: (.+?) I want to tell", thought):
+            derived.add(f"Last night I heard a story, {title}. It begins: {begins}")  # (a bedtime story)
         if " went by!" in said:
             derived.add(said if said.replace(" went by!", " went by.", 1) in thought else "")
         if said.startswith("I read about"):

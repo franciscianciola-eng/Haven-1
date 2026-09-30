@@ -406,7 +406,8 @@ function render(s) {
   $("welfare").hidden = s.welfare.ok;
   $("welfare").textContent = s.welfare.message;
   $("cortex").textContent = (version ? `Haven ${version}. ` : "") + (s.cortex ? `Its language area: ${s.cortex}.` : "") +
-    (s.read && s.read.length ? ` It has read about ${s.read.join(", ")}.` : "");
+    (s.read && s.read.length ? ` It has read about ${s.read.join(", ")}.` : "") +
+    (s.story ? ` The last bedtime story it heard: ${s.story}.` : "");
   for (const n of s.news || []) {  // what it has done since: an errand, something it read, a night's learning
     if (n.id > lastNews && lastNews >= 0) addEvent(`${s.name} ${n.text}.`);
   }

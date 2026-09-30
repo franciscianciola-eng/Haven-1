@@ -40,6 +40,7 @@ from .curriculum import (
 )
 from .grounding import gather
 from .model import SIZES, Cortex, CortexConfig
+from .starter import unpacked
 from .talk import OTHER_QUESTIONS, QUESTIONS, UNKNOWN_FORMS, UNKNOWN_TOPICS
 from .talk import conversation as converse
 from .tokenizer import END, HAVEN, THINK, YOU, Tokenizer
@@ -72,6 +73,15 @@ SCALE = {  # how much it reads and studies, by the size of its cortex
         "lr": 4e-4,
         "every": 500,
     },
+    "grown": {  # the starter cortex, grown (see model.grow)
+        "tinystories": 150_000_000,
+        "articles": 6000,
+        "pieces": 1.5,
+        "steps": 3.0,
+        "batch": 32,
+        "lr": 3e-4,
+        "every": 500,
+    },
     "large": {
         "tinystories": 400_000_000,
         "articles": 15000,
@@ -83,6 +93,7 @@ SCALE = {  # how much it reads and studies, by the size of its cortex
     },
 }
 REVIEW = 0.15  # share of each batch spent re-reading earlier levels, so it doesn't forget them
+TALKS = ("passed", "moved on", "plateaued", "studied")  # how level 2 ends once it can talk about itself
 
 
 def pick_device(name: str = "auto") -> torch.device:
@@ -140,7 +151,7 @@ class Trainer:
         self.tok = Tokenizer.load(self.dir / "tokenizer.json")
         self.progress = checkpoint["progress"]
         self.model = Cortex(CortexConfig(**checkpoint["config"]))
-        self.model.load_state_dict(checkpoint["model"])
+        self.model.load_state_dict(unpacked(checkpoint["model"]))
         self.model.to(self.device)
         self._make_optimizer()
         if checkpoint.get("optimizer"):
@@ -226,7 +237,9 @@ class Trainer:
             data = {"held_out": reading.held_out, "items": items}
         if "pieces" not in record:
             sample = _sample(train_texts, 6_000_000, random.Random(0))
-            added = self.tok.learn(sample, int(level.new_pieces * self.scale["pieces"]))
+            talks = self.model is not None and self.progress["levels"].get("2", {}).get("status") in TALKS
+            keep = known_texts(self.grounded()["train"][::4]) if talks and level.source != "grounded" else ()
+            added = self.tok.learn(sample, int(level.new_pieces * self.scale["pieces"]), keep=keep)
             record["pieces"] = added
             self.log(f"  vocabulary: +{added:,} pieces learned from this reading ({len(self.tok):,} in all)")
             self._grow_model()
@@ -336,7 +349,7 @@ class Trainer:
         for group in opt.param_groups:
             group["lr"] = lr
         # Once it can talk about itself, it keeps talking while it reads, so it doesn't forget how.
-        talks = self.progress["levels"].get("2", {}).get("status") in ("passed", "moved on", "plateaued", "studied")
+        talks = self.progress["levels"].get("2", {}).get("status") in TALKS
         grounded_turn = level.source == "grounded" or (talks and n % 5 == 0)
         if grounded_turn:
             loss = self._grounded_loss(self.grounded()["train"] if level.source != "grounded" else data["grounded"])
@@ -351,6 +364,8 @@ class Trainer:
     def _autocast(self):
         if self.device.type == "cuda":
             return torch.autocast("cuda", dtype=torch.bfloat16)
+        if self.scale.get("bf16"):  # (a processor that works in bfloat16 quickly)
+            return torch.autocast(self.device.type, dtype=torch.bfloat16)
         return torch.autocast("cpu", enabled=False)
 
     def _text_loss(self, level: Level, data: dict) -> torch.Tensor:
@@ -497,7 +512,9 @@ def simulated_moments(cache: Path, log: Callable[[str], None], lives: tuple = LI
             np.savez_compressed(f, states=states, meta=np.array(json.dumps(meta)))
     for m, state in zip(meta, states, strict=True):
         m["state"] = state
-    held = {life[0] for life in lives[len(lives) - min(HELD, len(lives) - 1) :]}  # (always one, at least, to learn from)
+    held = {
+        life[0] for life in lives[len(lives) - min(HELD, len(lives) - 1) :]
+    }  # (always one, at least, to learn from)
     if held and all("life" in m for m in meta):  # the last lives are held out for testing
         return {"train": [m for m in meta if m["life"] not in held], "held": [m for m in meta if m["life"] in held]}
     cut = int(len(meta) * 0.86)  # (moments noted before they said which life they're from: about the last life)
@@ -566,6 +583,22 @@ def conversation_ids(tok: Tokenizer, moment: dict, rng: random.Random) -> tuple[
     ids.append(END)
     mark.append(True)
     return ids, mark
+
+
+def known_texts(moments: list[dict], seed: int = 0) -> list[str]:
+    """What it already reads and says, whose pieces new vocabulary mustn't change (so learning new words from reading
+    doesn't cost it how it talks): moments, conversations, and every word of Haven's own templates."""
+    rng = random.Random(seed)
+    texts = [m["text"] for m in moments] + [m["notes"] for m in moments]
+    texts += [a for m in moments for a in m["answers"].values()]
+    texts += [q for qs in QUESTIONS.values() for q in qs] + list(OTHER_QUESTIONS)
+    texts += [form.format(topic) for form in UNKNOWN_FORMS for topic in UNKNOWN_TOPICS]
+    for m in moments:
+        for _ in range(3):
+            thought, turns = converse(m, rng)
+            texts += [thought, *(t.said for t in turns if t.said), *(t.answer for t in turns)]
+    texts += [path.read_text() for path in Path(__file__).resolve().parents[1].rglob("*.py")]
+    return texts
 
 
 def conversation_items(moments: list[dict], n: int, seed: int = 0) -> list[dict]:

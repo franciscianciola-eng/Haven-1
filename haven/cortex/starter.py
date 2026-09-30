@@ -91,14 +91,48 @@ def install(root: Path) -> str:
     return "replaced" if had else "installed"
 
 
+def packed(weights: dict) -> dict:
+    """A cortex's weights at a quarter of their size, to come with Haven: each row of a matrix as whole numbers from
+    -127 to 127 and one scale for the row; the rest at half precision. (The output layer is the vocabulary itself.)"""
+    import torch
+
+    out = {}
+    for name, v in weights.items():
+        v = v.detach().cpu()
+        if name == "head.weight":
+            continue
+        if v.is_floating_point() and v.dim() == 2 and v.numel() >= 4096:
+            scale = v.float().abs().amax(dim=1, keepdim=True).clamp(min=1e-12) / 127
+            out[name] = {"int8": torch.round(v.float() / scale).to(torch.int8), "scale": scale}
+        else:
+            out[name] = v.half() if v.is_floating_point() else v
+    return out
+
+
+def unpacked(weights: dict) -> dict:
+    """A cortex's weights as it works with them (full precision), however they were saved."""
+    out = {
+        name: v["int8"].float() * v["scale"].float()
+        if isinstance(v, dict)
+        else v.float()
+        if v.is_floating_point()
+        else v
+        for name, v in weights.items()
+    }
+    if "head.weight" not in out and "embed.weight" in out:
+        out["head.weight"] = out["embed.weight"]
+    return out
+
+
 def pack(trainer, folder: Path = FOLDER) -> None:
-    """Save a trainer's cortex as the one Haven starts with: its weights at half size, without the optimizer."""
+    """Save a trainer's cortex as the one Haven starts with: its weights packed small (see packed), without the
+    optimizer."""
     import torch
 
     folder.mkdir(parents=True, exist_ok=True)
     model = trainer.model
     trainer.tok.save(folder / "tokenizer.json")
-    weights = {k: (v.half() if v.is_floating_point() else v).cpu() for k, v in model.state_dict().items()}
+    weights = packed(model.state_dict())
     progress = {**trainer.progress, "starter": time.strftime("%Y%m%d-%H%M%S")}  # (so a newer one replaces it)
     torch.save(
         {"config": dict(vars(model.cfg)), "model": weights, "optimizer": None, "progress": progress},

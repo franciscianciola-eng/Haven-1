@@ -217,7 +217,8 @@ function render(s) {
   $("story").innerHTML = s.self.milestones.map((m) => `<li><span class="muted">day ${Math.floor((m.tick - 0) / 1200) + 1}</span> ${esc(m.text)}</li>`).join("");
   $("convo").innerHTML = s.conversation.map((c) => c.who === "you" ? `<div class="you">you: ${esc(c.text)}</div>` : `<div class="haven"><b>${esc(s.name)}:</b> ${esc(c.text)}</div>`).join("") ||
     '<div class="muted">It hasn\'t learned language yet unless it has a trained language cortex. Talk to it anyway: it learns words from you.</div>';
-  $("cortex").textContent = s.cortex ? `Language cortex: ${s.cortex}` : "No language cortex yet (run: haven learn).";
+  $("cortex").textContent = (s.cortex ? `Language cortex: ${s.cortex}.` : "No language cortex yet (run: haven learn).") +
+    (s.story ? ` The last bedtime story it heard: ${s.story}.` : "");
   $("welfare").style.display = s.welfare.ok ? "none" : "block";
   $("welfareMsg").textContent = s.welfare.message;
   if (document.activeElement !== $("speed")) $("speed").value = s.speed;

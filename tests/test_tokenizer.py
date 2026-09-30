@@ -31,3 +31,15 @@ def test_decode_ignores_unknown_ids():
 
 
 pytest.importorskip("torch")
+
+
+def test_new_pieces_can_leave_what_it_knew_as_it_was():
+    tok = Tokenizer()
+    tok.learn(["the cat sat on the mat"] * 20, 20)
+    known = ["the cat sat on the mat", "I'm hungry and the cat is here"]
+    before = [tok.encode(t) for t in known]
+    grown = Tokenizer(tok.merges)
+    added = grown.learn(["a matter of catalogs and matters and cats and hats"] * 30, 40, keep=known)
+    assert added > 0
+    assert [grown.encode(t) for t in known] == before  # it reads what it knew in exactly the same pieces
+    assert len(grown.encode("matters")) < len(tok.encode("matters"))  # and new words in fewer

@@ -10,11 +10,16 @@ cortex it has take the same two tests: questions about moments of its day it did
 other lives. It keeps the copy only if it does at least as well on its own day, and no worse on other lives (so
 learning about its own life can't cost it what it knew). Either way, how it went is written down in
 cortex/nights.jsonl.
+
+It also goes over what it heard since it last slept, as a small child's brain does: the bedtime story it was read (and
+a little of the book from before, so it doesn't forget), and what people said to it. Then it's tested on how the story
+goes on, the part it hasn't heard yet, and it keeps what it learned only if it follows that at least as well as before.
 """
 
 from __future__ import annotations
 
 import copy
+import math
 import random
 
 import numpy as np
@@ -28,6 +33,8 @@ BATCH = 8
 LR = 1e-4  # (sweeps: without going over another life too, practice cost it on other lives, and was thrown away)
 HELD = 4  # one moment in this many is kept back, to test on
 TOLERANCE = 0.02  # how much worse on other lives still counts as no worse (the tests are small)
+LISTENING = 3  # with things it heard to go over, one practice step in this many is hearing them again
+FOLLOWING = 0.01  # how much worse at following a story (bits per byte) still counts as no worse
 
 
 def practice_loss(model, tok, moments: list[dict], rng: random.Random, rehearse: list[dict] = ()) -> torch.Tensor:
@@ -61,6 +68,42 @@ def practice_loss(model, tok, moments: list[dict], rng: random.Random, rehearse:
     ids, targets = ids.to(device), targets.to(device)
     logits, _ = model(ids[:, :-1], torch.tensor(np.stack(states), device=device))
     return F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), targets.reshape(-1), ignore_index=-100)
+
+
+def listening_loss(model, tok, passages: list[str], people: list[str], rng: random.Random) -> torch.Tensor:
+    """Hearing again what it heard: stories, each piece of them expected from what came before, and what people said
+    to it (as they say it to it)."""
+    limit = model.cfg.context + 1
+    seqs = []
+    for i in range(BATCH // 2):
+        if people and (i % 2 or not passages):
+            seq = [YOU, *tok.encode(rng.choice(people)), END]
+        else:
+            ids = [END, *tok.encode(rng.choice(passages)), END]
+            start = rng.randrange(0, max(1, len(ids) - limit + 1))
+            seq = ids[start : start + limit]
+        seqs.append(seq[-limit:])
+    device = model.embed.weight.device
+    length = max(len(s) for s in seqs)
+    ids = torch.full((len(seqs), length), END, dtype=torch.long)
+    targets = torch.full((len(seqs), length - 1), -100, dtype=torch.long)
+    for i, seq in enumerate(seqs):
+        ids[i, : len(seq)] = torch.tensor(seq)
+        targets[i, : len(seq) - 1] = torch.tensor(seq[1:])
+    logits, _ = model(ids[:, :-1].to(device))
+    return F.cross_entropy(
+        logits.float().reshape(-1, logits.shape[-1]), targets.to(device).reshape(-1), ignore_index=-100
+    )
+
+
+@torch.no_grad()
+def following(model, tok, passage: str) -> float:
+    """How well it follows a passage it hasn't heard: bits per byte (lower is better)."""
+    model.eval()
+    ids = [END, *tok.encode(passage)][: model.cfg.context + 1]
+    logits, _ = model(torch.tensor([ids[:-1]], device=model.embed.weight.device))
+    nll = float(F.cross_entropy(logits[0].float(), torch.tensor(ids[1:], device=logits.device), reduction="sum"))
+    return nll / max(len(tok.decode(ids[1:]).encode("utf-8")), 1) / math.log(2)
 
 
 @torch.no_grad()
@@ -105,10 +148,15 @@ def night(
     lr: float | None = None,
     rehearse: list[dict] = (),
     floor: float | None = None,
+    heard: list[str] = (),
+    people: list[str] = (),
+    upcoming: str | None = None,
 ):
     """A night's practice on a copy of the cortex. Returns the copy if it's worth keeping (else None), and a report.
 
-    `floor`: how it did on other lives the first night (so that small losses can't add up over many nights).
+    `floor`: how it did on other lives the first night (so that small losses can't add up over many nights). `heard`:
+    passages it heard (and a little from before), to go over; `people`: what people said to it; `upcoming`: how the
+    story it's hearing goes on, to test how well it follows it.
     """
     from .train import conversation_items
 
@@ -117,12 +165,18 @@ def night(
     practice = [m for i, m in enumerate(day) if i % HELD] or day
     own = conversation_items(held * 2, 2 * len(held), seed=rng.randrange(10**6))  # two questions at each
     before = {"own day": exam(model, tok, own), "other lives": exam(model, tok, others)}
+    if upcoming:
+        before["following"] = following(model, tok, upcoming)
     student = copy.deepcopy(model)
     student.train()
     optimizer = torch.optim.AdamW(student.parameters(), lr=LR if lr is None else lr, weight_decay=0.0)
     losses = []
-    for _ in range(steps):
-        loss = practice_loss(student, tok, practice, rng, rehearse)
+    listening = bool(heard or people)
+    for step in range(steps):
+        if listening and step % LISTENING == LISTENING - 1:
+            loss = listening_loss(student, tok, list(heard), list(people), rng)
+        else:
+            loss = practice_loss(student, tok, practice, rng, rehearse)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(student.parameters(), 1.0)
@@ -130,10 +184,15 @@ def night(
         losses.append(loss.item())
     student.eval()
     after = {"own day": exam(student, tok, own), "other lives": exam(student, tok, others)}
+    if upcoming:
+        after["following"] = following(student, tok, upcoming)
     worse = min(before["other lives"], floor if floor is not None else 1.0) - TOLERANCE  # not worse, night after night
     kept = after["own day"] >= before["own day"] and after["other lives"] >= worse
+    kept = kept and after.get("following", 0.0) <= before.get("following", 0.0) + FOLLOWING
     report = {
         "moments": len(day),
+        "heard": len(heard),
+        "said to it": len(people),
         "steps": steps,
         "loss": [round(float(np.mean(losses[:10])), 3), round(float(np.mean(losses[-10:])), 3)] if losses else None,
         "before": {k: round(v, 3) for k, v in before.items()},

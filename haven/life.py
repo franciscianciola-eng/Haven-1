@@ -14,6 +14,8 @@ from .speaking import Initiative
 from .store import Store
 from .world import DAY
 
+STORY_EVERY = 1200.0  # seconds, at least, between bedtime stories (see cortex/hearing.py)
+
 AUTOSAVE = 600  # ticks between saves
 QUIET = 180.0  # seconds nobody has said anything before Haven reads about something out of curiosity
 CURIOUS_EVERY = 900.0  # seconds, at least, between the things it reads out of curiosity
@@ -25,8 +27,9 @@ PASSING_SAVE = 6000  # ticks between saves while time goes by quickly
 ASKED = 600.0  # seconds a question it asked stays open for an answer
 NEWS = re.compile(  # what it does that's worth telling the person talking with it
     r"^(?:set off to|did what it was asked|stopped trying to|gave up trying to|couldn't .*: it didn't know where|"
-    r"read about|went over its day|learned the word|was taught that)"
+    r"read about|went over its day|learned the word|was taught that|heard a bedtime story)"
 )
+FIRST_STORY = 120.0  # seconds after it wakes up in the app before it can hear its first bedtime story
 
 
 def open_mind(store: Store, seed: int | None = None, name: str = "Haven") -> Mind:
@@ -62,6 +65,8 @@ class Life:
         self._last_words = self._last_wonder = time.monotonic() - CURIOUS_EVERY  # when it last talked, and read
         self._last_night = time.monotonic() - SLEEP_EVERY + FIRST_NIGHT  # when it last learned in its sleep
         self._learning = threading.Lock()
+        self._last_story = time.monotonic() - STORY_EVERY + FIRST_STORY  # when it last heard a bedtime story
+        self._was_asleep = mind.body.asleep
         self.news: list[tuple[int, str]] = []  # (number, what): what it did lately that's worth telling
         self._news = 0
         self.initiative = Initiative()  # when it speaks up of its own accord, and what about
@@ -110,6 +115,9 @@ class Life:
                     self.thinker.notice(self.mind)
             if self._since_save >= AUTOSAVE:
                 self.save()
+            if asleep and not self._was_asleep:
+                self._bedtime()
+            self._was_asleep = asleep
             if asleep and tick % 200 == 0:
                 self._sleep_on_it()
             elif not asleep and tick % 50 == 0:
@@ -222,6 +230,26 @@ class Life:
         self._last_night = now
         threading.Thread(target=self._learn_in_sleep, name="haven-sleep-learning", daemon=True).start()
 
+    def _bedtime(self) -> None:
+        """As it falls asleep (at most every so often, in real time), it hears the next part of a story."""
+        thinker, now = self.thinker, time.monotonic()
+        if thinker is None or not hasattr(thinker, "bedtime_story") or now - self._last_story < STORY_EVERY:
+            return
+        self._last_story = now
+        threading.Thread(target=self._hear_story, name="haven-bedtime-story", daemon=True).start()
+
+    def _hear_story(self) -> None:
+        from .cortex.talk import bedtime_note
+
+        try:
+            story = self.thinker.bedtime_story(self)
+        except Exception as error:  # noqa: BLE001  a story going wrong mustn't end a life
+            self._emit("event", f"couldn't hear a story ({error})")
+            return
+        if story is not None:
+            with self.lock:
+                self.initiative.pending.append((self.mind.tick, "heard", bedtime_note(story)))
+
     def _learn_in_sleep(self) -> None:
         with self._learning:
             try:
@@ -306,6 +334,9 @@ class Life:
         sources = dict(library.sources) if library else {}  # (a copy: it may be reading something right now)
         state["read"] = [title for title, source in sources.items() if source != "book"][-8:][::-1]
         state["cortex"] = None if self.thinker is None else self.thinker.describe()
+        hearing = getattr(self.thinker, "_hearing", None)  # (the last bedtime story it heard, once it has heard one)
+        latest = hearing.latest() if hearing is not None else None
+        state["story"] = latest.title if latest else None
         return state
 
     # --- telling the people watching -------------------------------------------------

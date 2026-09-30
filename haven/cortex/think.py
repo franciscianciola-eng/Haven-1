@@ -101,9 +101,30 @@ class Thinker:
         # Someone following along as it answers (the app): hears ("draft" | "words" | "pondering" | "thought" |
         # "reading" | "read", text) as a reply takes shape.
         self.listener: Callable[[str, str], None] | None = None
+        self._hearing = None
+        self.told_stories: set[str] = set()  # the stories it has told in this conversation
 
     def describe(self) -> str:
         return self.name
+
+    @property
+    def hearing(self):
+        """What it hears at home: bedtime stories, and what people say to it (see hearing.py)."""
+        if self._hearing is None:
+            from .hearing import Listening
+
+            self._hearing = Listening(self.root, self.web)
+        return self._hearing
+
+    def bedtime_story(self, life=None):
+        """Hear the next passage of the book it's hearing, as it falls asleep. Returns the story, if it heard one."""
+        found = self.hearing.bedtime()
+        if found is None:
+            return None
+        story, _ = found
+        if life is not None:
+            life._emit("event", f"heard a bedtime story: {story.title}")
+        return story
 
     def _tell(self, kind: str, text: str = "") -> None:
         if self.listener is not None:
@@ -190,6 +211,7 @@ class Thinker:
     def recollect(self, mind, text: str, req=None) -> list[str]:
         """What else comes to mind at someone's words: being asked to do something, a sum worked out, or what it read
         (that answers them, that it read lately, or that it could tell them)."""
+        from .stories import STORIES
         from .talk import (
             FACT_ASK,
             LATELY,
@@ -198,13 +220,17 @@ class Thinker:
             about_them,
             bare,
             best_lesson,
+            heard_note,
             lately_note,
             memo,
             mentioned,
             more_note,
             request_note,
+            story_asked,
+            story_for,
             sum_note,
             sum_of,
+            tale_note,
             thing_note,
         )
 
@@ -214,6 +240,18 @@ class Thinker:
         worked = sum_of(text)
         if worked is not None:
             return [sum_note(worked)]
+        asked = story_asked(text)
+        if asked is not None:  # a story, or what it heard
+            heard = self.hearing.stories()
+            if asked == "heard":
+                return [heard_note(heard[-1], True) if heard else heard_note(random.choice(STORIES), False)]
+            story = story_for(text, [*STORIES, *heard])
+            if story is None:  # the latest it heard, unless it has told that one already: then another
+                fresh = [s for s in heard[-3:] if s.title not in self.told_stories]
+                fresh = fresh or [s for s in (*heard, *STORIES) if s.title not in self.told_stories] or list(STORIES)
+                story = fresh[-1] if fresh[-1] in heard else random.choice(fresh)
+            self.told_stories.add(story.title)
+            return [tale_note(story)]
         library = self.library
         if LATELY.search(bare(text)):  # what it has read lately (not its little book)
             return [lately_note([t for t in library.titles() if library.sources[t] != "book"][-3:])]
@@ -328,6 +366,7 @@ class OwnThinker(Thinker):
         import torch
 
         from .model import Cortex, CortexConfig
+        from .starter import unpacked
         from .tokenizer import Tokenizer
         from .train import pick_device
 
@@ -337,7 +376,7 @@ class OwnThinker(Thinker):
         self.progress = checkpoint["progress"]
         self.tok = Tokenizer.load(self.root / "cortex" / "tokenizer.json")
         self.model = Cortex(CortexConfig(**checkpoint["config"]))
-        self.model.load_state_dict(checkpoint["model"])
+        self.model.load_state_dict(unpacked(checkpoint["model"]))
         self.model.to(self.device).eval()
         self.model_lock = threading.Lock()
         self.day: collections.deque = collections.deque(maxlen=240)  # moments of its day, to go over in its sleep
@@ -351,16 +390,23 @@ class OwnThinker(Thinker):
             for n, r in sorted(self.progress["levels"].items(), key=lambda item: int(item[0]))
             if r.get("status") in ("passed", "moved on", "plateaued", "studied")
         ]
-        return f"its own, grown from scratch ({self.model.parameters_count() / 1e6:.1f}M connections); " + (
-            f"it has learned: {', '.join(done)}" if done else "it hasn't studied yet"
+        grew, here = int(self.progress.get("heard", {}).get("words", 0)), self.hearing.words()
+        heard = f"; it grew up hearing {grew / 1e6:.1f} million words" if grew else ""
+        if here:
+            heard += f"{',' if grew else '; it has heard'} {here:,} {'more ' if grew else ''}words here"
+        return (
+            f"its own, grown from scratch ({self.model.parameters_count() / 1e6:.1f}M connections); "
+            + (f"it has learned: {', '.join(done)}" if done else "it hasn't studied yet")
+            + heard
         )
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
         from .library import asked_to_read
-        from .talk import DONT_KNOW, MORE, addressed, answer_to, notes, request, sum_of
+        from .talk import DONT_KNOW, MORE, addressed, answer_to, notes, request, story_asked, sum_of
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
+        self.hearing.heard_said(text)  # (what people say to it, it goes over in its sleep, as it does what it hears)
         text = addressed(text, life.mind.me.name)  # ("Hi Pip!" is being greeted, as "Hi Haven!" is)
         asked = (
             life.question() if hasattr(life, "question") else None
@@ -389,7 +435,8 @@ class OwnThinker(Thinker):
                 prompt += [YOU if turn["who"] == "you" else HAVEN, *self.tok.encode(turn["text"])]
             return prompt + [YOU, *self.tok.encode(text), HAVEN]
 
-        words, confidence = self._say(prompt_for(known), state, drafts)
+        long = 180 if story_asked(text) == "tale" else 100  # (a story takes longer to tell)
+        words, confidence = self._say(prompt_for(known), state, drafts, long)
         topic = None if sum_of(text) else topic_of(text)  # (a sum isn't something to look up)
         if words.startswith(DONT_KNOW[:24]) and self.web is not None and topic and not self.library.title_for(topic):
             if self.look_up(topic, life):  # it didn't know, so it reads about it, and says what it read
@@ -425,7 +472,7 @@ class OwnThinker(Thinker):
             mind.think(words, meaning, confidence)  # what it says enters its workspace, like anything it says
         return words, confidence
 
-    def _say(self, prompt: list[int], state, drafts: int) -> tuple[str, float]:
+    def _say(self, prompt: list[int], state, drafts: int, most: int = 100) -> tuple[str, float]:
         """A few drafts of a reply; the likeliest is what it says, and how much they agree is part of how sure it is."""
         from .tokenizer import END, YOU
 
@@ -433,9 +480,9 @@ class OwnThinker(Thinker):
         with self.model_lock:
             for i in range(drafts):  # its most careful draft first, then freer ones
                 tokens, logprobs = self.model.generate(
-                    prompt[-(self.model.cfg.context - 100) :],
+                    prompt[-(self.model.cfg.context - most) :],
                     state,
-                    max_new=100,
+                    max_new=most,
                     temperature=0.0 if i == 0 else 0.6,
                     stop=(END, YOU),
                 )
@@ -486,16 +533,28 @@ class OwnThinker(Thinker):
         day = list(self.day)
         if len(day) < MOMENTS:
             return None
-        readings = self.own_readings()
-        day = [{**m, "readings": readings} for m in day]  # it goes over what it read, too
+        readings, hearing = self.own_readings(), self.hearing
+        stories = tuple(hearing.stories()[-5:])
+        day = [{**m, "readings": readings, "heard": stories} for m in day]  # it goes over what it read and heard, too
         if self._others is None:
             self._others, self._rehearse = sleep.other_lives(), sleep.rehearsal()
         with self.model_lock:
             current = copy.deepcopy(self.model)
         first = self._first_night()
+        heard = [*hearing.tonight, *hearing.before()] if hearing.tonight else []  # (and a little from before)
         learned, report = sleep.night(
-            current, self.tok, day, self._others, random.Random(), rehearse=self._rehearse, floor=first
+            current,
+            self.tok,
+            day,
+            self._others,
+            random.Random(),
+            rehearse=self._rehearse,
+            floor=first,
+            heard=heard,
+            people=list(hearing.people),
+            upcoming=hearing.upcoming() if heard else None,
         )
+        hearing.slept()
         if first is None:  # how it did the first night, the floor from now on (until it gets a new cortex)
             self._first_night(report["before"]["other lives"])
         if learned is not None:
@@ -508,11 +567,14 @@ class OwnThinker(Thinker):
             f.write(json.dumps(report) + "\n")
         if life is not None:
             b, a = report["before"]["own day"], report["after"]["own day"]
+            what = "its day and the story it heard" if heard else "its day"
+            follows = report["after"].get("following"), report["before"].get("following")
+            better = f"; how the story goes on: {follows[1]:.2f} → {follows[0]:.2f} bits a letter" if follows[0] else ""
             life._emit(
                 "event",
-                f"went over its day in its sleep, and learned from it (answers about its day: {b:.0%} → {a:.0%})"
+                f"went over {what} in its sleep, and learned from it (answers about its day: {b:.0%} → {a:.0%}{better})"
                 if learned is not None
-                else "went over its day in its sleep, but kept what it knew: practising didn't help this time",
+                else f"went over {what} in its sleep, but kept what it knew: practising didn't help this time",
             )
         return report
 

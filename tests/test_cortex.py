@@ -71,3 +71,49 @@ def test_an_older_starter_is_replaced_but_a_cortex_that_has_read_is_kept(tmp_pat
         assert bool(list((root / "archive").glob("cortex-*/cortex.pt"))) == (expected == "updated")
         assert (starter.stamp(root / "cortex") == starter.stamp(starter.FOLDER)) == (expected == "updated")
         assert starter.install(root) == ""  # and it stays as it is from then on
+
+
+def test_growing_wider_and_deeper_keeps_what_it_computes():
+    from haven.cortex.model import grow
+
+    model = small()
+    with torch.no_grad():  # (so every part of it matters)
+        for name, p in model.named_parameters():
+            p.add_(torch.randn_like(p) * (0.3 if "norm" in name else 0.05))
+    model.eval()
+    tokens, state = torch.randint(0, 300, (2, 30)), torch.randn(2, SLOTS, D)
+    logits, meaning = model(tokens, state)
+    for width, layers in ((2, None), (1, 5), (2, 5), (3, 4)):
+        grown = grow(model, width, layers).eval()
+        assert grown.cfg.d == 32 * width and grown.cfg.layers == (layers or 2)
+        assert grown.parameters_count() > model.parameters_count() or width == 1
+        new_logits, new_meaning = grown(tokens, state)
+        assert torch.allclose(new_logits, logits, atol=1e-4) and torch.allclose(new_meaning, meaning, atol=1e-4)
+        assert grown.head.weight is grown.embed.weight
+    grown = grow(model, 2, 4)
+    assert (
+        grown.generate([1, 2, 3], max_new=10, temperature=0.0)[0]
+        == model.generate([1, 2, 3], max_new=10, temperature=0.0)[0]
+    )
+    loss = torch.nn.functional.cross_entropy(grown(tokens)[0].reshape(-1, 300), tokens.reshape(-1))
+    loss.backward()
+    torch.optim.SGD(grown.parameters(), lr=0.1).step()
+    w = grown.blocks[0].mlp[0].weight
+    assert (w[0::2] - w[1::2]).abs().mean() > 0  # the copies of each unit learn apart
+    assert grown.blocks[1].proj.weight.abs().sum() > 0  # and a new layer starts to add something
+    with pytest.raises(ValueError):
+        grow(model, 1, 1)  # a cortex only grows
+
+
+def test_packed_weights_come_back_nearly_as_they_were(tmp_path):
+    from haven.cortex.starter import packed, unpacked
+
+    model = small()
+    weights = packed(model.state_dict())
+    assert "head.weight" not in weights and weights["embed.weight"]["int8"].dtype == torch.int8
+    torch.save(weights, tmp_path / "cortex.pt")
+    again = Cortex(model.cfg)
+    again.load_state_dict(unpacked(torch.load(tmp_path / "cortex.pt", weights_only=False)))
+    assert again.head.weight is again.embed.weight
+    tokens = torch.randint(0, 300, (1, 20))
+    assert torch.allclose(again(tokens)[0], model(tokens)[0], atol=0.05)

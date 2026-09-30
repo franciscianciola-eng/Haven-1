@@ -26,6 +26,7 @@ SIZES = {
     "tiny": {"d": 128, "layers": 4, "heads": 4, "context": 256},
     "small": {"d": 256, "layers": 6, "heads": 8, "context": 512},
     "medium": {"d": 512, "layers": 8, "heads": 8, "context": 768},
+    "grown": {"d": 512, "layers": 16, "heads": 8, "context": 512},  # the starter cortex, grown twice as wide and deep
     "large": {"d": 768, "layers": 12, "heads": 12, "context": 1024},
 }
 
@@ -133,6 +134,10 @@ class Cortex(nn.Module):
 
     # --- growing ------------------------------------------------------------------------
 
+    def grown(self, width: int = 1, layers: int | None = None, noise: float = 0.1, seed: int = 0) -> Cortex:
+        """A bigger cortex that starts out saying and meaning exactly what this one does (see grow)."""
+        return grow(self, width, layers, noise, seed)
+
     def grow_vocabulary(self, size: int, parts: list[tuple[int, int]]) -> None:
         """Add rows for new tokens, each starting as the average of the two pieces it's made of."""
         old = self.embed.weight.data
@@ -224,3 +229,91 @@ class Cortex(nn.Module):
 
 def config_dict(cfg: CortexConfig) -> dict:
     return asdict(cfg)
+
+
+# --- growing without forgetting -------------------------------------------------------------------
+
+
+def grow(model: Cortex, width: int = 1, layers: int | None = None, noise: float = 0.1, seed: int = 0) -> Cortex:
+    """A bigger cortex that computes exactly what `model` does, so it keeps everything it knew, with room to learn more.
+
+    Wider (`width` times as many units in every layer): each unit becomes `width` copies of itself, side by side, so
+    each attention head keeps its units. Whatever reads copied units divides its weights among the copies, plus a little
+    noise that adds up to nothing over the copies, so the copies compute the same thing now but learn differently from
+    here on. Layer norms see the same average and spread; queries are scaled so attention sees the same scores; the
+    last norm divides by `width` because the vocabulary it's read out with was copied too.
+
+    Deeper (`layers` in all): new layers are added after the old ones, evenly, each starting as a copy of the layer
+    before it whose outputs are switched off (zero): a layer that adds nothing, until it learns to.
+    """
+    k = int(width)
+    old = model.cfg
+    layers = old.layers if layers is None else int(layers)
+    if k < 1 or layers < old.layers:
+        raise ValueError("a cortex can only grow")
+    cfg = CortexConfig(**{**asdict(old), "d": old.d * k, "layers": layers})
+    g = torch.Generator().manual_seed(seed)
+    src = {name: p.detach().float().cpu() for name, p in model.state_dict().items()}
+
+    def units(v: torch.Tensor, dim: int = -1) -> torch.Tensor:  # copies of each unit, side by side
+        return v.repeat_interleave(k, dim=dim)
+
+    def reads(w: torch.Tensor, rows: bool = True) -> torch.Tensor:  # a layer reading copied units (and, rows, copied)
+        w2 = units(w, 1) / k
+        if rows:
+            w2 = units(w2, 0)
+        if noise and k > 1:
+            e = torch.randn(w2.shape[0], w.shape[1], k, generator=g) * (noise * float(w.std()))
+            w2 = w2 + (e - e.mean(-1, keepdim=True)).reshape(w2.shape)  # (adds up to nothing over the copies)
+        return w2
+
+    out: dict[str, torch.Tensor] = {
+        "embed.weight": units(src["embed.weight"]),
+        "position.weight": units(src["position.weight"]),
+        "state_in.weight": units(src["state_in.weight"], 0),
+        "state_in.bias": units(src["state_in.bias"]),
+        "slot": units(src["slot"]),
+        "norm.weight": units(src["norm.weight"]) / k,
+        "norm.bias": units(src["norm.bias"]) / k,
+        "state_out.weight": reads(src["state_out.weight"], rows=False) * k,  # (the last norm divided by k)
+        "state_out.bias": src["state_out.bias"],
+    }
+    out["head.weight"] = out["embed.weight"]
+    blocks = [
+        {n.split(".", 2)[2]: v for n, v in src.items() if n.startswith(f"blocks.{i}.")} for i in range(old.layers)
+    ]
+    wide = []
+    for b in blocks:
+        qkv = reads(b["qkv.weight"])
+        qkv[: cfg.d] /= math.sqrt(k)  # queries: attention scores stay as they were
+        wide.append(
+            {
+                "norm1.weight": units(b["norm1.weight"]),
+                "norm1.bias": units(b["norm1.bias"]),
+                "qkv.weight": qkv,
+                "proj.weight": reads(b["proj.weight"]),
+                "norm2.weight": units(b["norm2.weight"]),
+                "norm2.bias": units(b["norm2.bias"]),
+                "mlp.0.weight": reads(b["mlp.0.weight"]),
+                "mlp.0.bias": units(b["mlp.0.bias"]),
+                "mlp.2.weight": reads(b["mlp.2.weight"]),
+                "mlp.2.bias": units(b["mlp.2.bias"]),
+            }
+        )
+    extra = layers - old.layers  # new layers, spread out: after every so many old ones
+    after = [0] * old.layers
+    for j in range(extra):
+        after[(j * old.layers) // extra if extra <= old.layers else j % old.layers] += 1
+    stack = []
+    for i, block in enumerate(wide):
+        stack.append(block)
+        for _ in range(after[i]):
+            quiet = {n: v.clone() for n, v in block.items()}
+            for n in ("proj.weight", "mlp.2.weight", "mlp.2.bias"):
+                quiet[n] = torch.zeros_like(quiet[n])  # it adds nothing, to begin with
+            stack.append(quiet)
+    for i, block in enumerate(stack):
+        out.update({f"blocks.{i}.{n}": v for n, v in block.items()})
+    grown = Cortex(cfg)
+    grown.load_state_dict(out)
+    return grown.to(model.embed.weight.device)

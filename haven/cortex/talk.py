@@ -28,6 +28,7 @@ from ..personality import TRAITS
 from ..selfmodel import VERDICTS
 from ..world import BELL, DAY, FIRE, NEST, SAND, SEASON_DAYS, SEASONS, THORN, TREE, TURNING, WATER, YEAR
 from .book import BOOK
+from .stories import STORIES, Story
 
 # --- questions about how it is, what it's doing, and what it knows ------------------------
 
@@ -2037,7 +2038,7 @@ def naming_answer(word: str) -> str:
 # --- what comes to mind -------------------------------------------------------------------------
 
 TOPICS = {
-    "story": r"\bstory\b|\byour life\b|\bhappened in your\b|\bborn\b",
+    "story": r"\byour (?:life )?story\b|\bstory of your\b|\byour life\b|\bhappened in your\b|\bborn\b",
     "can": r"\bwhat can you\b|\bable to\b|\bcan you do\b",
     "world": r"\byour world\b|\byour valley\b",
 }
@@ -2599,6 +2600,119 @@ def reading_answer(title: str, sentence: str) -> str:
     return f"I read about {title}. It says: {sentence}"
 
 
+# --- stories -----------------------------------------------------------------------------------
+
+TALE_ASKS = (  # asking it for a story
+    "Tell me a story.",
+    "Can you tell me a story?",
+    "Will you tell me a story?",
+    "Tell me a bedtime story.",
+    "Do you know any stories?",
+    "Tell me a fairy tale.",
+    "Do you know a good story?",
+    "Could you tell me a story, please?",
+    "Tell me another story.",
+    "What stories do you know?",
+    "Tell me a story you heard.",
+    "I'd like to hear a story.",
+    "Story time! Tell me one.",
+)
+TALE_ABOUT = ("Tell me a story about {}.", "Do you know a story about {}?", "Can you tell me a story about {}?")
+HEARD_ASKS = (  # asking it what stories it has heard
+    "What did you hear last night?",
+    "Did anyone read you a story?",
+    "What was your bedtime story?",
+    "What story did you hear last night?",
+    "Have you heard any stories lately?",
+    "What stories have you heard?",
+    "Did you hear a story?",
+    "Were you read a story last night?",
+)
+CREATURES = (  # what a story can be asked to be about, if one it knows is
+    "rabbit fox squirrel frog mouse bear hen cat kitten crow owl pig whale turtle mole chipmunk beaver deer duck "
+    "firefly katydid muskrat woodchuck bunny king emperor"
+).split()
+LIFE_STORY = re.compile(r"\byour (?:life )?story\b|\bstory of your\b|\byour life\b", re.IGNORECASE)
+ASKS_HEARD = re.compile(
+    r"\bwhat (?:did|have) you hear|\b(?:did|have) you (?:hear|heard)\b|\bread (?:to )?you\b|\bwere you read\b|"
+    r"\bwas your bedtime story\b|\bstor(?:y|ies) (?:did|have) you hear|\bheard?\b[^?.!]*\b(?:last night|lately|yet)\b",
+    re.IGNORECASE,
+)
+ASKS_TALE = re.compile(
+    r"\b(?:tell|read|know|hear|like|want)\b[^?.!]*\b(?:stor(?:y|ies)|tales?)\b|\bstor(?:y|ies)\b[^?.!]*\b(?:know|tell)\b|"
+    r"\bfairy ?tales?\b|\bonce upon a time\b|\bstory time\b",
+    re.IGNORECASE,
+)
+
+
+def story_asked(text: str) -> str | None:
+    """Whether someone asks it for a story ("tale"), or what stories it has heard ("heard"). ("Your story" is its life.)"""
+    if LIFE_STORY.search(text):
+        return None
+    if ASKS_HEARD.search(text):
+        return "heard"
+    return "tale" if ASKS_TALE.search(text) else None
+
+
+def story_for(text: str, stories: list[Story] | tuple) -> Story | None:
+    """A story about what they name ("a story about a fox"), if it knows one (the latest it heard first)."""
+    wanted = {w for w in re.findall(r"[a-z]+", text.lower()) if w in CREATURES or w.rstrip("s") in CREATURES}
+    wanted |= {w.rstrip("s") for w in wanted}
+    for story in reversed(list(stories)):
+        told = set(re.findall(r"[a-z]+", (story.title + " " + " ".join(story.opening)).lower()))
+        if wanted & (told | {w.rstrip("s") for w in told}):
+            return story
+    return None
+
+
+def tale_note(story: Story) -> str:
+    return f"A story I know: {story.title}. It begins: {' '.join(story.opening)}"
+
+
+def tale_answer(story: Story) -> str:
+    return f"Here's a story I heard, {story.title}. {' '.join(story.opening + story.then)}"
+
+
+def heard_note(story: Story, lately: bool) -> str:
+    """What it heard lately (or, if nobody has read it a story yet, one it remembers from when it was little)."""
+    if lately:
+        return f"The last story I heard was {story.title}. It begins: {story.opening[0]}"
+    return (
+        f"Nobody has read me a story here yet. I remember one from when I was little, {story.title}. "
+        f"It begins: {story.opening[0]}"
+    )
+
+
+def bedtime_note(story: Story) -> str:
+    return f"I heard a story last night: {story.title}. It begins: {story.opening[0]} I want to tell you about it."
+
+
+def bedtime_answer(story: Story) -> str:
+    return f"Last night I heard a story, {story.title}. It begins: {story.opening[0]}"
+
+
+STORY_TURNS = 0.05  # how often a turn of the conversations it learns from asks for a story, or what it heard
+TALES: list[Story] = []  # more stories to be asked for, in the conversations it learns from (from what it heard)
+
+
+def story_turn(moment: dict, rng: random.Random) -> tuple[str, Turn]:
+    """Being asked for a story, or what it heard: what comes to mind, and the turn."""
+    heard = list(moment.get("heard", ()))  # (at night: the stories it really heard lately)
+    if rng.random() < 0.3:
+        lately = bool(heard) or rng.random() < 0.6
+        story = heard[-1] if heard else rng.choice(TALES or STORIES)
+        note = heard_note(story, lately)
+        return note, Turn(casual(rng.choice(HEARD_ASKS), rng), note, "what it heard")
+    pool = heard if heard and rng.random() < 0.5 else STORIES if not TALES or rng.random() < 0.4 else TALES
+    story = rng.choice(pool)
+    about = [w for w in CREATURES if re.search(rf"\b{w}s?\b", story.title.lower())]
+    if about and rng.random() < 0.3:
+        ask = rng.choice(TALE_ABOUT).format(a(rng.choice(about)))
+    else:
+        ask = rng.choice(TALE_ASKS)
+    return tale_note(story), Turn(casual(ask, rng), tale_answer(story), "a story")
+
+
 SLEEP_NOTE, SLEEP_ANSWER = "I'm going to sleep.", "I'm sleepy. Good night!"
 WAKE_NOTE, WAKE_ANSWER = "I just woke up. It's morning.", "Good morning! I just woke up."
 SPANS = {1: "A whole day", SEASON_DAYS: "A whole season", YEAR: "A whole year"}
@@ -3060,6 +3174,7 @@ SPEAKING = {  # what it speaks up about, and how often, in the conversations it 
     "sleep": 0.04,
     "wake": 0.04,
     "passed": 0.08,
+    "heard": 0.06,
 }
 ASKED_FACTS = {  # what it would like to know, and what it's called once it has been told
     "your favorite food": "favorite food",
@@ -3134,6 +3249,10 @@ def speaking_up(
         entry = rng.choice(book or BOOK)
         note = reading_note(entry.title, entry.sentences[0])
         return note, Turn(None, reading_answer(entry.title, entry.sentences[0]), "speaking up"), None
+    if kind == "heard":
+        heard = list(moment.get("heard", ()))
+        story = heard[-1] if heard and rng.random() < 0.5 else rng.choice(TALES or STORIES)
+        return bedtime_note(story), Turn(None, bedtime_answer(story), "speaking up"), None
     if kind == "sleep":
         return SLEEP_NOTE, Turn(None, SLEEP_ANSWER, "speaking up"), None
     if kind == "wake":
@@ -3204,6 +3323,11 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     for _ in range(4 * wanted + 8):  # (a try can come to nothing: then it tries something else)
         if len(said) >= wanted:
             break
+        if rng.random() < STORY_TURNS:  # a story, or what it heard
+            note, turn = story_turn(moment, rng)
+            extra.append(note)
+            said.append(turn)
+            continue
         roll = rng.random()
         if roll < 0.26 and known.get("traits") and rng.random() < 0.1:  # whether it's brave, shy, playful...
             trait = rng.choice(TRAITS)

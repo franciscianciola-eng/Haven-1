@@ -103,3 +103,31 @@ def test_it_prefers_drafts_it_can_back_up():
     assert not unfounded("12 times 7 is 84.", mind) and unfounded("12 times 7 is 844.", mind)
     assert not unfounded("Nice to meet you, Mehmet!", mind) and unfounded("Nice to meet you, Mehmetmet!", mind)
     assert not unfounded("I feel fine. It's a nice day.", mind)
+
+
+def test_it_goes_over_the_story_it_heard_in_its_sleep_and_tells_it(cortex_home, monkeypatch):
+    from haven.cortex import hearing, sleep, talk
+
+    passage = " ".join(f"A little hen sat on her nest by the barn, day {i}. She sang to her eggs." for i in range(40))
+    book = f"*** START OF THE PROJECT GUTENBERG EBOOK HEN ***\n\n{passage}\n\n{passage}\n\n{passage}\n\n*** END"
+    monkeypatch.setattr(sleep, "STEPS", 3)
+    monkeypatch.setattr(hearing, "book", lambda web, repo, number: book)
+    monkeypatch.setattr(hearing, "SHELF", (7,))
+    monkeypatch.setattr(hearing, "repos", lambda: {7: "The-Tale-of-a-Hen_7"})
+    thinker, _ = make_thinker("own", cortex_home, web=Web(delay=0, allow_private=True))
+    life = Life(Mind(seed=3), None)
+    events = []
+    life.listeners.append(lambda kind, text: events.append(text))
+    story = thinker.bedtime_story(life)
+    assert story.title == "The Tale of a Hen" and events == ["heard a bedtime story: The Tale of a Hen"]
+    thinker.hearing.heard_said("Hello, little one")
+    for _ in range(45):
+        life.mind.live(10)
+        thinker.notice(life.mind)
+    report = thinker.sleep_on_it(life)
+    assert report["heard"] >= 1 and report["said to it"] == 1 and "following" in report["after"]
+    assert "the story it heard" in events[-1] and thinker.hearing.tonight == []
+    assert thinker.recollect(life.mind, "Tell me a story.") == [talk.tale_note(story)]  # the one it heard
+    heard = thinker.recollect(life.mind, "What did you hear last night?")
+    assert heard[0].startswith("The last story I heard was The Tale of a Hen")
+    assert "words here" in thinker.describe()
