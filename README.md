@@ -204,9 +204,9 @@ Haven: Okay, I'll ring the bell.   (98% sure)
         (Haven set off to ring the bell, as it was asked.)
 you: What's 12 times 7?
 Haven: 12 times 7 is 84.   (98% sure)
-        (Haven did what it was asked: ring the bell.)
 you: The capital of Peru is Lima.
 Haven: Okay, I'll remember that the capital of Peru is Lima.   (100% sure)
+        (Haven did what it was asked: ring the bell.)
 you: What is the capital of Peru?
 Haven: You told me that the capital of Peru is Lima.   (99% sure)
 you: Who wrote Romeo and Juliet?
