@@ -374,7 +374,9 @@ Haven keeps learning after it's born, from you, from what it reads, and from its
 
 Everything it reads comes from the public sources in the table above, and from Wikipedia's API when it looks something up. What you say to it never leaves your computer. No accounts or API keys are needed. Downloads are cached in `~/.haven/cortex/reading/`, so the internet is needed only the first time each level is prepared, and when it looks things up.
 
-Books come from Project Gutenberg's mirrors, never from www.gutenberg.org itself, since Project Gutenberg asks that programs not download from its main site. It opens only public `http` and `https` addresses, never anything on your own network (redirects are checked too), caps the size of every download, asks each site for at most one thing per second, and identifies itself as Haven with a link to this project. It only reads; it never posts anything anywhere.
+Its bedtime stories come from GITenberg, a copy of Project Gutenberg's books kept on GitHub, one book at a time, and are kept in `~/.haven/cortex/hearing/`; without the internet it hears no new stories. What it heard while it grew up (speech to small children, and the children's books) was downloaded the same way when its cortex was trained; none of it comes with Haven.
+
+Books for the reading curriculum come from Project Gutenberg's mirrors, never from www.gutenberg.org itself, since Project Gutenberg asks that programs not download from its main site. It opens only public `http` and `https` addresses, never anything on your own network (redirects are checked too), caps the size of every download, asks each site for at most one thing per second, and identifies itself as Haven with a link to this project. It only reads; it never posts anything anywhere.
 
 ## Commands
 
@@ -410,8 +412,11 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 pip install -e ".[cortex,dev]"
 pytest                 # a few minutes: the curriculum runs against a fake internet on your own computer
 ruff check . && ruff format --check .
-python packaging/train_starter.py --minutes 180   # retrain the cortex it's born with (from scratch, on a CPU)
+python packaging/train_starter.py --minutes 180   # train a small cortex from scratch on its simulated lives (a CPU)
 python packaging/train_starter.py --minutes 90 --lr 2e-4 --emphasis 0.5   # then carry on, practising long recollections
+python packaging/build_corpus.py                  # download and prepare what it hears as it grows up (dist/corpus/)
+python packaging/grow_cortex.py --hours 13        # grow that cortex and have it hear all that (stop and rerun to resume)
+python packaging/grow_cortex.py --pack STEP       # save the snapshot at a step as the cortex Haven starts with
 python packaging/mac/make_app.py                  # build dist/Haven-for-Mac.zip
 python packaging/world3d/build.py                 # rebuild the 3D view (needs Node.js; the result is kept in the repo)
 ```
@@ -440,3 +445,9 @@ The creature is plain numpy: [`world.py`](haven/world.py) and [`body.py`](haven/
 - Eldan, R., & Li, Y. (2023). [TinyStories: how small can language models be and still speak coherent English?](https://arxiv.org/abs/2305.07759) arXiv:2305.07759.
 - Rajpurkar, P., Zhang, J., Lopyrev, K., & Liang, P. (2016). SQuAD: 100,000+ questions for machine comprehension of text. *EMNLP 2016*.
 - Cobbe, K., et al. (2021). [Training verifiers to solve math word problems](https://arxiv.org/abs/2110.14168). arXiv:2110.14168.
+- MacWhinney, B. (2000). *The CHILDES Project: Tools for Analyzing Talk* (3rd ed.). Lawrence Erlbaum.
+- Huebner, P. A., Sulem, E., Fisher, C., & Roth, D. (2021). [BabyBERTa: Learning more grammar with small-scale child-directed language](https://aclanthology.org/2021.conll-1.49/). *CoNLL 2021*. (AO-CHILDES, as used here, and the Zorro grammar tests.)
+- Hart, B., & Risley, T. R. (1995). *Meaningful Differences in the Everyday Experience of Young American Children*. Paul H. Brookes.
+- Warstadt, A., Parrish, A., Liu, H., Mohananey, A., Peng, W., Wang, S.-F., & Bowman, S. R. (2020). BLiMP: The Benchmark of Linguistic Minimal Pairs for English. *Transactions of the ACL*, 8, 377–392.
+- Warstadt, A., et al. (2023). Findings of the BabyLM Challenge: Sample-efficient pretraining on developmentally plausible corpora. *CoNLL 2023*.
+- Chen, T., Goodfellow, I., & Shlens, J. (2016). [Net2Net: Accelerating learning via knowledge transfer](https://arxiv.org/abs/1511.05641). *ICLR 2016*.

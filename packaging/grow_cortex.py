@@ -176,6 +176,8 @@ def main() -> None:
     parser.add_argument("--batch", type=int, default=16, help="passages of what it hears, a step")
     parser.add_argument("--talk", type=int, default=3, help="one step in this many is practice talking about itself")
     parser.add_argument("--every", type=int, default=400)
+    parser.add_argument("--settle", type=float, default=0.0, help="hours, after that, of mostly practising talking")
+    parser.add_argument("--settle-lr", type=float, default=5e-5, help="learning rate while it settles")
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--pack", metavar="STEP", help="save the snapshot at this step as the cortex Haven starts with")
     parser.add_argument("--out", default=str(starter.FOLDER), help="where --pack saves it")
@@ -216,18 +218,23 @@ def main() -> None:
     if not record["tests"]:
         record["tests"].append({"step": 0, **test(trainer, items, held)})
         print("before:", record["tests"][-1], flush=True)
-    budget = 3600 * args.hours
+    budget, settle = 3600 * args.hours, 3600 * args.settle
     snapshots = work / "snapshots"
     snapshots.mkdir(exist_ok=True)
-    while record["seconds"] < budget:
+    while record["seconds"] < budget or record.get("settled", 0.0) < settle:
         began = time.monotonic()
         n = record["steps"]
-        done = record["seconds"] / budget
-        lr = args.lr * min(1.0, (n + 1) / 300) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * done)))
+        settling = record["seconds"] >= budget  # (then three steps in four are practice talking, at a low rate)
+        if settling:
+            lr, talking = args.settle_lr, n % 4 != 3
+        else:
+            done = record["seconds"] / budget
+            lr = args.lr * min(1.0, (n + 1) / 300) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * done)))
+            talking = n % args.talk == args.talk - 1
         for group in trainer.optimizer.param_groups:
             group["lr"] = lr
         trainer.model.train()
-        if n % args.talk == args.talk - 1:
+        if talking:
             loss, tokens = trainer._grounded_loss(moments["train"]), 0
         else:
             loss, tokens = text_loss(trainer, ids, args.batch)
@@ -238,14 +245,20 @@ def main() -> None:
         record["steps"] += 1
         record["tokens"] += tokens
         trainer.progress["steps"] += 1
-        record["seconds"] += time.monotonic() - began
+        spent = time.monotonic() - began
+        if settling:
+            record["settled"] = record.get("settled", 0.0) + spent
+        else:
+            record["seconds"] += spent
         if record["steps"] % 50 == 0:
             print(
                 f"step {record['steps']:>6,}  loss {float(loss.detach()):.3f}  lr {lr:.2e}  "
-                f"heard {record['tokens'] / 1e6:.1f}M tokens  ({record['seconds'] / 3600:.2f} h)",
+                f"heard {record['tokens'] / 1e6:.1f}M tokens  ({record['seconds'] / 3600:.2f} h"
+                + (f", settling {record['settled'] / 3600:.2f} h)" if settling else ")"),
                 flush=True,
             )
-        if record["steps"] % args.every == 0 or record["seconds"] >= budget:
+        ended = record["seconds"] >= budget if not settling else record["settled"] >= settle
+        if record["steps"] % args.every == 0 or ended:
             results = test(trainer, items, held)
             record["tests"].append({"step": record["steps"], **results})
             print(f"step {record['steps']:,}:", results, flush=True)
