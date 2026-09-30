@@ -432,6 +432,21 @@ class OwnThinker(Thinker):
 
         self.day.append(moment_of(mind))
 
+    def _first_night(self, score: float | None = None) -> float | None:
+        """How the cortex it has now did on other lives the first night it learned in its sleep (or record that)."""
+        from .starter import stamp
+
+        path = self.root / "cortex" / "sleep.json"
+        began = stamp(self.root / "cortex")
+        if score is not None:
+            path.write_text(json.dumps({"starter": began, "other lives": score}))
+            return score
+        with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
+            found = json.loads(path.read_text())
+            if found["starter"] == began:
+                return float(found["other lives"])
+        return None
+
     def own_readings(self, most: int = 20) -> tuple:
         """What it has read besides its little book (the latest), to practise telling about in its sleep."""
         from .book import Entry
@@ -454,7 +469,12 @@ class OwnThinker(Thinker):
             self._others, self._rehearse = sleep.other_lives(), sleep.rehearsal()
         with self.model_lock:
             current = copy.deepcopy(self.model)
-        learned, report = sleep.night(current, self.tok, day, self._others, random.Random(), rehearse=self._rehearse)
+        first = self._first_night()
+        learned, report = sleep.night(
+            current, self.tok, day, self._others, random.Random(), rehearse=self._rehearse, floor=first
+        )
+        if first is None:  # how it did the first night, the floor from now on (until it gets a new cortex)
+            self._first_night(report["before"]["other lives"])
         if learned is not None:
             with self.model_lock:
                 self.model.load_state_dict(learned.state_dict())

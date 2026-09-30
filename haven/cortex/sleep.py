@@ -103,8 +103,12 @@ def night(
     steps: int | None = None,
     lr: float | None = None,
     rehearse: list[dict] = (),
+    floor: float | None = None,
 ):
-    """A night's practice on a copy of the cortex. Returns the copy if it's worth keeping (else None), and a report."""
+    """A night's practice on a copy of the cortex. Returns the copy if it's worth keeping (else None), and a report.
+
+    `floor`: how it did on other lives the first night (so that small losses can't add up over many nights).
+    """
     from .train import conversation_items
 
     steps = STEPS if steps is None else steps
@@ -125,7 +129,8 @@ def night(
         losses.append(loss.item())
     student.eval()
     after = {"own day": exam(student, tok, own), "other lives": exam(student, tok, others)}
-    kept = after["own day"] >= before["own day"] and after["other lives"] >= before["other lives"] - TOLERANCE
+    worse = min(before["other lives"], floor if floor is not None else 1.0) - TOLERANCE  # not worse, night after night
+    kept = after["own day"] >= before["own day"] and after["other lives"] >= worse
     report = {
         "moments": len(day),
         "steps": steps,

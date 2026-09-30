@@ -94,6 +94,8 @@ def test_it_learns_from_its_day_in_its_sleep_and_keeps_it_only_if_it_helps(corte
     assert changed == report["kept"]
     assert (cortex_home / "cortex" / "nights.jsonl").exists() and "in its sleep" in events[-1]
     assert not thinker.day  # a new day starts
+    first = json.loads((cortex_home / "cortex" / "sleep.json").read_text())["other lives"]
+    assert first == report["before"]["other lives"] and thinker._first_night() == first  # the floor from now on
 
 
 def test_it_prefers_drafts_it_can_back_up():
