@@ -258,10 +258,21 @@ class Planner:
         return action
 
     def to_state(self) -> dict:
-        return {"searches": self.searches}
+        return {
+            "searches": self.searches,
+            "plan": self.plan,
+            "poses": [list(p) for p in self.poses],
+            "goal": [self.goal[0], [list(c) for c in self.goal[1]]] if self.goal else [],
+            "made": self.made,
+        }
 
     def load_state(self, state: dict) -> None:
         self.searches = int(state["searches"])
+        self.plan = [str(a) for a in state.get("plan", [])]
+        self.poses = [tuple(int(v) for v in p) for p in state.get("poses", [])]
+        goal = state.get("goal") or []
+        self.goal = (goal[0], [tuple(int(v) for v in c) for c in goal[1]]) if goal else ()
+        self.made = int(state.get("made", 0))
 
 
 def search(
@@ -306,7 +317,9 @@ def search(
         for action in order:
             if action == "forward":
                 dx, dy = DIRECTIONS[h]
-                step = step_cost(x + dx, y + dy, beliefs, knowledge)
+                # Where it's heading it can go into, whatever it has taken it for (its nest is not the bell).
+                entering = mode == "enter" and (x + dx, y + dy) in cells
+                step = 1.0 if entering else step_cost(x + dx, y + dy, beliefs, knowledge)
                 if step is None:
                     continue
                 nxt = (x + dx, y + dy, h)

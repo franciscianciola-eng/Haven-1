@@ -14,6 +14,11 @@ ring, a campfire that's lovely to sit by at night but burns if it steps in, thor
 stones, and butterflies that won't keep still. Days are warm and nights cold; the shade
 under the trees is cool, and the hilltop is windy.
 
+The year turns, too: a spring, a summer, an autumn and a winter of six days each. Summer
+days are long and hot and the berries grow back fast; in autumn the leaves turn and the
+apples and mushrooms come in; winter nights are long and cold, the trees are bare, the
+flowers sleep, the butterflies are gone and little grows back until spring.
+
 The world only produces raw, noisy sensations. Everything Haven knows about it, including
 what an apple is, it has to learn.
 """
@@ -153,6 +158,18 @@ DIRECTIONS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -
 RAYS = (-2, -1, 0, 1, 2)  # 90° left, 45° left, ahead, 45° right, 90° right
 RAY_RANGE = 6
 DAY = 1200  # ticks in a day
+SEASONS = ("spring", "summer", "autumn", "winter")
+SEASON_DAYS = 6  # days in each season
+YEAR = SEASON_DAYS * len(SEASONS)  # days in a year
+GROWING = {  # how fast things grow back in each season: berries, apples, mushrooms
+    "spring": (1.0, 0.5, 1.0),
+    "summer": (1.4, 1.0, 0.6),
+    "autumn": (0.8, 1.6, 2.0),
+    "winter": (0.3, 0.0, 0.0),
+}
+CLIMATE = {"spring": 0.1, "summer": 1.0, "autumn": -0.2, "winter": -1.0}  # from hot summers (1) to cold winters (-1)
+TURNING = 2  # days at the end of each season in which the weather turns toward the next
+LEAVES = {"autumn": (0.72, 0.42, 0.14), "winter": (0.44, 0.35, 0.27)}  # turning leaves, then bare branches
 MAX_BERRIES = 3
 REGROW = 160  # ticks for a bush to grow back one berry
 MAX_FRUIT = 3  # apples on a tree
@@ -231,17 +248,40 @@ class World:
         self._touched = False
         self._fed = False
         self.voice: tuple[int, str] | None = None  # the last word Haven said, and when
+        self.areas = [[self._area(x, y) for x in range(self.width)] for y in range(self.height)]
 
     # --- time and weather -------------------------------------------------
 
     @property
     def light(self) -> float:
         phase = 2 * math.pi * (self.tick % DAY) / DAY
-        return float(np.clip(0.5 - 0.55 * math.cos(phase), 0.06, 1.0))
+        return float(np.clip(0.5 + 0.08 * self.summer - 0.55 * math.cos(phase), 0.06, 1.0))  # long summer days
 
     @property
     def day(self) -> int:
         return self.tick // DAY
+
+    @property
+    def year(self) -> int:
+        return self.day // YEAR
+
+    @property
+    def season(self) -> str:
+        return SEASONS[(self.day % YEAR) // SEASON_DAYS]
+
+    @property
+    def season_day(self) -> int:
+        """Which day of its season it is (from 0)."""
+        return self.day % SEASON_DAYS
+
+    @property
+    def summer(self) -> float:
+        """How summery (1) or wintry (-1) the weather is: each season's own, turning toward the next at its end."""
+        days = (self.tick % (DAY * YEAR)) / DAY
+        i = int(days // SEASON_DAYS)
+        now, after = CLIMATE[SEASONS[i]], CLIMATE[SEASONS[(i + 1) % len(SEASONS)]]
+        turned = max(0.0, (days - i * SEASON_DAYS - (SEASON_DAYS - TURNING)) / TURNING)
+        return now + (after - now) * turned
 
     def level(self, x: int, y: int) -> int:
         return int(self.ground[y, x]) if self.inside(x, y) else 0
@@ -253,7 +293,7 @@ class World:
         """How warm it is at a place: sun and night, shade, the fire, the pond, the wind up high, the nest."""
         x, y = (self.x, self.y) if x is None else (x, y)
         light = self.light
-        warmth = 0.26 + 0.34 * light  # cold nights, warm days
+        warmth = 0.26 + 0.34 * light + 0.09 * self.summer  # cold nights, warm days; hot summers, cold winters
         if x in SUNNY[0] and y in SUNNY[1] and light > 0.5:
             warmth += 0.12 * light
         near = self.grid[max(0, y - 1) : y + 2, max(0, x - 1) : x + 2]
@@ -267,6 +307,31 @@ class World:
         if self.grid[y, x] == NEST:
             warmth += 0.25
         return float(np.clip(warmth, 0.0, 1.0))
+
+    def area(self, x: int, y: int) -> str:
+        """The part of the valley a place is in, as people call it: "the pond", "the top of the hill"."""
+        return self.areas[y][x] if self.inside(x, y) else "the wall"
+
+    def _area(self, x: int, y: int) -> str:
+        level = self.level(x, y)
+        if level >= 3:
+            return "the top of the hill"
+        if level >= 1:
+            return "the hill" if x >= 14 else "the bell"
+        for kind, reach, name in (
+            (NEST, 2, "my nest"),
+            (WATER, 1, "the pond"),
+            (SAND, 0, "the pond"),
+            (FIRE, 2, "the fire"),
+            (TREE, 1, "the apple trees"),
+            (BELL, 2, "the bell"),
+            (THORN, 1, "the thorns"),
+        ):
+            if self._nearest(x, y, kind, reach) is not None:
+                return name
+        if x in SUNNY[0] and y in SUNNY[1]:
+            return "the meadow"
+        return "the north of the valley" if y <= 7 else "the south of the valley" if y >= 15 else "the middle of the valley"
 
     def _nearest(self, x: int, y: int, kind: int, reach: int = 2) -> int | None:
         """How many steps away the nearest thing of a kind is (None if it's further than `reach`)."""
@@ -295,7 +360,7 @@ class World:
         """What's at a place, as seen from outside it: a butterfly, the ball, an apple, or what's on the ground."""
         if not self.inside(x, y):
             return WALL
-        if (x, y) in self.butterflies:
+        if (x, y) in self.butterflies and self.season != "winter":  # (in winter they're gone)
             return BUTTERFLY
         if (x, y) == self.ball:
             return BALL
@@ -304,6 +369,8 @@ class World:
         cell = int(self.grid[y, x])
         if cell in (MUSHROOM, TOADSTOOL) and self.mushrooms[(x, y)]:
             return FLOOR  # eaten, and not grown back yet
+        if cell == FLOWER and self.season == "winter":
+            return FLOOR  # the flowers sleep until spring
         return cell
 
     def _cell(self, x: int, y: int) -> int:
@@ -372,8 +439,9 @@ class World:
         here = (self.x, self.y)
         total = sum(n * math.exp(-math.dist(here, spot) / 2.5) for spot, n in self.berries.items())
         total += sum(1.5 * math.exp(-math.dist(here, spot) / 2.5) for spot in self.apples)
-        flowers = np.nonzero(self.grid == FLOWER)
-        total += sum(0.15 * math.exp(-math.dist(here, (int(fx), int(fy))) / 2.0) for fy, fx in zip(*flowers))
+        if self.season != "winter":
+            flowers = np.nonzero(self.grid == FLOWER)
+            total += sum(0.15 * math.exp(-math.dist(here, (int(fx), int(fy))) / 2.0) for fy, fx in zip(*flowers))
         return total
 
     def _color(self, x: int, y: int, thing: int) -> tuple[float, float, float]:
@@ -381,6 +449,8 @@ class World:
             return BERRIES if self.berries[(x, y)] else BARE_BUSH
         if thing == FLOWER:
             return FLOWER_COLORS[(x + y) % len(FLOWER_COLORS)]
+        if thing == TREE:
+            return LEAVES.get(self.season, COLORS[TREE])
         return COLORS[thing]
 
     def ahead(self) -> tuple[int, int]:
@@ -492,31 +562,34 @@ class World:
         self.pain = 0.0
 
     def _grow(self) -> None:
+        season = self.season
+        berries, apples, mushrooms = GROWING[season]
         for spot, count in self.berries.items():
             if count < MAX_BERRIES:
-                self.growth[spot] += 1
+                self.growth[spot] += berries
                 if self.growth[spot] >= REGROW:
                     self.berries[spot] += 1
                     self.growth[spot] = int(self.rng.integers(0, REGROW // 4))
         for spot, count in self.fruit.items():
             if count < MAX_FRUIT:
-                self.ripening[spot] += 1
+                self.ripening[spot] += apples
                 if self.ripening[spot] >= RIPEN:
                     self.fruit[spot] += 1
                     self.ripening[spot] = int(self.rng.integers(0, RIPEN // 4))
-            elif self.rng.random() < 1 / 350 and self._drop_apple(spot):  # ripe apples fall by themselves
+            elif apples and self.rng.random() < apples / 350 and self._drop_apple(spot):  # ripe apples fall
                 self.fruit[spot] -= 1
         for spot, wait in self.mushrooms.items():
             if wait:
-                self.mushrooms[spot] = wait - 1
+                self.mushrooms[spot] = max(0.0, wait - mushrooms)
         if self.tick % 4 == 0:  # the ball rolls down slopes
             bx, by = self.ball
             lower = [(dx, dy) for dx, dy in DIRECTIONS[::2] if self.level(bx + dx, by + dy) < self.level(bx, by)]
             if lower:
                 self._roll(*lower[0], 1)
-        for i in range(len(self.butterflies)):
-            if self.rng.random() < 0.25:
-                self._flutter(i)
+        if season != "winter":
+            for i in range(len(self.butterflies)):
+                if self.rng.random() < 0.25:
+                    self._flutter(i)
 
     def _flutter(self, i: int, away: bool = False) -> None:
         """A butterfly flits to a nearby spot, staying near its flowers."""
@@ -551,6 +624,7 @@ class World:
             "ball": list(self.ball),
             "butterflies": [list(b) for b in self.butterflies],
             "rang": self.rang,
+            "felt": [self.bumped, self.pain, self._sound],
         }
 
     def load(self, state: dict) -> None:
@@ -564,3 +638,5 @@ class World:
         self.ball = tuple(state["ball"])
         self.butterflies = [tuple(b) for b in state["butterflies"]]
         self.rang = int(state["rang"])
+        bumped, pain, sound = state.get("felt", (False, 0.0, 0.0))
+        self.bumped, self.pain, self._sound = bool(bumped), float(pain), float(sound)

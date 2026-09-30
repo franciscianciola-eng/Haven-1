@@ -23,6 +23,7 @@ from .memory import Episode, EpisodicMemory, ReplayBuffer
 from .metacognition import Metacognition, context
 from .nets import cosine, softmax
 from .perception import BODY_FEATURES, VISION_FEATURES, Observation, Vision, color_name, looks, vision_candidates
+from .personality import Character
 from .selfmodel import NEEDS, SelfModel
 from .workspace import QUALITY, SOURCES, Candidate, D, Q, Workspace
 from .world import (
@@ -39,6 +40,7 @@ from .world import (
     THORN,
     TOADSTOOL,
     WATER,
+    YEAR,
     Outcome,
     World,
 )
@@ -58,6 +60,12 @@ EVENTS = ("ate", "drank", "rang", "pushed", "smelled", "shook", "warmed", "sick"
 DOINGS = ("ate", "sick", "drank", "rang", "pushed", "smelled", "shook", "warmed")  # what can happen with a thing
 MOVING = ("ball", "butterfly")  # things that don't stay where it saw them
 NAP = 60  # ticks it sleeps, at least, when it goes to sleep because someone asked it to
+SEASON_FIRSTS = {  # the first time each season comes, as its life story tells it
+    "summer": "saw its first summer come: long, hot days",
+    "autumn": "saw its first autumn: the leaves turned orange",
+    "winter": "saw its first winter come: the cold, and the trees bare",
+}
+YEARS = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
 
 
 def name_of(world: World, x: int, y: int) -> str | None:
@@ -105,6 +113,7 @@ class Mind:
         self.agent = ActorCritic(N_STATE, self.rng)
         self.lexicon = Lexicon()
         self.me = SelfModel(name, self.world.tick)
+        self.character = Character(seed)  # who it's becoming
         self.valence = 0.0
         self.arousal = 0.0
         self.mood = 0.0
@@ -251,6 +260,7 @@ class Mind:
         # Decide what to do.
         previous_goal = self.goals.current
         urgencies = self.goals.urgencies(drives, b.cold(), obs.light, 1 - self.beliefs.known(), self._playful())
+        urgencies = self.character.lean(urgencies)
         goal = self.goals.choose(urgencies, tick)
         if goal != previous_goal and tick - self.queried.get(goal, -(10**9)) > 300:
             self.query = goal
@@ -308,6 +318,7 @@ class Mind:
         if tick % 50 == 0:
             learned = len(self.vision.kinds.alive()) + len(self.lexicon.vocabulary()) + 0.3 * len(self.me.milestones)
             self.me.reflect(self.model.agency.mean, len(self.memory.episodes), learned)
+        self.character.moment(self, outcome, len(obs.words) + obs.touch + obs.fed)
         self._tally(outcome)
 
     def _playful(self) -> float:
@@ -328,6 +339,21 @@ class Mind:
             self.daily["valence"].append(today["valence"] / max(today["n"], 1))
             self.daily["ate"].append(today["ate"])
             self._today = {"model_error": 0.0, "daylight": 0.0, "valence": 0.0, "ate": 0.0, "n": 0}
+            self.character.end_day(self)
+            self._new_season()
+
+    def _new_season(self) -> None:
+        """At midnight: if a new season begins, it's noted (and the first time each one comes, and each year)."""
+        w, tick = self.world, self.world.tick
+        if w.season_day or w.day == 0:
+            return
+        self._note(tick, f"saw {w.season} come to the valley")
+        if w.season in SEASON_FIRSTS:
+            self.me.milestone(f"first {w.season}", tick, SEASON_FIRSTS[w.season])
+        years = round(self.age / (DAY * YEAR))
+        if w.season == "spring" and years >= 1:
+            gone = "a whole year had" if years == 1 else f"{YEARS[years - 1] if years <= len(YEARS) else years} years had"
+            self.me.milestone(f"year {years}", tick, f"saw spring come back: {gone} gone by")
 
     # --- learning from the last moment ---------------------------------------------
 
@@ -963,6 +989,7 @@ class Mind:
         self._sleep_or_wake(name, obs, drives, in_nest, tick)
         if b.collapsed():
             self.counts["fainted"] += 1
+            self.character.fainted()
             b.faint()
             w.carry_home()
             self._note(tick, "fainted, and woke up later in its nest")
@@ -1142,7 +1169,14 @@ class Mind:
                 "scent": self.scent,
                 "distress": self.distress,
                 "rest_streak": self.rest_streak,
+                "surprise": self.surprise,
+                "agency": self.agency_now,
+                "scent_change": self.scent_change,
+                "nap": self.nap,
             },
+            "target": [self.target[0], [list(c) for c in self.target[1]]],
+            "suggestion": self.suggestion,
+            "target_now": self._target_now,
             "prediction": None
             if self.prediction is None
             else np.concatenate([self.prediction.vision, self.prediction.body, self.prediction.drive_change]),
@@ -1162,6 +1196,7 @@ class Mind:
             "told": [list(item) for item in self.told],
             "lessons": [list(item) for item in self.lessons],
             "errand": self.errand,
+            "character": self.character.to_state(),
         }
 
     def load_state(self, state: dict) -> None:
@@ -1189,6 +1224,13 @@ class Mind:
         self.valence, self.arousal, self.mood = feeling["valence"], feeling["arousal"], feeling["mood"]
         self.discomfort, self.scent = feeling["discomfort"], feeling["scent"]
         self.distress, self.rest_streak = int(feeling["distress"]), int(feeling["rest_streak"])
+        self.surprise, self.agency_now = float(feeling.get("surprise", 0.0)), float(feeling.get("agency", 0.0))
+        self.scent_change, self.nap = float(feeling.get("scent_change", 0.0)), int(feeling.get("nap", 0))
+        mode, cells = state.get("target", ("enter", []))
+        self.target = (mode, [tuple(int(v) for v in c) for c in cells])
+        self.suggestion = state.get("suggestion")
+        found = state.get("target_now")
+        self._target_now = None if found is None else np.asarray(found, dtype=float)
         if state["prediction"] is not None:
             p = np.asarray(state["prediction"], dtype=float)
             n = len(BODY_FEATURES)
@@ -1225,6 +1267,8 @@ class Mind:
         self.told = [(int(t), str(text)) for t, text in state.get("told", [])]
         self.lessons = [(int(t), str(text)) for t, text in state.get("lessons", [])]
         self.errand = state.get("errand")
+        if "character" in state:
+            self.character.load_state(state["character"])
 
 
 MOVED = "moved to a new, bigger world: a valley with a hill, a pond, trees, and things to use"

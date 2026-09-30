@@ -14,7 +14,7 @@ from .attention import NOTHING
 from .body import DRIVES
 from .mind import Mind, need_words
 from .workspace import SOURCES
-from .world import ACTIONS, BUSH, DAY, FLOWER, HEIGHTS, LAYOUT
+from .world import ACTIONS, BUSH, DAY, FLOWER, HEIGHTS, LAYOUT, YEAR
 
 GOALS = {
     "food": "find food",
@@ -126,6 +126,9 @@ def snapshot(mind: Mind) -> dict:
         "age_days": round(mind.age / 1200, 2),
         "day": w.day,
         "time_of_day": mind.time_of_day,
+        "season": w.season,
+        "season_day": w.season_day,
+        "year": w.year,
         "light": round(w.light, 2),
         "world": world(mind),
         "beliefs": {
@@ -213,12 +216,14 @@ def world(mind: Mind) -> dict:
         "apples": [list(a) for a in w.apples],
         "mushrooms": [[x, y, int(wait == 0)] for (x, y), wait in w.mushrooms.items()],
         "ball": list(w.ball),
-        "butterflies": [list(b) for b in w.butterflies],
+        "butterflies": [] if w.season == "winter" else [list(b) for b in w.butterflies],
         "rang": w.tick - w.rang,
         "flowers": [
             [int(x), int(y), _hex(w._color(int(x), int(y), FLOWER))] for y, x in zip(*np.nonzero(w.grid == FLOWER))
         ],
         "phase": round((w.tick % DAY) / DAY, 4),
+        "season": w.season,
+        "year_phase": round((w.tick % (DAY * YEAR)) / (DAY * YEAR), 4),
         "x": w.x,
         "y": w.y,
         "heading": w.heading,

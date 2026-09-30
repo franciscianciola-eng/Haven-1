@@ -122,6 +122,9 @@ class Workspace:
             "competitions": self.competitions,
             "entrants": self.entrants,
             "history": [list(item) for item in self.history],
+            "content": saved(self.content),
+            "previous": None if self.previous is None else [saved(self.previous[0]), self.previous[1]],
+            "vector": self.vector,
         }
 
     def load_state(self, state: dict) -> None:
@@ -130,3 +133,47 @@ class Workspace:
         self.ignitions, self.competitions = int(state["ignitions"]), int(state["competitions"])
         self.entrants = int(state["entrants"])
         self.history = [tuple(item) for item in state["history"]]
+        self.content = restored(state.get("content"))
+        previous = state.get("previous")
+        self.previous = None if previous is None else (restored(previous[0]), np.array(previous[1], dtype=float))
+        self.vector = np.array(state.get("vector", np.zeros(D)), dtype=float)
+
+
+def saved(c: Candidate | None) -> dict | None:
+    """A candidate, as it's kept on disk."""
+    if c is None:
+        return None
+    return {
+        "source": c.source,
+        "quality": np.asarray(c.quality, dtype=float),
+        "numbers": [c.salience, *c.where, c.confidence, c.value, c.novelty, c.agency],
+        "kind": int(c.kind),
+        "label": c.label,
+        "key": c.key,
+        "extra": c.extra,
+    }
+
+
+def restored(state: dict | None) -> Candidate | None:
+    """A candidate kept on disk, as it was (lists back into tuples, as they were made)."""
+    if state is None:
+        return None
+    salience, x, y, confidence, value, novelty, agency = (float(n) for n in state["numbers"])
+    return Candidate(
+        state["source"],
+        np.array(state["quality"], dtype=float),
+        salience,
+        (x, y),
+        confidence,
+        value,
+        novelty,
+        agency,
+        int(state["kind"]),
+        state["label"],
+        _tuples(state["key"]),
+        {k: _tuples(v) for k, v in state["extra"].items()},
+    )
+
+
+def _tuples(value):
+    return tuple(_tuples(v) for v in value) if isinstance(value, list) else value

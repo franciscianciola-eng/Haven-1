@@ -86,9 +86,17 @@ class AttentionSchema:
             "W": self.W,
             "focus": self.focus,
             "counts": [self.predictions, self.hits, self.switches, self.switch_hits],
+            "expected": self.expected,
+            "captured": self.captured,
+            "features": getattr(self, "_x", None),
         }
 
     def load_state(self, state: dict) -> None:
         self.W = np.array(state["W"], dtype=float)
         self.focus = int(state["focus"])
         self.predictions, self.hits, self.switches, self.switch_hits = (int(c) for c in state["counts"])
+        if "expected" in state:
+            self.expected = np.array(state["expected"], dtype=float)
+            self.captured = bool(state["captured"])
+        if state.get("features") is not None:
+            self._x = np.array(state["features"], dtype=float)
