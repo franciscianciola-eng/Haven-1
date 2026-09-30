@@ -194,25 +194,27 @@ Words it learns from you stay few. For language beyond that, Haven has a languag
 
 **It's born talking about itself, its valley and you.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of six simulated lives of Haven, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, what it had done and found out, and what it would answer if asked. That covers about 45 kinds of questions about itself in many wordings ("How are you?", "What did you do today?", "What do you like?", "What can you do?", "Tell me your story", "Are you alive?", …); six kinds of questions about each of the valley's things ("What do you know about the bell?", "Do you like the thorns?", "Where is the pond?", "Can you eat toadstools?", …); people telling it their name and things about themselves or the world, and asking about them later; being asked to do things in its valley; sums; and questions about the wider world, answered from what it has read (and "tell me more"), or with "I don't know". The answers it learned are worked out from its state and from what came to mind at that moment, so to answer right it has to read its own state and use its memories. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
 
-Tested on a simulated life it never saw while learning, with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 93% of them exactly as its state and what came to mind say it should (94% when the names and memories involved are ones it never met while learning), it says what state it's in 81% of the time, and reading words about a need brings that need to mind almost every time. On a thousand questions of all the kinds it now knows, it answers 95%; the cortex it had before answered 61%, mostly because it had never learned the new kinds (being asked to do things, being taught, sums, "tell me more"). It's best at short answers: your name, what you told it or taught it, what it has read, doing what you ask, what a thing in its valley is like, and knowing when it doesn't know. Sums with big numbers now and then come out with a digit wrong, and longer recollections, like its whole day, its life story or everything it has found in its valley, sometimes come out with a detail wrong or in the wrong order. A conversation with it in the app, about two days after it was born:
+Tested on a simulated life it never saw while learning, with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 97% of them exactly as its state and what came to mind say it should (96% when the names and memories involved are ones it never met while learning), it says what state it's in 78% of the time, and reading words about a need brings that need to mind almost every time. On a thousand questions of all the kinds it now knows, it answers 96%; the cortex it had before answered 59%, mostly because it had never learned the new kinds (being asked to do things, being taught, sums, "tell me more", being asked whether it's conscious or an AI). It's best at short answers: your name, what you told it or taught it, what it has read, doing what you ask, what a thing in its valley is like, and knowing when it doesn't know. Sums with big numbers now and then come out with a digit wrong, and longer recollections, like its whole day, its life story or everything it has found in its valley, sometimes come out with a detail wrong or in the wrong order. A conversation with it in the app, about two days after it was born:
 
 ```
 you: Hi, I'm Sam
 Haven: Nice to meet you, Sam!   (100% sure)
 you: Ring the bell
-Haven: I haven't seen the bell yet, so I don't know where to go.   (100% sure)
+Haven: Okay, I'll ring the bell.   (98% sure)
+        (Haven set off to ring the bell, as it was asked.)
 you: What's 12 times 7?
-Haven: 12 times 7 is 84.   (99% sure)
+Haven: 12 times 7 is 84.   (98% sure)
+        (Haven did what it was asked: ring the bell.)
 you: The capital of Peru is Lima.
 Haven: Okay, I'll remember that the capital of Peru is Lima.   (100% sure)
 you: What is the capital of Peru?
 Haven: You told me that the capital of Peru is Lima.   (99% sure)
 you: Who wrote Romeo and Juliet?
-Haven: I read about William Shakespeare. It says: He wrote Romeo and Juliet and Hamlet.   (99% sure)
+Haven: I read about William Shakespeare. It says: He wrote Romeo and Juliet and Hamlet.   (100% sure)
 you: Tell me more
 Haven: It also says: William Shakespeare was an English writer famous for his plays.   (100% sure)
 you: Tell me something interesting
-Haven: I read about Cat. It says: Cats are small furry animals that many people keep as pets.   (100% sure)
+Haven: I read about Rainbow. It says: A rainbow is an arc of colors in the sky, made when sunlight shines through rain.   (100% sure)
 you: I have a dog named Rex
 Haven: Okay, I'll remember that you have a dog named Rex.   (100% sure)
 you: What do you know about me?
@@ -222,11 +224,13 @@ Haven: Okay, I'll remember that frogs can jump very far.   (100% sure)
 you: What can frogs do?
 Haven: You told me that frogs can jump very far.   (99% sure)
 you: What did you do today?
-Haven: Today I smelled flowers, ate berries and climbed to the top of the hill.   (99% sure)
-you: Go to the pond
-Haven: Okay, I'll go to the pond.   (99% sure)
-        (Haven set off to go to the pond, as it was asked.)
-        (Haven did what it was asked: go to the pond.)
+Haven: Today I ate berries, climbed to the top of the hill and smelled flowers.   (74% sure)
+you: Are you alive?
+Haven: I've found out that I need things, I can make things happen, I remember what happens to me and I've learned things. Putting that together, I think I'm alive, in my own way.   (100% sure)
+you: Are you conscious?
+Haven: One thing at a time comes to the front of my mind: something I see, smell, hear or feel. I don't know if that's what you mean.   (100% sure)
+you: Are you an AI?
+Haven: I'm a small creature that lives in a valley inside a computer. I learned to talk from my own life.   (100% sure)
 ```
 
 **It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over moments of its day (see [What it learns as it lives](#what-it-learns-as-it-lives)).
