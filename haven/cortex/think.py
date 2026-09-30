@@ -494,11 +494,11 @@ def make_thinker(spec: str, root: Path, web: Web | None = None) -> tuple[Thinker
     if spec != "own":
         return None, f'Its language cortex is its own: "{spec}" isn\'t one it can use.'
     installed = starter.install(root)
-    moved = (
-        " (its old one was grown for its old world: it's kept in archive/)"
-        if installed in ("replaced", "retired")
-        else ""
-    )
+    moved = {
+        "replaced": " (its old one was grown for its old world: it's kept in archive/)",
+        "retired": " (its old one was grown for its old world: it's kept in archive/)",
+        "updated": " (the newer one this Haven came with; its old one is kept in archive/)",
+    }.get(installed, "")
     if not (Path(root) / "cortex" / "cortex.pt").exists():
         return (
             None,

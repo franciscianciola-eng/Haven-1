@@ -48,3 +48,26 @@ def test_a_cortex_grown_for_another_workspace_is_archived(tmp_path):
     assert (folder / "conversations.jsonl").exists()  # what it heard stays
     if usable:
         assert starter.fits(folder / "cortex.pt") and starter.install(tmp_path) == ""
+
+
+def test_an_older_starter_is_replaced_but_a_cortex_that_has_read_is_kept(tmp_path):
+    import json
+    import shutil
+
+    from haven.cortex import starter
+
+    if not (starter.available() and starter.stamp(starter.FOLDER)):
+        return  # (a copy of Haven without a stamped starter)
+    for name, levels, expected in (
+        ("older", {"2": {"status": "passed", "steps": 12925}}, "updated"),
+        ("read", {"1": {"status": "studying", "steps": 300}, "2": {"status": "passed", "steps": 12925}}, ""),
+    ):
+        root = tmp_path / name
+        (root / "cortex").mkdir(parents=True)
+        for f in starter.FILES:
+            shutil.copyfile(starter.FOLDER / f, root / "cortex" / f)
+        (root / "cortex" / "progress.json").write_text(json.dumps({"level": 1, "levels": levels}))  # (no stamp)
+        assert starter.install(root) == expected, name
+        assert bool(list((root / "archive").glob("cortex-*/cortex.pt"))) == (expected == "updated")
+        assert (starter.stamp(root / "cortex") == starter.stamp(starter.FOLDER)) == (expected == "updated")
+        assert starter.install(root) == ""  # and it stays as it is from then on

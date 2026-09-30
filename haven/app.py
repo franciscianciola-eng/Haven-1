@@ -87,6 +87,10 @@ class Chat:
         installed = starter.install(root)
         if installed == "installed":
             self.log("It has its language cortex: its own, the one it was born with.")
+        elif installed == "updated":
+            self.log(
+                f"Its language cortex is the newer one this Haven came with (the old one is kept in {root / 'archive'})."
+            )
         elif installed:
             self.log(f"Its old language cortex was grown for its old world, so it's kept in {root / 'archive'}.")
         if not (root / "cortex" / "cortex.pt").exists():
