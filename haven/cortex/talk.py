@@ -50,6 +50,8 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "How are things?",
         "Everything okay?",
         "How's your day going?",
+        "How are you now?",
+        "How are you feeling now?",
     ),
     "hungry": (
         "Are you hungry?",
@@ -196,6 +198,7 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "How many days old are you?",
         "When were you born?",
         "How long have you lived?",
+        "How old are you now?",
     ),
     "place": (
         "Where are you?",
@@ -277,12 +280,18 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What was the best day of your life?",
         "What's your favorite memory?",
         "Tell me about a good day you had.",
+        "What was the best day you ever had?",
+        "Tell me about your best day.",
+        "What was your happiest day?",
     ),
     "worst day": (
         "What was your worst day?",
         "What's your saddest memory?",
         "What was the worst day of your life?",
         "Tell me about a bad day you had.",
+        "What was the worst day you ever had?",
+        "Tell me about your worst day.",
+        "What was your saddest day?",
     ),
     "personality": (
         "What are you like?",
@@ -291,6 +300,11 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Tell me about your personality.",
         "What sort of creature are you?",
         "How would you describe yourself?",
+        "What are you like now?",
+        "What are you like these days?",
+        "What kind of personality do you have?",
+        "Tell me what you're like.",
+        "What's your character like?",
     ),
     "changed": (
         "Have you changed?",
@@ -298,6 +312,10 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Are you different now?",
         "Have you changed since you were little?",
         "How are you different now?",
+        "Have you changed much?",
+        "How have you changed over the years?",
+        "Did you change?",
+        "Are you different from before?",
     ),
     "favorite place": (
         "What's your favorite place?",
@@ -305,6 +323,10 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Where do you like to go?",
         "Where do you like to be?",
         "Where's your favorite spot?",
+        "What's your favourite place?",
+        "Where do you like to go most?",
+        "What's your favorite spot in the valley?",
+        "Where do you like being most?",
     ),
     "season": (
         "What season is it?",
@@ -313,6 +335,11 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Is it summer?",
         "Is it winter?",
         "What's it like in your valley right now?",
+        "Which season are we in?",
+        "Is it spring?",
+        "Is it autumn?",
+        "Is it fall?",
+        "What season is it in your valley?",
     ),
     "weather": (
         "What's the weather like?",
@@ -320,12 +347,18 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What's the weather like today?",
         "Is it nice out?",
         "How's the weather in your valley?",
+        "How's the weather today?",
+        "What's the weather like now?",
+        "What's the weather doing?",
     ),
     "favorite season": (
         "What's your favorite season?",
         "Which season do you like best?",
         "What season do you like most?",
         "Do you have a favorite season?",
+        "Which season is your favorite?",
+        "What's your favourite season?",
+        "Which season do you like the most?",
     ),
     "afraid": (
         "What are you afraid of?",
@@ -333,6 +366,10 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Are you scared of anything?",
         "What frightens you?",
         "Is there anything you're afraid of?",
+        "What are you scared of?",
+        "Are you afraid of anything?",
+        "What do you fear?",
+        "Is there anything that scares you?",
     ),
     "story": (
         "Tell me your story.",
@@ -2008,7 +2045,8 @@ TOPICS = {
 
 ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it comes to mind last, where it's clearest
     "season": r"\bseasons?\b|\bweather\b|\bwinter\b|\bsummer\b|\bspring\b|\bautumn\b|\bnice out\b|\bright now\b",
-    "character": r"\bpersonality\b|\bwhat are you like\b|\bchanged?\b|\bdifferent\b|\bsort of creature\b|"
+    "character": r"\bpersonality\b|\bwhat are you like\b|\bchanged?\b|\bdifferent\b|\bsort of creature\b|\bnature\b|"
+    r"\bsame as\b|\bgr[eo]w up\b|\bgrown\b|\bas a creature\b|\bkind of creature\b|"
     r"\bdescribe yourself\b|\babout yourself\b|\bwhat are you\b|\bare you (?:very |a little )?(?:"
     + "|".join(w.removeprefix("a ") for pair in TRAIT_WORDS.values() for w in pair)
     + r")\b",
@@ -2019,10 +2057,11 @@ ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it com
     "memory": r"\bremember\b|\bhappened to you\b",
     "self": r"\balive\b|\breal\b|\bliving thing\b|\bwhat are you\b|\bwhat kind of thing\b|\babout yourself\b|"
     r"\bdescribe yourself\b|\bwhat exactly are you\b|\ban animal\b",
-    "favorites": r"\bfavou?rite (?:place|spot|season)\b|\bwhere do you like\b|\bseason do you like\b|\bseason do you\b",
-    "fears": r"\bafraid\b|\bscared of\b|\bscares? you\b|\bfrighten",
-    "best day": r"\bbest day\b|\bhappiest\b|\bfavou?rite memory\b|\bgood day\b",
-    "worst day": r"\bworst day\b|\bsaddest\b|\bbad day\b",
+    "favorites": r"\bfavou?rite (?:place|spot|season)\b|\bwhere\b[^?]*\b(?:like|love)\b|\bseasons?\b[^?]*\b(?:like|love|best|"
+    r"favou?rite)\b|\b(?:like|love)\b[^?]*\bseasons?\b|\bbest season\b|\bpart of the valley\b",
+    "fears": r"\bafraid\b|\bscared\b|\bscar(?:es?|y)\b|\bfrighten|\bfears?\b",
+    "best day": r"\bbest day\b|\bhappiest\b|\bfavou?rite memory\b|\bgood day\b|\bday\b[^?]*\bbest\b",
+    "worst day": r"\bworst day\b|\bsaddest\b|\bbad day\b|\bday\b[^?]*\bworst\b",
 }
 
 
