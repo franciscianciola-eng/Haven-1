@@ -32,3 +32,15 @@ def test_mac_app(tmp_path):
     launcher = z.getinfo("Haven.app/Contents/MacOS/Haven")
     assert launcher.create_system == 3 and (launcher.external_attr >> 16) & 0o111  # it can be run
     assert z.read("Haven.app/Contents/Resources/Haven.icns")[:4] == b"icns"
+
+
+def test_windows_zip(tmp_path):
+    spec = importlib.util.spec_from_file_location("make_zip", ROOT / "packaging" / "make_zip.py")
+    make_zip = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(make_zip)
+    z = zipfile.ZipFile(make_zip.build(ROOT, tmp_path / "Haven-for-Windows.zip"))
+    names = set(z.namelist())
+    assert {"Haven/Start Haven.bat", "Haven/READ ME FIRST.txt", "Haven/pyproject.toml", "Haven/haven/app.html"} <= names
+    assert not any(n.startswith(("Haven/tests/", "Haven/packaging/")) for n in names)
+    assert b"\r\n" in z.read("Haven/Start Haven.bat")  # (as Windows likes its batch files)
+    assert (z.getinfo("Haven/start-haven.sh").external_attr >> 16) & 0o111  # a Mac or Linux can run its launcher
