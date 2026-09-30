@@ -409,7 +409,7 @@ class Trainer:
             marks.append(mark[-limit:])
             states.append(np.asarray(m["state"], dtype=np.float32))
             understand.append(i % 6 == 0)
-        length = max(len(s) for s in seqs)
+        length = min(-(-max(len(s) for s in seqs) // 64) * 64, self.model.cfg.context + 1)  # (a few sizes of batch)
         ids = torch.full((b, length), END, dtype=torch.long)
         targets = torch.full((b, length - 1), -100, dtype=torch.long)
         for i, (seq, mark) in enumerate(zip(seqs, marks, strict=True)):

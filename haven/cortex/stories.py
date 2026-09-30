@@ -470,7 +470,8 @@ STORIES = (  # the beginnings of some stories it heard as it grew up
 )
 
 _SENTENCE = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"']))\s+(?=[\"'(]?[A-Z])")
-_SHORT = re.compile(r"\b(Mr|Mrs|Dr|St|Mt)\.")
+_SHORT = re.compile(r"\b(Mr|Mrs|Dr|St|Mt|[A-Z])\.")  # ("Mr. Fox" and "Thornton W. Burgess" go on)
+_NOT_STORY = re.compile(r"^(?:By\s|BY\s|(?:CHAPTER\s+|Chapter\s+)?[IVXLC]+\.?\s|\d+\.\s)")  # a byline, a heading
 
 
 def sentences(text: str) -> list[str]:
@@ -482,7 +483,7 @@ def sentences(text: str) -> list[str]:
 def from_passage(title: str, passage: str, rng: random.Random | None = None, most: int = 70) -> Story | None:
     """A story as it has it in mind from a passage it heard: the first sentence or two, and how it goes on (a sentence
     or two). With `rng`, from the start of some paragraph of it that isn't someone talking."""
-    paragraphs = [p for p in passage.split("\n\n") if p.strip()]
+    paragraphs = [p for p in passage.split("\n\n") if len(p.split()) >= 6 and not _NOT_STORY.match(p.strip())]
     starts = [i for i, p in enumerate(paragraphs) if not p.lstrip().startswith(('"', "'"))] or [0]
     start = rng.choice(starts[:-1] or starts) if rng else 0
     found = [s for s in sentences(" ".join(paragraphs[start:])) if 3 <= len(s.split()) <= 45]

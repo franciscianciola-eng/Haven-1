@@ -148,6 +148,22 @@ def test(trainer: Trainer, items: dict, held: dict[str, list[str]]) -> dict:
     return {k: round(v, 4) for k, v in results.items() if v is not None}
 
 
+def pack(work: Path, heard: hearing.Heard, step: str, out: Path) -> None:
+    """The snapshot at a step, saved as the cortex Haven starts with (see starter.pack)."""
+    trainer = Trainer(work, device="cpu")
+    snapshot = torch.load(work / "snapshots" / f"step-{step}.pt", map_location="cpu", weights_only=False)
+    trainer.model.load_state_dict({k: v.float() for k, v in snapshot["model"].items()})
+    trainer.progress["heard"] = {
+        "words": sum(heard.words().values()),
+        "speech": heard.words()["speech"],
+        "books": len(heard.books),
+    }
+    trainer.progress["hearing"]["kept"] = int(step)
+    trainer.progress["level"] = 1  # at home, it can go on to read the curriculum (haven learn)
+    starter.pack(trainer, out)
+    print(f"saved the cortex at step {step} to {out}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--work", default=str(ROOT / "dist" / "grown"))
@@ -161,10 +177,15 @@ def main() -> None:
     parser.add_argument("--talk", type=int, default=3, help="one step in this many is practice talking about itself")
     parser.add_argument("--every", type=int, default=400)
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--pack", metavar="STEP", help="save the snapshot at this step as the cortex Haven starts with")
+    parser.add_argument("--out", default=str(starter.FOLDER), help="where --pack saves it")
     args = parser.parse_args()
     torch.set_num_threads(args.threads)
     work = Path(args.work)
     heard = hearing.load(Path(args.corpus))
+    if args.pack:
+        pack(work, heard, args.pack, Path(args.out))
+        return
     if not (work / "cortex" / "cortex.pt").exists():
         create(work, heard, args.pieces, args.width, args.layers)
     torch.manual_seed(0)
