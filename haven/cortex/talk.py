@@ -2810,6 +2810,7 @@ def _thing_turn(moment: dict, rng: random.Random) -> Turn:
 
 # Kinds of questions whose answers are long, word-for-word recollections: more practice with these when set above 0.
 EMPHASIS = 0.0
+SPEAKING_UP = 0.25  # how many of the conversations it learns from start with it saying something of its own accord
 # Firsts that the lives it learns from don't have, so it learns to tell whatever comes to mind, not what usually does.
 UNUSUAL = (
     "I moved to a new, bigger world: a valley with a hill, a pond, trees, and things to use.",
@@ -3116,7 +3117,7 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
 
     just = None
     introduced_now = False
-    if rng.random() < 0.25:  # it speaks up first, without being asked
+    if rng.random() < SPEAKING_UP:  # it speaks up first, without being asked
         spoke = speaking_up(moment, known, rng, person, told, book)
         if spoke is not None:
             note, turn, asked = spoke

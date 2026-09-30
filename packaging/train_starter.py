@@ -40,10 +40,14 @@ def main() -> None:
     parser.add_argument(
         "--lr", type=float, help="learning rate (default: the size's own; lower it to carry on training)"
     )
+    parser.add_argument(
+        "--speaking", type=float, default=talk.SPEAKING_UP, help="share of conversations where it speaks up first"
+    )
     args = parser.parse_args()
     if args.threads:
         torch.set_num_threads(args.threads)
     talk.EMPHASIS = args.emphasis
+    talk.SPEAKING_UP = args.speaking
     torch.manual_seed(0)
     scale = {"pieces": 6.0, "batch": 32, **({"lr": args.lr} if args.lr else {})}
     trainer = Trainer(Path(args.work), size=args.size, device="cpu", scale=scale)  # carries on from the work folder
