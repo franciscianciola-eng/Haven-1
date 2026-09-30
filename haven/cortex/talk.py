@@ -2484,6 +2484,13 @@ _HEDGE = re.compile(
 )
 
 
+NOT_ANSWERS = re.compile(  # what people say when they don't answer
+    r"(?:no+|nope|nah|yes|yeah|yep|ok|okay|sure|maybe|idk|dunno|i don'?t know|not telling|nothing|none|lol|haha+|"
+    r"hi|hello|hey|what|why|huh|hm+|um+|sorry|never mind|nevermind|pass|skip|guess|you tell me)",
+    re.IGNORECASE,
+)
+
+
 def question_note(key: str) -> str:
     return f"I'd like to know {key}."
 
@@ -2501,7 +2508,7 @@ def answer_to(key: str | None, reply: str) -> str | None:
         return None
     t = _HEDGE.sub("", t, count=1)
     t = _HEDGE.sub("", t, count=1)
-    if not t:
+    if not t or NOT_ANSWERS.fullmatch(t):
         return None
     if key == "how old you are":
         found = re.search(r"\d+", t)

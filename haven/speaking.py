@@ -120,7 +120,7 @@ class Initiative:
         if drives[need] >= NEED and now - self.needs.get(need, -1e9) > 600:
             self.needs[need] = now
             return "need", need_note(need, float(drives[need]), mind.body.cold()), None
-        if now - max(self.last_words, self.last_spoke) < IDLE or self.rng.random() > 0.35:
+        if now - max(self.last_words, self.last_spoke) < IDLE * (1.5 - friendly) or self.rng.random() > 0.35:
             return None
         return self._something(mind, readings())
 

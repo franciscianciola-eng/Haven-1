@@ -357,7 +357,7 @@ Books come from Project Gutenberg's mirrors, never from www.gutenberg.org itself
 | Command | What it does |
 |---|---|
 | `haven` or `haven live` | Live with Haven: its life in real time, the dashboard, and the terminal to talk. Options: `--speed`, `--port`, `--no-browser`, `--cortex none` (no language cortex), and for a new life `--seed` and `--name`. |
-| `haven live --ticks N` | Fast-forward N moments without the dashboard (a day is 1,200). |
+| `haven live --ticks N` | Fast-forward N moments without the dashboard (a day is 1,200). While it's living with you in the terminal, `/pass DAYS` lets days go by as fast as it can live them. |
 | `haven status` | What's going on inside it right now. |
 | `haven check` | Measure it against the 14 indicator properties (`--json` for the raw numbers). |
 | `haven story` | Its life story. |
@@ -376,6 +376,8 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 - Its words from you are names and needs; anything more fluent comes from its language cortex, which is small and speaks only as well as it has studied. It talks about itself and its valley, about you if you tell it about yourself, and about the wider world only what it has read. The names it uses for the valley's things ("the bell", "apples") are the words it's given for what it does, like a parent saying "you rang the bell!"; what it knows about each thing is what happened when it tried.
 - The sentences it learns for its own states at level 2 were written by people, describing states that its instruments measure. What it learns is to say the right one at the right time, not new ways of describing itself, and it can still say the wrong one.
 - Its cortex is small, so what it recalls word for word can come out a little wrong: an unusual name clipped ("Biscuit" as "Bis"), a detail of its day or its life story missing or out of order. It's reliable with short things (your name, what you told it, what it read, what a thing is like) and less so with long lists.
+- Its character comes from a few simple habits (how much it explores, plays, wanders far, how it feels, how stirred up it gets, how being with people feels), measured against simulated Havens. It's real in that it comes from how it has lived and changes what it does, but it's a sketch of a personality, not a rich one.
+- When it speaks up, what the moment calls for (you came back, a season turned, it got burned, it's curious about you) is noticed by simple rules; the words are its own cortex's, from what comes to mind. It can only ask about the things it has learned to ask about, and it understands short answers to them.
 - The indicator properties come from theories that may be wrong, and each is implemented in one simple way among many possible ones. None of this has been peer reviewed.
 
 ## Development

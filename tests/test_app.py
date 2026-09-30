@@ -61,6 +61,10 @@ class Stand(Thinker):
         self._tell("words", "I feel fine, thank you.")
         return "I feel fine, thank you.", 0.8
 
+    def speak_up(self, life, note):
+        self.notes = [*getattr(self, "notes", []), note]
+        return {"You came back.": "Hi! You're back."}.get(note, "Something to say."), 0.7
+
 
 @pytest.fixture
 def app(tmp_path):
@@ -110,6 +114,35 @@ def test_talking_in_the_app(app, tmp_path):
     assert remembered[-1]["haven"] == "I feel fine, thank you."
     assert call(port, "/api/state")["conversation"][-1]["text"] == "I feel fine, thank you."
     assert status(port, "/api/chat/99") == 404
+
+
+def test_it_speaks_up_when_someone_is_there(app):
+    life, chat, port = app
+    life.thinker = chat.thinker  # (as when its language area is ready)
+    life.initiative.away_for(3600)  # they last talked an hour ago
+    assert call(port, "/api/state?seen=1")["spoken"] == []  # the page is open and looked at: someone came back
+    for _ in range(200):
+        spoken = call(port, "/api/state?seen=1")["spoken"]
+        if spoken:
+            break
+        time.sleep(0.05)
+    assert [m["text"] for m in spoken] == ["Hi! You're back."] and chat.thinker.notes == ["You came back."]
+    assert life.conversation[-1] == {"tick": life.conversation[-1]["tick"], "who": "haven", "text": "Hi! You're back."}
+
+
+def test_letting_time_pass_in_the_app(app):
+    life, chat, port = app
+    for days in (0, 241, "a year", 2.5):
+        assert status(port, "/api/pass", {"days": days}) == 400
+    assert call(port, "/api/pass", {"days": 1}) == {"ok": True, "days": 1}
+    assert status(port, "/api/pass", {"days": 1}) == 409  # (it's already going by)
+    assert call(port, "/api/state")["passing"]["total"] == 1200
+    assert status(port, "/api/chat", {"text": "hi"}) == 503  # it can't talk while time goes by
+    for _ in range(600):
+        if call(port, "/api/state")["passing"] is None:
+            break
+        time.sleep(0.1)
+    assert life.passing is None and life.initiative.passed.startswith("A whole day went by.")
 
 
 def test_only_this_computer_can_use_it(app):
