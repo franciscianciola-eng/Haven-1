@@ -4,16 +4,16 @@
  "levels": {
   "2": {
    "status": "passed",
-   "steps": 19263,
+   "steps": 18500,
    "tests": {
-    "self-report": 0.8208955223880597,
-    "understanding": 1.0,
-    "conversation": 0.9666666666666667
+    "self-report": 0.8059701492537313,
+    "understanding": 0.99,
+    "conversation": 0.975
    },
    "pieces": 1200
   }
  },
- "steps": 19263,
+ "steps": 18500,
  "tokens": 0,
  "started": 1790655379.0371344
 }

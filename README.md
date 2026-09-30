@@ -190,37 +190,41 @@ Words it learns from you stay few. For language beyond that, Haven has a languag
 
 **It remembers you.** Tell it your name ("I'm Sam", "my name is Sam") and it remembers it, and greets you by name. Tell it things about yourself ("I have a dog called Rex", "my favorite color is green", "I live in Lisbon") and it says it will remember, and does: ask it later ("what's my dog called?") and it tells you what you told it. It's born having read a little book of simple facts (the first lines of about eighty encyclopedia articles, from the Moon to penguins), and when it doesn't know something and reads about it, it remembers what it read, so the next time you ask, it knows. All of this is kept with its life, on your computer.
 
-**It's born talking about itself, its valley and you.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of six simulated lives of Haven, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, what it had done and found out, and what it would answer if asked. That covers about 45 kinds of questions about itself in many wordings ("How are you?", "What did you do today?", "What do you like?", "What can you do?", "Tell me your story", "Are you alive?", …); six kinds of questions about each of the valley's things ("What do you know about the bell?", "Do you like the thorns?", "Where is the pond?", "Can you eat toadstools?", …); people telling it their name and things about themselves, and asking about them later; and questions about the wider world, answered from what it has read, or with "I don't know". The answers it learned are worked out from its state and from what came to mind at that moment, so to answer right it has to read its own state and use its memories. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
+**It's born talking about itself, its valley and you.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of six simulated lives of Haven, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, what it had done and found out, and what it would answer if asked. That covers about 45 kinds of questions about itself in many wordings ("How are you?", "What did you do today?", "What do you like?", "What can you do?", "Tell me your story", "Are you alive?", …); six kinds of questions about each of the valley's things ("What do you know about the bell?", "Do you like the thorns?", "Where is the pond?", "Can you eat toadstools?", …); people telling it their name and things about themselves or the world, and asking about them later; being asked to do things in its valley; sums; and questions about the wider world, answered from what it has read (and "tell me more"), or with "I don't know". The answers it learned are worked out from its state and from what came to mind at that moment, so to answer right it has to read its own state and use its memories. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
 
-Tested on a simulated life it never saw while learning, with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 93% of them exactly as its state and what came to mind say it should (91% when the names and memories involved are ones it never met while learning), it says what state it's in 78% of the time, and reading words about a need brings that need to mind almost every time. It's best at short answers: your name, what you told it, what it has read, what a thing in its valley is like, and knowing when it doesn't know. Longer recollections, like its whole day, its life story or everything it has found in its valley, sometimes come out with a detail wrong or in the wrong order. A conversation with it in the app, a day and a half after it was born:
+Tested on a simulated life it never saw while learning, with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 93% of them exactly as its state and what came to mind say it should (94% when the names and memories involved are ones it never met while learning), it says what state it's in 81% of the time, and reading words about a need brings that need to mind almost every time. On a thousand questions of all the kinds it now knows, it answers 95%; the cortex it had before answered 61%, mostly because it had never learned the new kinds (being asked to do things, being taught, sums, "tell me more"). It's best at short answers: your name, what you told it or taught it, what it has read, doing what you ask, what a thing in its valley is like, and knowing when it doesn't know. Sums with big numbers now and then come out with a digit wrong, and longer recollections, like its whole day, its life story or everything it has found in its valley, sometimes come out with a detail wrong or in the wrong order. A conversation with it in the app, about two days after it was born:
 
 ```
-you: hi
-Haven: Hi! I feel fine.   (97% sure)
-you: Hi, I'm Francis.
-Haven: Nice to meet you, Francis!   (100% sure)
-you: what did you do today?
-Haven: Today I drank from the pond and climbed to the top of the hill.   (99% sure)
-you: what do you know about berries?
-Haven: I've eaten them twice. They are good to eat. I like them.   (100% sure)
-you: do you like the thorns?
-Haven: No. They hurt me.   (100% sure)
-you: where is the pond?
-Haven: It's in the south-east of the valley, with sand all around it.   (100% sure)
-you: I have a dog named Biscuit.
-Haven: Okay, I'll remember that you have a dog named Biscuit.   (95% sure)
-you: what's my dog called?
-Haven: You told me that you have a dog named Biscuit.   (82% sure)
-you: what's my name?
-Haven: Your name is Francis.   (99% sure)
-you: what can you do?
-Haven: I can walk around, eat, touch things and rest, and I can talk a little. I've found out I can climb the hill and drink from the pond.   (97% sure)
-you: what is the moon?
-Haven: I read about Moon. It says: The Moon is the Earth's only natural satellite.   (100% sure)
-you: who wrote Romeo and Juliet?
-Haven: I don't know. I haven't learned about that.   (100% sure)
-you: bye
-Haven: Bye, Francis! Come back soon.   (100% sure)
+you: Hi, I'm Sam
+Haven: Nice to meet you, Sam!   (100% sure)
+you: Ring the bell
+Haven: I haven't seen the bell yet, so I don't know where to go.   (100% sure)
+you: What's 12 times 7?
+Haven: 12 times 7 is 84.   (99% sure)
+you: The capital of Peru is Lima.
+Haven: Okay, I'll remember that the capital of Peru is Lima.   (100% sure)
+you: What is the capital of Peru?
+Haven: You told me that the capital of Peru is Lima.   (99% sure)
+you: Who wrote Romeo and Juliet?
+Haven: I read about William Shakespeare. It says: He wrote Romeo and Juliet and Hamlet.   (99% sure)
+you: Tell me more
+Haven: It also says: William Shakespeare was an English writer famous for his plays.   (100% sure)
+you: Tell me something interesting
+Haven: I read about Cat. It says: Cats are small furry animals that many people keep as pets.   (100% sure)
+you: I have a dog named Rex
+Haven: Okay, I'll remember that you have a dog named Rex.   (100% sure)
+you: What do you know about me?
+Haven: Your name is Sam. You told me that you have a dog named Rex.   (99% sure)
+you: Frogs can jump very far.
+Haven: Okay, I'll remember that frogs can jump very far.   (100% sure)
+you: What can frogs do?
+Haven: You told me that frogs can jump very far.   (99% sure)
+you: What did you do today?
+Haven: Today I smelled flowers, ate berries and climbed to the top of the hill.   (99% sure)
+you: Go to the pond
+Haven: Okay, I'll go to the pond.   (99% sure)
+        (Haven set off to go to the pond, as it was asked.)
+        (Haven did what it was asked: go to the pond.)
 ```
 
 **It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over moments of its day (see [What it learns as it lives](#what-it-learns-as-it-lives)).
