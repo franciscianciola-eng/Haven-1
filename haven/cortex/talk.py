@@ -24,6 +24,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..mind import Mind, need_words
+from ..selfmodel import VERDICTS
 from ..world import BELL, FIRE, NEST, SAND, THORN, TREE, WATER
 from .book import BOOK
 
@@ -2259,6 +2260,11 @@ UNUSUAL = (
 def other_life(moment: dict, rng: random.Random) -> tuple[dict, dict]:
     """The same moment in the life of a Haven with another name, or with a first the lives it learned from lacked."""
     known, answer = dict(moment["memo"]), dict(moment["answers"])
+    if rng.random() < 0.5:  # what another Haven might have found out about itself (so it says what it has)
+        found = [text for _, _, text in SELF_FOUND if rng.random() < 0.5]
+        verdict = rng.choice(VERDICTS)
+        known["self"] = answer["alive"] = (f"I've found out that {and_list(found)}. " if found else "") + verdict
+        answer["what"] = f"I'm Haven. I live in a valley. {verdict}"
     if rng.random() < 0.3:
         name = person_name(rng)
         known["me"] = known["me"].replace("I'm Haven,", f"I'm {name},")

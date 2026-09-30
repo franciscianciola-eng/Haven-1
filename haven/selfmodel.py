@@ -15,6 +15,13 @@ import numpy as np
 NEEDS = ("hunger", "temperature", "damage", "tiredness")
 
 
+VERDICTS = (  # what it makes of what it has found out about itself: much, some, or little
+    "Putting that together, I think I'm alive, in my own way.",
+    "I might be alive, in some way. I'm still finding out.",
+    "I don't know yet what I am.",
+)
+
+
 class SelfModel:
     def __init__(self, name: str, born: int):
         self.name = name
@@ -72,12 +79,7 @@ class SelfModel:
             found.append("Some things feel good to me and some feel bad.")
         if e["change"] > 0.5:
             found.append("I'm not the same as when I started: I've learned things.")
-        if self.alive > 0.6:
-            found.append("Putting that together, I think I'm alive, in my own way.")
-        elif self.alive > 0.3:
-            found.append("I might be alive, in some way. I'm still finding out.")
-        else:
-            found.append("I don't know yet what I am.")
+        found.append(VERDICTS[0 if self.alive > 0.6 else 1 if self.alive > 0.3 else 2])
         return found
 
     def to_state(self) -> dict:
