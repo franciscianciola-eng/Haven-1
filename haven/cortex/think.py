@@ -558,7 +558,10 @@ class OwnThinker(Thinker):
         if fact:  # something about themselves: it wonders, and has something of its own to say
             curious = mind.character.traits["curious"]
             choices = engage.wonders(fact)
-            if choices and random.random() < 0.3 + 0.6 * curious:
+            can_learn = [q for q in choices if engage.learnable(q)]
+            if can_learn and random.random() < 0.7:  # (most often what it can learn from the answer to)
+                choices = can_learn
+            if choices and random.random() < 0.6 + 0.4 * curious:  # (a curious Haven nearly always asks)
                 question = random.choice(choices)
                 follow.append(engage.wonder_note(question))
             own = engage.own_for(fact, favorites)

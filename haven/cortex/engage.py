@@ -312,9 +312,11 @@ def learned_from(question: str, reply: str) -> str | None:
     answer = " ".join(reply.strip().split()).rstrip(".!")
     if not answer or "?" in answer or len(answer.split()) > 10:
         return None
-    doing = answer.split()[0].lower() in DOINGS
-    if doing and not re.match(r"^What does .+ (?:like to )?do\?$", question):
+    first = answer.split()[0].lower()
+    if first in DOINGS and not re.match(r"^What does .+ (?:like to )?do\?$", question):
         return None
+    if first in ("in", "on", "at", "under", "near") and not question.startswith("Where "):
+        return None  # (where something is, to a question that isn't where)
     if re.match(r"^What does an? .+ do\?$", question):  # ("They fix things." → "a plumber fixes things")
         answer = third_person(re.sub(r"^(?:they|he|she|you|it)\s+", "", answer, flags=re.IGNORECASE))
     answer = _FILLER.sub("", answer, count=1)
@@ -552,6 +554,12 @@ ANSWERS = (  # what people might answer to what it wonders (any answer will do: 
 NOT_SURE = ("I don't know.", "Not sure.", "Hmm, good question.", "lol", "Why?")
 
 
+def learnable(question: str) -> bool:
+    """Whether the answer to something it wonders is something it can learn ("Where do octopuses live?": yes; "Have
+    you ever seen an octopus?": no)."""
+    return any(re.match(pattern, question) for pattern, _ in ANSWERS)
+
+
 def wonder_answer(question: str, rng: random.Random) -> str | None:
     """An answer someone might give to what it wondered, if it's a kind of question it can learn from."""
     for pattern, answers in ANSWERS:
@@ -625,9 +633,9 @@ def told_practice(
     what it has of its own, what it wonders; then maybe their answer, and what it learns; or "what about you?"."""
     glad, _ = REACTIONS.get(mood, REACTIONS[None])
     questions = wonders(fact)
-    learnable = [q for q in questions if any(re.match(pattern, q) for pattern, _ in ANSWERS)]
-    if learnable and rng.random() < 0.7:  # (practising most what it can learn from the answer to)
-        questions = learnable
+    can_learn = [q for q in questions if learnable(q)]
+    if can_learn and rng.random() < 0.7:  # (practising most what it can learn from the answer to)
+        questions = can_learn
     question = rng.choice(questions) if questions and rng.random() < 0.3 + 0.6 * curious else None
     own = own_for(fact, favorites) if rng.random() < 0.6 else None
     notes = [n for n in (wonder_note(question) if question else "", own_note(own) if own else "") if n]
