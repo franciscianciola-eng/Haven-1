@@ -177,6 +177,7 @@ class Life:
         passing = self.passing
         self.mind.brain_resting = True  # (time goes by too fast for its brain of neurons to live through it)
         self.mind.chemistry = {k: 1.0 for k in self.mind.chemistry}  # (so its mood is its usual one meanwhile)
+        hurt_before = self.mind.hurts()
         try:
             while passing["done"] < passing["total"] and not self._stop.is_set():
                 with self.lock:
@@ -200,6 +201,7 @@ class Life:
                 if self.thinker is not None and hasattr(self.thinker, "day"):
                     self.thinker.day.clear()  # what it noted of its day before is long ago now
                 self._last_night = time.monotonic()
+                mind.remember_hurts(hurt_before)  # (what hurt it meanwhile, its brain learns to fear now)
                 mind.brain_resting = False
             self.save()
             self.passing = None

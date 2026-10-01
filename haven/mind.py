@@ -387,6 +387,25 @@ class Mind:
         fun = any(k.use_tries[i] >= 2 and k.fun(i) > 0.1 and i not in bored for i in self.vision.kinds.alive())
         return float(fun) * math.exp(-self.fun / 4)
 
+    def hurts(self) -> dict[str, float]:
+        """How often each thing has hurt it or made it sick."""
+        return {
+            thing: float(stats.get("hurt", 0.0)) + float(stats.get("sick", 0.0)) for thing, stats in self.things.items()
+        }
+
+    def remember_hurts(self, before: dict[str, float]) -> None:
+        """After time went by too fast for its brain to live through: what hurt it meanwhile comes back to it, and
+        its amygdala learns to fear it now, as if again (a moment or two of each, with the hurt)."""
+        if self.brain is None:
+            return
+        remembered = False
+        for thing, n in self.hurts().items():
+            for _ in range(min(2, round(n - before.get(thing, 0.0)))):
+                self.brain.moment({f"see:{thing}": 1.0}, {"pain": 0.8}, {})
+                remembered = True
+        for _ in range(5 if remembered else 0):  # (and it calms down again)
+            self.brain.moment({}, {}, {})
+
     def bored(self) -> set[int]:
         """The kinds of things it has played with so much lately that it's had enough of them for now."""
         return {kind for kind, n in self.played.items() if n > BORED}

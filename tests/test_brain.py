@@ -128,3 +128,15 @@ def test_an_ordinary_moment_is_calm():
     for chemical in CHEMICALS:
         mean = sum(level[chemical] for level in levels) / len(levels)
         assert 0.5 < mean < 1.8, chemical
+
+
+def test_what_hurt_it_while_time_raced_by_it_fears_afterwards():
+    from haven.mind import Mind
+
+    mind = Mind(seed=7)
+    mind.brain = Brain(seed=7, size="tiny")
+    before = mind.hurts()
+    mind.things["fire"] = {"hurt": 2.0}  # (burned twice while its brain rested)
+    assert mind.brain.fear_of({"see:fire": 1.0}) < 0.2
+    mind.remember_hurts(before)
+    assert mind.brain.fear_of({"see:fire": 1.0}) > 0.45
