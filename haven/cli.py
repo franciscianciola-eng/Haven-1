@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import webbrowser
@@ -37,7 +38,14 @@ class Terminal:
         self.say(self._paint("1;33", f"{name}: ") + text)
 
 
+def share_cores() -> None:
+    """Before torch is loaded: its language cortex computes on all cores but one, and its brain on that one (see
+    brain.one_core), so the two never fight over them (unless you've chosen, with OMP_NUM_THREADS)."""
+    os.environ.setdefault("OMP_NUM_THREADS", str(max(1, (os.cpu_count() or 2) - 1)))
+
+
 def main(argv: list[str] | None = None) -> int:
+    share_cores()
     parser = argparse.ArgumentParser(
         prog="haven",
         description="Haven: an artificial creature built to meet the conditions scientific theories link to consciousness.",

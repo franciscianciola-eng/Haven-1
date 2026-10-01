@@ -73,6 +73,7 @@ SIZES = {
     "huge": (4096, 96, 16384),  # 427,600 neurons, 3.17 billion synapses
 }
 MOMENT = 12  # ms of brain time at each moment of its life
+THREADS = 1  # cores its brain computes on, in the thread it lives in (more fight the language cortex for them)
 COLUMN = (("RS", 64), ("IB", 8), ("CH", 8), ("FS", 15), ("LTS", 5))  # a minicolumn: 80 pyramidal cells, 20 interneurons
 E_CELLS, CELLS = 80, 100
 RELAYS = 8  # thalamic relay cells for each thing it senses
@@ -148,9 +149,18 @@ class Reading:
     ms: float = 0.0  # how long the moment took to compute (wall-clock ms)
 
 
+def one_core() -> None:
+    """Compute the brain on THREADS cores in this thread (the setting is the thread's own). Spread over every core,
+    alongside the language cortex or anything else the computer is doing, its many small steps wait on each other and
+    it slows down a hundredfold."""
+    if torch.get_num_threads() != THREADS:
+        torch.set_num_threads(THREADS)
+
+
 class Brain:
     def __init__(self, seed: int = 0, size: str = "standard", fresh: bool = True):
         """A newborn brain (or, with fresh=False, the wiring only, for load() to fill in)."""
+        one_core()
         self.seed, self.size = seed, size
         self.fresh = fresh
         columns, targets, relays = SIZES[size]
@@ -209,8 +219,10 @@ class Brain:
         # Most synapses between pyramidal cells start weak, and many silent: what they come to carry is learned.
         if self.fresh:  # (with its own random numbers, so the rest of the wiring is the same either way)
             own = torch.Generator().manual_seed(self.seed + 13)
-            sizes = torch.randint(1, 7, (cols * E_CELLS, C, CELLS), dtype=torch.uint8, generator=own)
-            sizes[torch.rand(sizes.shape, generator=own) < 0.6] = 0  # silent synapses
+            sizes = torch.empty((cols * E_CELLS, C, CELLS), dtype=torch.uint8)
+            for part in torch.split(sizes, 2048):  # (a part at a time, so growing takes little more memory than it)
+                part.copy_(torch.randint(1, 7, part.shape, generator=own))
+                part[torch.rand(part.shape, generator=own) < 0.6] = 0  # silent synapses
         else:
             sizes = torch.zeros((cols * E_CELLS, C, CELLS), dtype=torch.uint8)  # (load() fills them in)
         sizes[:, :, E_CELLS:] = torch.randint(
@@ -529,6 +541,7 @@ class Brain:
         `urges`: how strongly the body and mind push for each of the OPTIONS, 0 to 1.
         """
         started = time.perf_counter()
+        one_core()
         signals = signals or {}
         net = self.net
         net.begin()
@@ -796,6 +809,7 @@ class Brain:
         Thinking of something doesn't come through tired senses: its relay cells answer as if rested, or (top_down)
         its cortical cells are driven directly, as the thought of a thing excites them from within.
         """
+        one_core()
         net = self.net
         saved = [x.clone() for x in (net.v, net.u, net.ampa, net.nmda, net.gaba_a, net.gaba_b, net.arriving)]
         saved_recent, saved_t, saved_last = list(net.recent), net.t, net.last.clone()

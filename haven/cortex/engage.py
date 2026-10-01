@@ -263,10 +263,57 @@ def third_person(doing: str) -> str:
     return f"{v} {rest}".strip()
 
 
+# (an answer that starts like this is about what someone does, not where they live or what something is like)
+DOINGS = frozenset(
+    (
+        "play",
+        "chase",
+        "run",
+        "eat",
+        "sleep",
+        "swim",
+        "go",
+        "jump",
+        "walk",
+        "read",
+        "sing",
+        "dance",
+        "fly",
+        "climb",
+        "dig",
+        "bark",
+        "fetch",
+        "hunt",
+        "hide",
+        "sit",
+        "cook",
+        "paint",
+        "draw",
+        "write",
+        "work",
+        "help",
+        "fix",
+        "make",
+        "build",
+        "teach",
+        "grow",
+        "drive",
+        "ride",
+        "watch",
+        "catch",
+        "throw",
+    )
+)
+
+
 def learned_from(question: str, reply: str) -> str | None:
-    """What it learns from the answer to a question it asked, as a sentence ("octopuses live in the sea"), or None."""
+    """What it learns from the answer to a question it asked, as a sentence ("octopuses live in the sea"), or None
+    (no answer, or an answer to some other question: "Chase balls." to "What does Rex look like?")."""
     answer = " ".join(reply.strip().split()).rstrip(".!")
     if not answer or "?" in answer or len(answer.split()) > 10:
+        return None
+    doing = answer.split()[0].lower() in DOINGS
+    if doing and not re.match(r"^What does .+ (?:like to )?do\?$", question):
         return None
     if re.match(r"^What does an? .+ do\?$", question):  # ("They fix things." → "a plumber fixes things")
         answer = third_person(re.sub(r"^(?:they|he|she|you|it)\s+", "", answer, flags=re.IGNORECASE))

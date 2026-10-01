@@ -66,6 +66,11 @@ def repeats(text: str, context: str = "", times: int = 1) -> bool:
     return any(n > times and n > known.get(gram, 0) for gram, n in grams(text).items())
 
 
+def garbled(text: str) -> bool:
+    """Whether a draft has come out as babble ("Tababababa", a "word" far longer than any it knows)."""
+    return bool(re.search(r"[A-Za-z]{19,}|(\w{1,3})\1{5,}", text))
+
+
 def unfounded(text: str, context: str) -> bool:
     """Whether a draft says a number or a name that nothing in what came to mind, or was said, says (a slip in copying
     "84" or "Mehmet"; the answers it learned never do)."""
@@ -104,9 +109,16 @@ class Thread:
         return found[0] if found and time.monotonic() - found[1] < self.LASTS else None
 
     def mine(self, own: str) -> None:
+        from .engage import plural
+
         self.own = own
         parts = own.split(". ", 1)  # ("My favorite animal is the butterfly. They fly around my valley.": the reason)
-        self.reason = parts[1].rstrip(".") if len(parts) > 1 else self.reason
+        if len(parts) > 1 and not parts[0].startswith("I don't"):
+            reason = parts[1].rstrip(".")
+            thing = re.match(r"^My favou?rite \w+ (?:is|are) (?:the |an? )?(\w+)", parts[0])
+            if thing and reason.startswith("They "):  # ("butterflies fly around my valley")
+                reason = f"{plural(thing.group(1))} {reason[5:]}"
+            self.reason = reason
 
     def asked_to(self, req, decision) -> None:
         self.request = (req, decision)
@@ -612,9 +624,10 @@ class OwnThinker(Thinker):
                 words = self.tok.decode(tokens).strip()
                 found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
         mind = self.tok.decode(prompt)  # what came to mind, and what was said
-        # A draft that goes round in circles loses; so does one that says a number or name it can't back up.
+        # A draft that's babble loses, then one that goes round in circles, then one that says a number or name it
+        # can't back up.
         times = 2 if most > 100 else 1  # (a story can say "said the fox" twice)
-        found.sort(key=lambda d: (not repeats(d[0], mind, times), not unfounded(d[0], mind), d[1]))
+        found.sort(key=lambda d: (not garbled(d[0]), not repeats(d[0], mind, times), not unfounded(d[0], mind), d[1]))
         for words, _ in found:  # the ones it didn't pick pass by as thoughts; the likeliest comes last
             self._tell("draft")
             self._tell("words", words)

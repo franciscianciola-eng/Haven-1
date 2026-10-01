@@ -24,6 +24,16 @@ def test_the_answer_to_what_it_wondered_is_something_learned():
     assert engage.learned_from("Where do octopuses live?", "why do you ask?") is None
     assert engage.learned_from("What does a plumber do?", "They fix pipes.") == "a plumber fixes pipes"
     assert engage.learned_from("What does Max like to do?", "Run around.") == "Max likes to run around"
+    assert engage.learned_from("What does Rex look like?", "Chase balls.") is None  # (an answer to another question)
+
+
+def test_babble_and_a_favorites_reason():
+    from haven.cortex.think import Thread, garbled
+
+    assert garbled("Tababababababababa") and not garbled("Octopuses live in the sea. Thank you for telling me!")
+    talk = Thread()
+    talk.mine("My favorite animal is the butterfly. They fly around my valley.")
+    assert engage.why_reply(talk.reason) == "Because butterflies fly around my valley."
 
 
 def test_it_reacts_says_its_own_and_asks():
