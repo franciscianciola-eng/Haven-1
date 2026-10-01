@@ -13,10 +13,10 @@
    "pieces": 1200
   }
  },
- "steps": 38798,
+ "steps": 39116,
  "tokens": 0,
  "started": 1790655379.0371344,
- "starter": "20261001-131353",
+ "starter": "20261001-144730",
  "grown": {
   "from": "20260930-115059",
   "width": 2,
@@ -24,9 +24,9 @@
   "pieces": 3000
  },
  "hearing": {
-  "steps": 9197,
+  "steps": 9515,
   "seconds": 36001.012279564144,
-  "tokens": 35241984,
+  "tokens": 35889152,
   "tests": [
    {
     "step": 0,
@@ -391,10 +391,62 @@
     "bpb readers": 1.5073,
     "bpb series": 1.5714,
     "bpb classics": 1.6351
+   },
+   {
+    "step": 9240,
+    "conversation": 0.9133,
+    "self-report": 0.6377,
+    "understanding": 1.0,
+    "bpb speech": 1.2965,
+    "bpb bedtime": 1.3995,
+    "bpb tales": 1.5273,
+    "bpb rhymes": 1.8319,
+    "bpb readers": 1.5104,
+    "bpb series": 1.5719,
+    "bpb classics": 1.6349
+   },
+   {
+    "step": 9360,
+    "conversation": 0.91,
+    "self-report": 0.7681,
+    "understanding": 1.0,
+    "bpb speech": 1.2977,
+    "bpb bedtime": 1.3994,
+    "bpb tales": 1.5244,
+    "bpb rhymes": 1.8615,
+    "bpb readers": 1.5104,
+    "bpb series": 1.5692,
+    "bpb classics": 1.6292
+   },
+   {
+    "step": 9480,
+    "conversation": 0.9067,
+    "self-report": 0.6667,
+    "understanding": 1.0,
+    "bpb speech": 1.2989,
+    "bpb bedtime": 1.4005,
+    "bpb tales": 1.523,
+    "bpb rhymes": 1.8929,
+    "bpb readers": 1.5085,
+    "bpb series": 1.567,
+    "bpb classics": 1.6328
+   },
+   {
+    "step": 9515,
+    "conversation": 0.9067,
+    "self-report": 0.7246,
+    "understanding": 1.0,
+    "bpb speech": 1.2989,
+    "bpb bedtime": 1.4052,
+    "bpb tales": 1.5282,
+    "bpb rhymes": 1.8933,
+    "bpb readers": 1.5043,
+    "bpb series": 1.5686,
+    "bpb classics": 1.6313
    }
   ],
-  "settled": 14405.421411653995,
-  "kept": 9197
+  "settled": 17102.057850379955,
+  "kept": 9360
  },
  "heard": {
   "words": 12845184,
