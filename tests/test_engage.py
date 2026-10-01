@@ -28,9 +28,12 @@ def test_the_answer_to_what_it_wondered_is_something_learned():
 
 
 def test_babble_and_a_favorites_reason():
-    from haven.cortex.think import Thread, garbled
+    from haven.cortex.think import Thread, garbled, misnamed
 
     assert garbled("Tababababababababa") and not garbled("Octopuses live in the sea. Thank you for telling me!")
+    told = "My favorite animal is an octopus"
+    assert misnamed("Oh, actopus! Where do octopuses live?", told) and misnamed("Oh, a lion!", told)
+    assert not misnamed("Ooh, an octopus! Where do octopuses live?", told) and not misnamed("Ooh, octopuses!", told)
     talk = Thread()
     talk.mine("My favorite animal is the butterfly. They fly around my valley.")
     assert engage.why_reply(talk.reason) == "Because butterflies fly around my valley."

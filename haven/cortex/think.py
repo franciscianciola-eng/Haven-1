@@ -71,6 +71,21 @@ def garbled(text: str) -> bool:
     return bool(re.search(r"[A-Za-z]{19,}|(\w{1,3})\1{5,}", text))
 
 
+REACTION = re.compile(r"^(?:Oh|Ooh|Aww|Mmm|Hm)\b[^!?.]*?,\s*(?:an?\s+)?([^!?.,]+)!")
+
+
+def misnamed(text: str, heard: str | None) -> bool:
+    """Whether a draft's reaction names something as what they just told it that they didn't say ("Oh, a lion!" to
+    "My favorite animal is a giraffe"; "Oh, actopus!")."""
+    from .engage import singular
+
+    found = REACTION.match(text)
+    if not found or not heard:
+        return False
+    said = {singular(w) for w in re.findall(r"[a-z0-9']+", heard.lower())}
+    return any(singular(w) not in said for w in re.findall(r"[a-z0-9']+", found.group(1).lower()))
+
+
 def unfounded(text: str, context: str) -> bool:
     """Whether a draft says a number or a name that nothing in what came to mind, or was said, says (a slip in copying
     "84" or "Mehmet"; the answers it learned never do)."""
@@ -515,7 +530,8 @@ class OwnThinker(Thinker):
             return prompt + [YOU, *self.tok.encode(text), HAVEN]
 
         long = 180 if story_asked(text) == "tale" else 100  # (a story takes longer to tell)
-        words, confidence = self._say(prompt_for(known), state, drafts, long)
+        told = bool(just) and not learned  # (told something about them: more drafts, so one names it right)
+        words, confidence = self._say(prompt_for(known), state, drafts + 2 if told else drafts, long, heard=text)
         topic = None if sum_of(text) else topic_of(text)  # (a sum isn't something to look up)
         if words.startswith(DONT_KNOW[:24]) and self.web is not None and topic and not self.library.title_for(topic):
             if self.look_up(topic, life):  # it didn't know, so it reads about it, and says what it read
@@ -603,7 +619,9 @@ class OwnThinker(Thinker):
             mind.think(words, meaning, confidence)  # what it says enters its workspace, like anything it says
         return words, confidence
 
-    def _say(self, prompt: list[int], state, drafts: int, most: int = 100) -> tuple[str, float]:
+    def _say(
+        self, prompt: list[int], state, drafts: int, most: int = 100, heard: str | None = None
+    ) -> tuple[str, float]:
         """A few drafts of a reply; the likeliest is what it says, and how much they agree is part of how sure it is."""
         from .tokenizer import END, YOU
 
@@ -624,7 +642,15 @@ class OwnThinker(Thinker):
         # A draft that's babble loses, then one that goes round in circles, then one that says a number or name it
         # can't back up.
         times = 2 if most > 100 else 1  # (a story can say "said the fox" twice)
-        found.sort(key=lambda d: (not garbled(d[0]), not repeats(d[0], mind, times), not unfounded(d[0], mind), d[1]))
+        found.sort(
+            key=lambda d: (
+                not garbled(d[0]),
+                not misnamed(d[0], heard),
+                not repeats(d[0], mind, times),
+                not unfounded(d[0], mind),
+                d[1],
+            )
+        )
         for words, _ in found:  # the ones it didn't pick pass by as thoughts; the likeliest comes last
             self._tell("draft")
             self._tell("words", words)
