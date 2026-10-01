@@ -2877,16 +2877,31 @@ LIKED = (
     "pasta",
 )
 FAVORITES = {
-    "color": ("blue", "green", "red", "purple", "yellow", "orange", "pink", "black", "white", "teal"),
-    "food": ("pizza", "pasta", "sushi", "soup", "tacos", "curry", "pancakes", "noodles", "rice", "salad"),
-    "animal": ("cats", "dogs", "horses", "owls", "dolphins", "foxes", "elephants", "penguins", "wolves", "rabbits"),
+    "color": (
+        "blue", "green", "red", "purple", "yellow", "orange", "pink", "black", "white", "teal", "gold", "silver",
+        "brown", "gray", "turquoise", "lilac",
+    ),
+    "food": (
+        "pizza", "pasta", "sushi", "soup", "tacos", "curry", "pancakes", "noodles", "rice", "salad", "ice cream",
+        "chocolate", "strawberries", "spaghetti", "bananas", "cheese", "dumplings", "mangoes", "burgers", "apples",
+    ),
+    "animal": (  # (as people say it: "cats", or "an octopus")
+        "cats", "dogs", "horses", "owls", "dolphins", "foxes", "elephants", "penguins", "wolves", "rabbits",
+        "an octopus", "octopuses", "a giraffe", "giraffes", "tigers", "a tiger", "lions", "a lion", "an elephant",
+        "an owl", "an eagle", "eagles", "an otter", "otters", "a panda", "pandas", "koalas", "a koala", "bears",
+        "a bear", "whales", "a whale", "sharks", "a shark", "turtles", "a turtle", "frogs", "a frog", "hedgehogs",
+        "a hedgehog", "squirrels", "parrots", "a parrot", "ducks", "a duck", "monkeys", "a monkey", "zebras",
+        "a zebra", "kangaroos", "a kangaroo", "hamsters", "a hamster", "goats", "a cow", "cows", "a fox", "a dog",
+        "a cat", "an iguana", "an ostrich", "ants", "snails", "a snail", "a seal", "seals", "flamingos",
+        "a flamingo", "a dolphin", "a horse", "a rabbit", "a wolf", "a penguin", "bats", "a bat", "crabs", "a crab",
+    ),
     "season": ("spring", "summer", "autumn", "winter"),
     "game": ("chess", "football", "cards", "hide and seek", "tennis", "basketball", "Minecraft"),
     "song": ("Yesterday", "Imagine", "Hallelujah", "Clair de Lune", "Wonderwall"),
     "book": ("The Hobbit", "Matilda", "Dune", "Little Women", "Charlotte's Web"),
-    "drink": ("tea", "coffee", "orange juice", "milk", "lemonade", "water"),
+    "drink": ("tea", "coffee", "orange juice", "milk", "lemonade", "water", "hot chocolate", "apple juice"),
     "number": ("7", "3", "12", "42", "9", "21"),
-}
+}  # fmt: skip
 PLACES = (
     "London Paris Boston Tokyo Lagos Madrid Toronto Sydney Berlin Mumbai Chicago Dublin Oslo Cairo Lima Seoul Rome "
     "Denver Austin Glasgow Nairobi Lisbon Vienna Prague Manila Osaka Seattle Auckland Montreal Brighton"
