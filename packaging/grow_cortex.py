@@ -178,6 +178,12 @@ def main() -> None:
     parser.add_argument("--every", type=int, default=400)
     parser.add_argument("--settle", type=float, default=0.0, help="hours, after that, of mostly practising talking")
     parser.add_argument("--settle-lr", type=float, default=5e-5, help="learning rate while it settles")
+    parser.add_argument(
+        "--saying",
+        type=int,
+        default=1,
+        help="while it settles, of six moments practised, how many are saying its state",
+    )
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--pack", metavar="STEP", help="save the snapshot at this step as the cortex Haven starts with")
     parser.add_argument("--out", default=str(starter.FOLDER), help="where --pack saves it")
@@ -235,7 +241,7 @@ def main() -> None:
             group["lr"] = lr
         trainer.model.train()
         if talking:
-            loss, tokens = trainer._grounded_loss(moments["train"]), 0
+            loss, tokens = trainer._grounded_loss(moments["train"], args.saying if settling else 1), 0
         else:
             loss, tokens = text_loss(trainer, ids, args.batch)
         trainer.optimizer.zero_grad(set_to_none=True)

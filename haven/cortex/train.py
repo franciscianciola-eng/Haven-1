@@ -390,16 +390,18 @@ class Trainer:
             logits, _ = self.model(batch[:, :-1])
             return F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), batch[:, 1:].reshape(-1))
 
-    def _grounded_loss(self, moments: list[dict]) -> torch.Tensor:
+    def _grounded_loss(self, moments: list[dict], saying: int = 1) -> torch.Tensor:
         """Talking about itself: saying what it's experiencing, understanding words about states, and answering people.
 
-        Only what Haven says is marked: the notes it recalls and what people say are there to be read.
+        Only what Haven says is marked: the notes it recalls and what people say are there to be read. Of every six
+        moments, one is understanding, `saying` (1 or more) are saying what it's experiencing, and the rest are
+        conversations.
         """
         b = self.scale["batch"]
         chosen = [moments[self.rng.randrange(len(moments))] for _ in range(b)]
         seqs, marks, states, understand = [], [], [], []
         for i, m in enumerate(chosen):
-            if i % 6 in (0, 1):  # saying what it's experiencing; or (0) working out a state from the words alone
+            if i % 6 <= saying:  # saying what it's experiencing; or (0) working out a state from the words alone
                 seq = [HAVEN, *self.tok.encode(m["text"]), END]
                 mark = [False] + [True] * (len(seq) - 1)
             else:
