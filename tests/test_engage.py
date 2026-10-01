@@ -22,6 +22,8 @@ def test_the_answer_to_what_it_wondered_is_something_learned():
     assert engage.learned_from("Where do octopuses live?", "They live in the ocean.") == "octopuses live in the ocean"
     assert engage.learned_from("What does pizza taste like?", "Yummy!") == "pizza tastes yummy"
     assert engage.learned_from("Where do octopuses live?", "why do you ask?") is None
+    assert engage.learned_from("What does a plumber do?", "They fix pipes.") == "a plumber fixes pipes"
+    assert engage.learned_from("What does Max like to do?", "Run around.") == "Max likes to run around"
 
 
 def test_it_reacts_says_its_own_and_asks():

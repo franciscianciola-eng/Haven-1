@@ -235,8 +235,8 @@ ANSWERED = (
     (r"^What do (?P<xs>.+) eat\?$", "{xs} eat {a}"),
     (r"^What does (?P<x>.+) taste like\?$", "{x} tastes {a}"),
     (r"^What's it like in (?P<x>.+)\?$", "it's {a} in {x}"),
-    (r"^What does (?P<x>.+) like to do\?$", "{x} likes {a}"),
-    (r"^What does an? (?P<x>.+) do\?$", "{x}s {a}"),
+    (r"^What does (?P<x>.+) like to do\?$", "{x} likes {to}"),
+    (r"^What does (?P<x>an? .+) do\?$", "{x} {does}"),
     (r"^What does (?P<x>.+) look like\?$", "{x} looks {a}"),
     (r"^What is (?P<x>.+) like\?$", "{x} is {a}"),
 )
@@ -245,11 +245,31 @@ _FILLER = re.compile(
 )
 
 
+IRREGULAR = {"do": "does", "go": "goes", "have": "has", "be": "is", "are": "is"}
+
+
+def third_person(doing: str) -> str:
+    """ "fix things" → "fixes things": what someone does, said of one of them (the first word is the verb)."""
+    verb, _, rest = doing.partition(" ")
+    v = verb.lower()
+    if v in IRREGULAR:
+        v = IRREGULAR[v]
+    elif v.endswith(("ch", "sh", "x", "o", "z")):
+        v += "es"
+    elif v.endswith("y") and v[-2:-1] not in "aeiou":
+        v = v[:-1] + "ies"
+    elif not v.endswith("s"):
+        v += "s"
+    return f"{v} {rest}".strip()
+
+
 def learned_from(question: str, reply: str) -> str | None:
     """What it learns from the answer to a question it asked, as a sentence ("octopuses live in the sea"), or None."""
     answer = " ".join(reply.strip().split()).rstrip(".!")
     if not answer or "?" in answer or len(answer.split()) > 10:
         return None
+    if re.match(r"^What does an? .+ do\?$", question):  # ("They fix things." → "a plumber fixes things")
+        answer = third_person(re.sub(r"^(?:they|he|she|you|it)\s+", "", answer, flags=re.IGNORECASE))
     answer = _FILLER.sub("", answer, count=1)
     answer = re.sub(r"^(?:in|at)\s+(?=the\b)", "in ", answer, flags=re.IGNORECASE)
     for pattern, form in ANSWERED:
@@ -258,7 +278,11 @@ def learned_from(question: str, reply: str) -> str | None:
             fields = {k: v for k, v in found.groupdict().items()}
             if form.startswith("{xs} live") and not re.match(r"^(?:in|on|at|under|near)\b", answer, re.IGNORECASE):
                 answer = "in " + answer
-            return form.format(a=answer[0].lower() + answer[1:], **fields)
+            a = answer[0].lower() + answer[1:]
+            to = (
+                a if a.split()[0].endswith("ing") or a.startswith("to ") else f"to {a}"
+            )  # (likes to run, likes running)
+            return form.format(a=a, does=a, to=to, **fields)
     return None
 
 
