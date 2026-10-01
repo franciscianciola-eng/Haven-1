@@ -1059,7 +1059,7 @@ class Mind:
         ):
             self._remember(content, tick, (w.x, w.y, w.heading), "warm")
         activities.bout(self, self.activity, name, outcome, tick)
-        if self.brain is None:
+        if self.brain is None or self.brain_resting:
             activities.wear(self, self.goals.pick)
         self.visited[w.area(w.x, w.y)] = tick
         self._sleep_or_wake(name, obs, drives, in_nest, tick)

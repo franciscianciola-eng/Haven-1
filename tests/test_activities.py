@@ -28,6 +28,14 @@ def test_doing_the_same_thing_wears_thin_and_comes_back():
     assert activities.freshness(mind, "sing") > worn + 0.5
 
 
+def test_while_time_races_by_its_pastimes_still_wear_thin():
+    mind = Mind(seed=1)
+    mind.brain, mind.brain_resting = object(), True  # (its brain rests while time goes by fast: a tally stands in)
+    for _ in range(30):
+        activities.wear(mind, "sing")
+    assert activities.freshness(mind, "sing") < 0.3
+
+
 def test_it_gets_bored_of_a_plaything_for_a_while():
     mind = Mind(seed=2)
     mind.played = {5: 9.0, 6: 1.0}

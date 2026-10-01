@@ -176,6 +176,7 @@ class Life:
     def _pass(self) -> None:
         passing = self.passing
         self.mind.brain_resting = True  # (time goes by too fast for its brain of neurons to live through it)
+        self.mind.chemistry = {k: 1.0 for k in self.mind.chemistry}  # (so its mood is its usual one meanwhile)
         try:
             while passing["done"] < passing["total"] and not self._stop.is_set():
                 with self.lock:

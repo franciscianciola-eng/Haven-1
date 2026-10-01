@@ -43,13 +43,14 @@ def free(drives: np.ndarray) -> float:
 def freshness(mind, activity: str) -> float:
     """How much it still feels like doing something it has been doing (1 = not done lately)."""
     brain = mind.brain
-    if brain is not None:
+    if brain is not None and not mind.brain_resting:
         return brain.freshness(f"doing {activity}")
     return float(1.0 - mind.worn.get(activity, 0.0))
 
 
 def wear(mind, doing: str | None) -> None:
-    """Without a brain: what it's doing wears thin a little each moment, and everything else comes back."""
+    """Without a brain (or while it rests): what it's doing wears thin a little each moment, and everything else
+    comes back."""
     for activity in list(mind.worn):
         mind.worn[activity] *= 1.0 - RESTING
         if mind.worn[activity] < 0.01:
