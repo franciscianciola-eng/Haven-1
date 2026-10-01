@@ -103,6 +103,16 @@ def test_it_knows_the_things_it_has_met(lived):
         assert thing_answer("eat", "bush", bush) == "Yes, they are good to eat."
 
 
+def test_every_wording_it_practises_brings_the_memory_it_asks_for_to_mind():
+    from haven.cortex.talk import ASKED_FOR, QUESTIONS
+
+    asks = {"favorite place": "favorites", "favorite season": "favorites", "afraid": "fears"}
+    asks |= {"best day": "best day", "worst day": "worst day"}  # (memories that only come to mind when asked for)
+    for intent, piece in asks.items():
+        for question in QUESTIONS[intent]:
+            assert re.search(ASKED_FOR[piece], question.lower()), (intent, question)
+
+
 def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(lived):
     moment = {"memo": memo(lived), "answers": answers(lived)}
     rng = random.Random(0)

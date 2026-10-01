@@ -2178,9 +2178,10 @@ TOPICS = {
 
 
 ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it comes to mind last, where it's clearest
-    "season": r"\bseasons?\b|\bweather\b|\bwinter\b|\bsummer\b|\bspring\b|\bautumn\b|\bnice out\b|\bright now\b",
-    "character": r"\bpersonality\b|\bwhat are you like\b|\bchanged?\b|\bdifferent\b|\bsort of creature\b|\bnature\b|"
-    r"\bsame as\b|\bgr[eo]w up\b|\bgrown\b|\bas a creature\b|\bkind of creature\b|"
+    "season": r"\bseasons?\b|\bweather\b|\bwinter\b|\bsummer\b|\bspring\b|\bautumn\b|\bfall\b|\bnice out\b|\bright now\b|"
+    r"\btime of year\b",
+    "character": r"\bpersonality\b|\bcharacter\b|\btemperament\b|\bwhat are you like\b|\bchanged?\b|\bdifferent\b|"
+    r"\bsort of creature\b|\bnature\b|\bsame as\b|\bgr[eo]w up\b|\bgrown\b|\bas a creature\b|\bkind of creature\b|"
     r"\bdescribe yourself\b|\babout yourself\b|\bwhat are you\b|\bare you (?:very |a little )?(?:"
     + "|".join(w.removeprefix("a ") for pair in TRAIT_WORDS.values() for w in pair)
     + r")\b",
@@ -2191,11 +2192,19 @@ ASKED_FOR = {  # a memory a question asks for, and words that ask for it: it com
     "memory": r"\bremember\b|\bhappened to you\b",
     "self": r"\balive\b|\breal\b|\bliving thing\b|\bwhat are you\b|\bwhat kind of thing\b|\babout yourself\b|"
     r"\bdescribe yourself\b|\bwhat exactly are you\b|\ban animal\b",
-    "favorites": r"\bfavou?rite (?:place|spot|season)\b|\bwhere\b[^?]*\b(?:like|love)\b|\bseasons?\b[^?]*\b(?:like|love|best|"
-    r"favou?rite)\b|\b(?:like|love)\b[^?]*\bseasons?\b|\bbest season\b|\bpart of the valley\b",
-    "fears": r"\bafraid\b|\bscared\b|\bscar(?:es?|y)\b|\bfrighten|\bfears?\b",
-    "best day": r"\bbest day\b|\bhappiest\b|\bfavou?rite memory\b|\bgood day\b|\bday\b[^?]*\bbest\b",
-    "worst day": r"\bworst day\b|\bsaddest\b|\bbad day\b|\bday\b[^?]*\bworst\b",
+    # (where it likes to be, and the season it likes: asked of in many words)
+    "favorites": r"\bfavou?rite (?:place|spot|season|part|time of year)\b|\bbest season\b|"
+    r"\bwhere\b[^?]*\b(?:like|love|enjoy|prefer|happiest|best)\b|"
+    r"\b(?:place|spot|part|corner)\b[^?]*\b(?:like|love|enjoy|prefer|happiest|best|most)\b|"
+    r"\b(?:like|love|enjoy|prefer)\b[^?]*\b(?:place|spot|part of the valley)\b|"
+    r"\bseasons?\b[^?]*\b(?:like|love|best|favou?rite|enjoy|prefer|happiest|yours)\b|"
+    r"\b(?:like|love|enjoy|prefer)\b[^?]*\bseasons?\b",
+    "fears": r"\bafraid\b|\bscared\b|\bscar(?:es?|y|iest)\b|\bfright|\bfears?\b|\bterrif|\bnervous\b|\bworr(?:y|ies)\b",
+    "best day": r"\bbest day\b|\bhappiest (?:day|memory|memories|time|moment)\b|\bwhen\b[^?]*\bhappiest\b|"
+    r"\bfavou?rite (?:memory|day)\b|\bgood day\b|\bday\b[^?]*\bbest\b|\bnicest\b|\bloveliest\b|\bgreatest\b|"
+    r"\bbest (?:thing|time|moment|memory)\b|\bfondly\b|\bhappy memor",
+    "worst day": r"\bworst day\b|\bsaddest\b|\bunhappiest\b|\bbad day\b|\bday\b[^?]*\bworst\b|"
+    r"\bworst (?:thing|time|moment|memory)\b|\bhardest\b|\btoughest\b|\bterrible\b|\bawful\b|\bsad memor|\bbad memor",
 }
 
 
