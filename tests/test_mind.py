@@ -3,7 +3,7 @@ import copy
 import numpy as np
 
 from haven.check import indicators, probe
-from haven.mind import Mind
+from haven.mind import AFTERGLOW, Mind
 from haven.report import readout, snapshot
 from haven.world import BUSH, THORN
 
@@ -189,21 +189,43 @@ def test_it_keeps_what_stirred_its_brains_chemistry():
     from types import SimpleNamespace
 
     mind = Mind(seed=1)
-    mind.world.tick = 50
-    calm = {"reward": 0.0, "surprise": 0.0, "pain": 0.0, "sick": 0.0, "content": 0.5, "social": 0.0}
+    calm = {"reward": 0.0, "surprise": 0.0, "pain": 0.0, "sick": 0.0, "content": 0.5, "social": 0.0, "touch": 0.0}
     drives = np.zeros(4)
-    nothing = SimpleNamespace(new=[])
-    mind._stirred(SimpleNamespace(touch=1.0, words=[]), calm, nothing, drives)
-    assert mind.stirred["oxytocin+"] == (50, "you stroked me")
-    mind._stirred(SimpleNamespace(touch=0.0, words=["hi"]), {**calm, "social": 1.0}, nothing, drives)
+    quiet, nothing = SimpleNamespace(touch=0.0, words=[]), SimpleNamespace(new=[], novelty=0.0)
+
+    def moment(tick, signals, obs=quiet, reading=nothing, needs=drives):
+        mind.world.tick = tick
+        mind._stirred(obs, {**calm, **signals}, reading, needs)
+
+    moment(50, {"touch": 1.0, "social": 1.0}, SimpleNamespace(touch=1.0, words=[]))
+    assert mind.stirred["oxytocin+"][:2] == (50, "you stroked me")
+    moment(52, {"touch": 0.49, "social": 1.0})  # (its afterglow still counts for more than someone being there)
+    assert mind.stirred["oxytocin+"][1] == "you stroked me"
+    moment(400, {"social": 1.0}, SimpleNamespace(touch=0.0, words=["hi"]))
     assert mind.stirred["oxytocin+"][1] == "you're talking with me"
-    mind._stirred(SimpleNamespace(touch=0.0, words=[]), {**calm, "pain": 0.8, "reward": -0.6}, nothing, drives)
+    moment(401, {"pain": 0.8, "reward": -0.6})
     assert mind.stirred["noradrenaline+"][1].endswith("me") and mind.stirred["dopamine-"][1].endswith("me")
-    mind.log = [(49, "rang the bell")]
-    mind._stirred(SimpleNamespace(touch=0.0, words=[]), {**calm, "reward": 0.8}, nothing, drives)
+    mind.log = [(449, "rang the bell")]
+    moment(450, {"reward": 0.8})
     assert mind.stirred["dopamine+"][1] == "I rang the bell"
-    mind._stirred(SimpleNamespace(touch=0.0, words=[]), calm, SimpleNamespace(new=["see:frog"]), drives)
+    moment(600, {}, reading=SimpleNamespace(new=["see:frog"], novelty=0.9))
     assert mind.stirred["noradrenaline+"][1] == "I found something new"
-    hungry = np.array([0.8, 0.0, 0.0, 0.0])
-    mind._stirred(SimpleNamespace(touch=0.0, words=[]), {**calm, "content": 0.1}, nothing, hungry)
+    moment(700, {"content": 0.1}, needs=np.array([0.8, 0.0, 0.0, 0.0]))
     assert mind.stirred["serotonin-"][1] == "I'm very hungry"
+    moment(701, {"content": 0.45})  # (too slight to count)
+    assert mind.stirred["serotonin-"][:2] == (700, "I'm very hungry")
+
+
+def test_a_touch_glows_on_for_a_while():
+    from types import SimpleNamespace
+
+    mind = Mind(seed=1)
+    reading = SimpleNamespace(chemistry={}, novelty=0.0, fear=0.0, new=[], choice=None)
+    felt = []  # (how much touch reaches its brain, each moment)
+    mind.brain = SimpleNamespace(moment=lambda senses, signals, options: felt.append(signals["touch"]) or reading)
+    mind._senses = lambda *a: {}
+    touched = SimpleNamespace(touch=1.0, words=[], pain=0.0, light=1.0)
+    mind._brain_moment(touched, np.zeros(4), [], {})
+    mind.world.tick += AFTERGLOW
+    mind._brain_moment(SimpleNamespace(**{**vars(touched), "touch": 0.0}), np.zeros(4), [], {})
+    assert felt[0] == 1.0 and abs(felt[1] - 0.15) < 1e-6  # (some of it glows on, halving as time goes by)

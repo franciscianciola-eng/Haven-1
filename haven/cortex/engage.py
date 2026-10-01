@@ -63,7 +63,7 @@ STIRRED_BY = {  # each mood, and which of its brain's chemicals moved which way 
 LATELY = 960  # moments: what stirred its chemistry longer ago than this (two minutes, in real time) isn't why any more
 
 
-def mood_cause(mood: str | None, stirred: dict[str, tuple[int, str]], tick: int) -> str | None:
+def mood_cause(mood: str | None, stirred: dict[str, tuple], tick: int) -> str | None:
     """Why it feels as it does, as it says it ("you stroked me"): what last stirred the chemical behind its mood (its
     mind keeps that: see Mind._stirred), if that was lately. None when nothing did: then it doesn't know why."""
     if mood is None:

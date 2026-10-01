@@ -78,6 +78,9 @@ GOOD_DOINGS = (
     *("chased", "watched", "sang", "danced", "sat with", "went to"),  # (its pastimes: activities.bout)
 )
 NEW_WORDS = {"see": "I found something new", "word": "I heard a new word", "place": "I went somewhere new"}
+STIRS = 6.0  # how strong an input to its nuclei has to be to count as what stirred its chemistry
+FORGETS = 10  # moments for what stirred it to count half as much, against what stirs it now (as its chemistry fades)
+AFTERGLOW = 120  # moments for the afterglow of a touch to halve (15 seconds, living in real time)
 DOINGS = ("ate", "sick", "drank", "rang", "pushed", "smelled", "shook", "warmed")  # what can happen with a thing
 MOVING = ("ball", "butterfly")  # things that don't stay where it saw them
 NAP = 60  # ticks it sleeps, at least, when it goes to sleep because someone asked it to
@@ -177,7 +180,8 @@ class Mind:
         self.chemistry = dict.fromkeys(CHEMICALS, 1.0)  # its brain's chemistry (all usual, without a brain)
         # What lately stirred each of its brain's chemicals, up or down ("oxytocin+"), and when, as it would say it
         # ("you stroked me"): so it can say why it feels as it does.
-        self.stirred: dict[str, tuple[int, str]] = {}
+        self.stirred: dict[str, tuple[int, str, float]] = {}  # (and how strongly)
+        self.touched_at = -(10**9)  # when someone last touched it
         self.novelty = 0.0  # how new what it senses is, to its brain
         self.fear = 0.0  # alarm in its amygdala
         self.rpe = 0.0  # how much better or worse the last moment turned out than it expected
@@ -1134,7 +1138,7 @@ class Mind:
             if stirred or rested:
                 b.asleep = False
                 self._note(tick, "woke up")
-                self.stirred["acetylcholine-"] = (tick, "I just woke up")  # (its brain is slow to wake, too)
+                self.stirred["acetylcholine-"] = (tick, "I just woke up", 40.0)  # (its brain is slow to wake, too)
             return
         self.rest_streak = self.rest_streak + 1 if action == "rest" else 0
         night = obs.light < 0.3
@@ -1239,6 +1243,8 @@ class Mind:
         reports goes to the nuclei; out come novelty, alarm, a choice of what to do, and its chemistry. Asleep,
         the day's important moments replay through it instead."""
         brain = self.brain
+        if obs.touch:
+            self.touched_at = self.world.tick  # (a touch glows on for a while: oxytocin outlasts it)
         if self.body.asleep:
             reading = brain.dream()
         else:
@@ -1251,7 +1257,7 @@ class Mind:
                 "sick": float(min(1.0, (outcome.sick if outcome else 0.0) * 5.0)),
                 "content": float(np.clip(0.5 + self.mood * 5.0 + 0.4 * (0.3 - np.max(drives)), 0.0, 1.0)),
                 "social": float(self.company or bool(obs.words)) * (0.5 + t["friendly"]),
-                "touch": float(obs.touch),
+                "touch": max(float(obs.touch), 0.3 * 0.5 ** ((self.world.tick - self.touched_at) / AFTERGLOW)),
                 "curious": 0.5 + t["curious"],
             }
             reading = brain.moment(self._senses(obs, drives, percepts), signals, options)
@@ -1264,43 +1270,47 @@ class Mind:
         return reading
 
     def _stirred(self, obs: Observation, signals: dict[str, float], reading, drives: np.ndarray) -> None:
-        """What stirred its brain's chemistry this moment, as it would say it: each input to its nuclei that was
-        strong (see Brain._chemistry_drive), kept for the chemical it drives and which way. Its mood comes from those
+        """What stirred its brain's chemistry this moment, as it would say it: of the inputs to each of its nuclei (as
+        Brain._chemistry_drive weighs them), the strongest, kept for the chemical it drives and which way, unless
+        what stirred it a moment ago was stronger still (its chemistry is slow to forget). Its mood comes from those
         chemicals, so this is what it can say made it feel as it does."""
-        found: dict[str, str] = {}
-        if obs.touch:
-            found["oxytocin+"] = "you stroked me"
-        elif signals["social"] > 0.4:
-            found["oxytocin+"] = "you're talking with me" if obs.words else "you're here with me"
-        hurt = self._hurt_words() if signals["pain"] > 0.2 else None
-        if hurt:
-            found["noradrenaline+"] = found["serotonin-"] = hurt
-        elif signals["sick"] > 0.2:
-            found["serotonin-"] = "a toadstool made me sick"
-        elif signals["content"] < 0.2:
-            need = int(np.argmax(drives))
-            level = float(drives[need])
-            found["serotonin-"] = (
-                f"I'm {need_words(need, level, self.body.cold())}" if level >= 0.3 else "things have been hard lately"
-            )
-        elif signals["content"] > 0.8:
-            found["serotonin+"] = (
-                "I have everything I need" if float(np.max(drives)) < 0.3 else "things have been good lately"
-            )
-        if signals["reward"] > 0.3:
-            found["dopamine+"] = self._good_words()
-        elif signals["reward"] < -0.3:
-            found["dopamine-"] = hurt or "things didn't go the way I hoped"
-        new = next((n for n in reading.new if n.startswith(("see:", "word:", "place:"))), None)
-        if new is not None:
-            words = NEW_WORDS[new.split(":")[0]]
-            found.setdefault("dopamine+", words)
-            found.setdefault("noradrenaline+", words)
-        if signals["surprise"] > 0.5:
-            found.setdefault("noradrenaline+", "something surprised me")
+        g = signals.get
+        hurt = self._hurt_words() if g("pain", 0.0) > 0.0 else "something hurt me"
+        new = max(0.0, reading.novelty - 0.4) / 0.6  # (beyond the usual, as its brain takes it: NOVELTY_USUAL)
+        found = next((n for n in reading.new if n.startswith(("see:", "word:", "place:"))), None)
+        news = NEW_WORDS[found.split(":")[0]] if found else "I found something new"
+        content = g("content", 0.5)
+        need = int(np.argmax(drives))
+        needs = f"I'm {need_words(need, float(drives[need]), self.body.cold())}" if drives[need] >= 0.3 else None
+        reward, pain = g("reward", 0.0), g("pain", 0.0)
+        talking = "you're talking with me" if obs.words else "you're here with me"
+        good_lately = "things have been good lately" if needs else "I have everything I need"
+        # Each chemical, which way, and what drove it how hard: something that happened (a touch, a hurt, something
+        # new), its words and its input to the nucleus; then how things are (someone there, its needs).
+        inputs = {
+            "oxytocin+": ((("you stroked me", 60.0 * g("touch", 0.0)),), ((talking, 15.0 * g("social", 0.0)),)),
+            "noradrenaline+": (
+                ((hurt, 40.0 * pain), ("something surprised me", 25.0 * g("surprise", 0.0)), (news, 10.0 * new)),
+                (),
+            ),
+            "dopamine+": (((self._good_words(), 40.0 * max(reward, 0.0)), (news, 30.0 * new * g("curious", 1.0))), ()),
+            "dopamine-": (((hurt if pain > 0 else "things didn't go the way I hoped", -40.0 * min(reward, 0.0)),), ()),
+            "serotonin+": ((), ((good_lately, 36.0 * (content - 0.5)),)),
+            "serotonin-": (
+                ((hurt, 50.0 * pain), ("a toadstool made me sick", 30.0 * g("sick", 0.0))),
+                ((needs or "things have been hard lately", 36.0 * (0.5 - content)),),
+            ),
+        }  # fmt: skip
         tick = self.world.tick
-        for key, words in found.items():
-            self.stirred[key] = (tick, words)
+        for key, (events, states) in inputs.items():
+            happened = [c for c in events if c[1] >= STIRS]  # (what happened explains how it feels, while it lasts)
+            words, strength = max(happened or [c for c in states if c[1] >= STIRS] or [("", 0.0)], key=lambda c: c[1])
+            if not words:
+                continue
+            kept = self.stirred.get(key)
+            if kept is not None and len(kept) > 2 and kept[2] * 0.5 ** ((tick - kept[0]) / FORGETS) > strength:
+                continue  # (what stirred it a moment ago was stronger, and still counts for more)
+            self.stirred[key] = (tick, words, strength)
 
     def _hurt_words(self) -> str:
         w = self.world
