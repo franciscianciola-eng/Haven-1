@@ -105,6 +105,9 @@ def topic_of(text: str) -> str | None:
     return max(words, key=len) if words else None
 
 
+WHY_YES = {"glad": "I love that", "yes": "you asked me", "persuaded": "you asked so nicely"}  # (why it said yes)
+
+
 class Thread:
     """What a conversation is about lately: what it wondered and asked, what it said of its own, what it decided."""
 
@@ -131,8 +134,7 @@ class Thread:
 
     def asked_to(self, req, decision) -> None:
         self.request = (req, decision)
-        if decision.reason:
-            self.reason = decision.reason
+        self.reason = decision.reason or WHY_YES.get(decision.answer, self.reason)
 
     def declined(self) -> bool:
         from .engage import WILLING
@@ -507,7 +509,7 @@ class OwnThinker(Thinker):
                 decision = consider(mind, req)
                 extra = [engage.decision_note(req.do, decision) if e == request_note(req) else e for e in extra]
                 talk.asked_to(req, decision)
-            elif engage.INSIST.match(text) and talk.declined():  # asked again: it may give in
+            elif engage.INSIST.match(text) and talk.request is not None:  # asked again: it may give in
                 req, _ = talk.request
                 decision = consider(mind, req, insisted=True)
                 follow.append(engage.decision_note(req.do, decision, again=True))
