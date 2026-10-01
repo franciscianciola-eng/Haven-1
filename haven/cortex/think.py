@@ -92,8 +92,9 @@ def unfounded(text: str, context: str) -> bool:
     numbers = set(re.findall(r"\d+(?:\.\d+)?", context))
     if any(n not in numbers for n in re.findall(r"\d+(?:\.\d+)?", text)):
         return True
-    low = context.lower()
-    return any(name.lower() not in low for name in re.findall(r"(?<=[a-z,;:] )[A-Z][a-z]+", text))
+    low = context.lower()  # (the whole name: "Maris" isn't backed up by "Marisol")
+    names = re.findall(r"(?<=[a-z,;:] )[A-Z][a-z]+", text)
+    return any(not re.search(rf"\b{re.escape(name.lower())}\b", low) for name in names)
 
 
 def topic_of(text: str) -> str | None:
