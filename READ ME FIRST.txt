@@ -17,7 +17,8 @@ Keep the terminal window open while you're with Haven. When you're done, press "
 Haven's window: its life is saved, and it picks up where it left off next time.
 
 THE FIRST TIME takes a few minutes, and needs the internet, to install what Haven runs
-on (1 to 3 GB). After that it starts in a moment.
+on (1 to 3 GB) and to get its language cortex (about 50 MB). After that it starts in a
+moment.
 
 Haven speaks with a language cortex of its own, grown from scratch: no other AI model is
 involved. It's born able to talk about itself and its garden, simply. To have it learn to

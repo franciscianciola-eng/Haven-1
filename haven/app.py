@@ -85,7 +85,10 @@ class Chat:
         from .cortex.think import OwnThinker
 
         root = self.life.store.root
-        installed = starter.install(root)
+        if not (starter.FOLDER / "cortex.pt").exists() and (starter.FOLDER / "cortex.json").exists():
+            self.status = {"stage": "starting", "text": "Getting its language cortex (the first time: about 50 MB)…"}
+            self.log(self.status["text"])
+        installed = starter.install(root, self.web)
         if installed == "installed":
             self.log("It has its language cortex: its own, the one it was born with.")
         elif installed == "updated":

@@ -7,13 +7,16 @@ learn` has it read stories, books and encyclopedias, level by level.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
 FOLDER = Path(__file__).parent / "starter"
 FILES = ("cortex.pt", "tokenizer.json", "progress.json")
+HOME = "https://raw.githubusercontent.com/franciscianciola-eng/Haven-1"  # where its files can be had, by version
 
 
 def available() -> bool:
@@ -64,7 +67,46 @@ def read_on_its_own(folder: Path) -> bool:
     return any(level != "2" and record.get("steps", 0) > 0 for level, record in levels.items())
 
 
-def install(root: Path) -> str:
+def source(root: Path) -> dict:
+    """For a download of Haven that leaves the cortex out (to stay small): where to get it, and how to know it's the
+    right one. The cortex must be as it was last committed, so that version of it can be had from GitHub."""
+    path = "haven/cortex/starter/cortex.pt"
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+
+    if git("status", "--porcelain", path):
+        raise RuntimeError("the starter cortex has changed since it was committed: commit it first")
+    body = (Path(root) / path).read_bytes()
+    commit = git("log", "-1", "--format=%H", "--", path)
+    return {"url": f"{HOME}/{commit}/{path}", "sha256": hashlib.sha256(body).hexdigest(), "bytes": len(body)}
+
+
+def fetch(web=None) -> bool:
+    """Download the cortex this copy of Haven starts with, if it came without it (see source). Returns whether it has
+    it now."""
+    path = FOLDER / "cortex.pt"
+    if path.exists():
+        return True
+    try:
+        wanted = json.loads((FOLDER / "cortex.json").read_text())
+    except (OSError, ValueError):
+        return False
+    from ..web import Web, WebError
+
+    try:
+        body = (web or Web(timeout=120)).get(wanted["url"], int(wanted["bytes"]) + 1)
+    except (WebError, KeyError, ValueError):
+        return False
+    if hashlib.sha256(body).hexdigest() != wanted.get("sha256"):
+        return False  # (cut short, or not the one this Haven was made with)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_bytes(body)
+    tmp.replace(path)
+    return True
+
+
+def install(root: Path, web=None) -> str:
     """Give Haven the cortex it starts with, if it has none that fits, or a newer one than the starter it has.
 
     Returns what happened: "installed", "updated" (it had an older starter, which was archived: a cortex that has
@@ -73,6 +115,9 @@ def install(root: Path) -> str:
     """
     target = Path(root) / "cortex"
     had = (target / "cortex.pt").exists()
+    came_without = not (FOLDER / "cortex.pt").exists() and (FOLDER / "cortex.json").exists()
+    if came_without and (not had or (stamp(target) != stamp(FOLDER) and not read_on_its_own(target))):
+        fetch(web)  # (only when it would use it)
     if had and fits(target / "cortex.pt"):
         newer = available() and stamp(FOLDER) is not None and stamp(target) != stamp(FOLDER)
         if not newer or read_on_its_own(target) or not fits(FOLDER / "cortex.pt"):

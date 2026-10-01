@@ -10,6 +10,7 @@ macOS asks the person to allow it in System Settings, Privacy & Security.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import time
@@ -17,6 +18,7 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+CORTEX = "haven/cortex/starter/cortex.pt"  # (left out, to keep the download small: Haven gets it from GitHub)
 ROOT = HERE.parents[1]
 PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -44,8 +46,10 @@ def git(*args: str) -> str:
 
 def build(out: Path) -> Path:
     from haven import __version__
+    from haven.cortex.starter import source
 
-    files = [f for f in git("ls-files", "haven", "pyproject.toml", "README.md").splitlines() if (ROOT / f).is_file()]
+    listed = git("ls-files", "haven", "pyproject.toml", "README.md").splitlines()
+    files = [f for f in listed if (ROOT / f).is_file() and f != CORTEX]  # (its cortex is got the first time it runs)
     stamp = git("rev-parse", "--short", "HEAD") + (
         "-changed" if git("status", "--porcelain", "haven", "pyproject.toml") else ""
     )
@@ -76,6 +80,8 @@ def build(out: Path) -> Path:
         z.writestr(entry(contents + "Resources/Haven.icns", 0o100644), (HERE / "Haven.icns").read_bytes())
         for f in files:
             z.writestr(entry(contents + "Resources/haven/" + f, 0o100644), (ROOT / f).read_bytes())
+        where = json.dumps(source(ROOT), indent=1).encode()
+        z.writestr(entry(contents + "Resources/haven/" + CORTEX.replace("cortex.pt", "cortex.json"), 0o100644), where)
         # Beside Haven's code, not in it: a Mac's disk doesn't tell BUILD from the build/ folder installing makes.
         z.writestr(entry(contents + "Resources/build-id", 0o100644), stamp + "\n")
     return out

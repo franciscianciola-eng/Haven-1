@@ -44,7 +44,9 @@ Butlin, Long and colleagues ([2023](https://arxiv.org/abs/2308.08708)) went thro
 **The easy way.** Download this project (`Haven-for-Windows.zip`, built with `python packaging/make_zip.py`, or on GitHub: Code, then Download ZIP), unzip it, and double-click
 `Start Haven.bat` on Windows or `Start Haven.command` on a Mac (on Linux, run `./start-haven.sh`).
 Haven's window opens in your browser, and you talk to it there. The first time, it sets itself up: it
-installs Python and what Haven runs on (PyTorch) into the folder, using [uv](https://docs.astral.sh/uv/).
+installs Python and what Haven runs on (PyTorch) into the folder, using [uv](https://docs.astral.sh/uv/). The
+downloads leave out its language cortex, to stay small: Haven gets it from this project on GitHub the first time it
+wakes up (about 50 MB, checked against the one this version was made with).
 `READ ME FIRST.txt` has the details, including what to do if the computer warns you about the launcher.
 
 **On a Mac, as an app.** `Haven-for-Mac.zip` holds `Haven.app` (build it with

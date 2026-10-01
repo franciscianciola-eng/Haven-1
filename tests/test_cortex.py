@@ -141,3 +141,36 @@ def test_a_long_telling_does_not_go_round_in_circles():
     assert told == [0, 1, 2, 3, 4, 0, 1, 9]  # once round, then not again
     told, _ = model.generate([0, 1, 2, 3, 4], max_new=11, temperature=0.0, no_repeat=3)
     assert told == [0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 9]  # but what came to mind, it can say again
+
+
+def test_a_haven_that_came_without_its_cortex_gets_it_the_first_time(tmp_path, monkeypatch):
+    import hashlib
+    import json
+
+    from haven.cortex import starter
+
+    folder = tmp_path / "starter"
+    folder.mkdir()
+    model = small()
+    torch.save({"config": vars(model.cfg), "model": starter.packed(model.state_dict())}, tmp_path / "made.pt")
+    body = (tmp_path / "made.pt").read_bytes()
+    (folder / "tokenizer.json").write_text(json.dumps({"merges": []}))
+    (folder / "progress.json").write_text(json.dumps({"starter": "1"}))
+    url = "https://raw.githubusercontent.com/someone/Haven/abc/haven/cortex/starter/cortex.pt"
+    (folder / "cortex.json").write_text(json.dumps({"url": url, "sha256": "0" * 64, "bytes": len(body)}))
+    monkeypatch.setattr(starter, "FOLDER", folder)
+    monkeypatch.setattr(starter, "fits", lambda path: True)
+    asked = []
+
+    class Web:
+        def get(self, url, most):
+            asked.append(url)
+            return body
+
+    assert starter.install(tmp_path / "home", Web()) == "" and not (folder / "cortex.pt").exists()  # (not the one)
+    (folder / "cortex.json").write_text(
+        json.dumps({"url": url, "sha256": hashlib.sha256(body).hexdigest(), "bytes": 9})
+    )
+    assert starter.install(tmp_path / "home", Web()) == "installed" and asked == [url, url]
+    assert (tmp_path / "home" / "cortex" / "cortex.pt").read_bytes() == body
+    assert starter.install(tmp_path / "home", Web()) == "" and len(asked) == 2  # (got once, then kept)
