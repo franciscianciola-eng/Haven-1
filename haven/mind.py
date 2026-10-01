@@ -166,6 +166,7 @@ class Mind:
         self.errand: dict | None = None  # something it said it would do for someone, while it's doing it
         self.brain = None  # its brain of spiking neurons (brain/), when it has one: attached by whoever wakes it
         self.brain_resting = False  # (while time goes by quickly, its brain isn't simulated)
+        self.brain_budget: float | None = None  # ms its brain may take each moment, living in real time (None: any)
         self.reading = None  # what its brain made of the last moment
         self.chemistry = dict.fromkeys(CHEMICALS, 1.0)  # its brain's chemistry (all usual, without a brain)
         self.novelty = 0.0  # how new what it senses is, to its brain
@@ -304,8 +305,8 @@ class Mind:
         urgencies = self.character.lean(urgencies)
         options = {**urgencies, **activities.urges(self, percepts, drives)}  # its needs, and its pastimes
         choice = None
-        if self.brain is not None and not self.brain_resting:  # its basal ganglia choose (see brain/brain.py)
-            choice = self._brain_moment(obs, drives, percepts, options).choice
+        if self.brain is not None and not self.brain_resting and self._brain_turn(obs):
+            choice = self._brain_moment(obs, drives, percepts, options).choice  # its basal ganglia choose
         known = float(self.beliefs.known())  # (exploring wears thin only once there's little left to find)
         for pastime, worn_by in (("explore", max(0.0, (known - 0.7) / 0.3)), ("play", 1.0)):
             options[pastime] *= 1.0 - 0.6 * worn_by * (1.0 - activities.freshness(self, pastime))
@@ -1213,6 +1214,15 @@ class Mind:
         self._note(self.world.tick, text)
 
     # --- its brain ----------------------------------------------------------------------------
+
+    def _brain_turn(self, obs: Observation) -> bool:
+        """Whether its brain runs this moment: always, unless this computer can't keep up with it in real time; then
+        every second or third moment (as many as it takes), and whenever something happens to it."""
+        budget = self.brain_budget
+        if budget is None or self.brain.timing <= budget:
+            return True
+        every = math.ceil(self.brain.timing / budget)
+        return self.world.tick % every == 0 or obs.pain > 0 or bool(obs.touch) or bool(obs.words)
 
     def _brain_moment(self, obs: Observation, drives: np.ndarray, percepts: list, options: dict[str, float]):
         """A moment of its brain: what it senses goes in through the thalamus, and what the rest of the mind

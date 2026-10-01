@@ -134,6 +134,7 @@ class Life:
     def advance(self, ticks: int) -> None:
         for _ in range(ticks):
             with self.lock:
+                self.mind.brain_budget = 550.0 / max(self.speed, 0.1)  # (its brain may take about half of a moment)
                 self.mind.company = self.initiative.present()
                 self.mind.step()
                 self._since_save += 1

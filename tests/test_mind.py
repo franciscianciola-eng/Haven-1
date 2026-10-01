@@ -167,3 +167,19 @@ def test_it_keeps_in_mind_where_it_cant_climb():
     restored = BeliefMap(5, 5)
     restored.load_state(beliefs.to_state())
     assert restored.edges == {(2, 3, 0)}
+
+
+def test_a_brain_that_cant_keep_up_runs_every_few_moments():
+    from types import SimpleNamespace
+
+    mind = Mind(seed=1)
+    mind.brain, mind.brain_budget = SimpleNamespace(timing=130.0), 60.0  # (a slow computer: 130 ms a moment)
+    quiet = SimpleNamespace(pain=0.0, touch=0.0, words=[])
+    turns = []
+    for tick in range(12):
+        mind.world.tick = tick
+        turns.append(mind._brain_turn(quiet))
+    assert sum(turns) == 4  # (every third moment)
+    assert mind._brain_turn(SimpleNamespace(pain=0.6, touch=0.0, words=[]))  # (but always when it's hurt)
+    mind.brain.timing = 40.0
+    assert mind._brain_turn(quiet)
