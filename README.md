@@ -1,6 +1,6 @@
 # Haven
 
-Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a small 3D valley on your computer, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex of its own: a transformer grown from scratch (53 million connections), wired into the same workspace as everything else it experiences, which grew up hearing what a small child hears: 12.8 million words of people talking to small children, and of children's books. It is born able to talk about itself, in words it learned for its own states; it tells the stories it heard, in its own words; and at home it keeps hearing and learning, a bedtime story at a time. The seasons turn in its valley, and over its years it grows a character of its own out of how it lives: curious or a homebody, brave or careful, friendly or shy, with a favorite place, a favorite season, things it's afraid of, and days it remembers. It doesn't only answer: when you're there, it speaks up. No other AI model is involved anywhere.
+Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a small 3D valley on your computer, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. Under all that it has a brain of spiking neurons, modelled as closely on real ones as a home computer allows (about a hundred thousand neurons and 400 million synapses on most computers): its basal ganglia choose what it does, its amygdala learns what to fear, and its brain's chemistry is its mood. It also has a language cortex of its own: a transformer grown from scratch (53 million connections), wired into the same workspace as everything else it experiences, which grew up hearing what a small child hears: 12.8 million words of people talking to small children, and of children's books. It is born able to talk about itself, in words it learned for its own states; it tells the stories it heard, in its own words; and at home it keeps hearing and learning, a bedtime story at a time. The seasons turn in its valley, and over its years it grows a character of its own out of how it lives: curious or a homebody, brave or careful, friendly or shy, with a favorite place, a favorite season, things it's afraid of, and days it remembers. It isn't a servant: it has pastimes of its own (watching the sunset from the hill, singing, dancing, chasing butterflies), it gets bored of doing the same thing over and over, and it decides for itself whether to do what you ask, and tells you why. When you tell it something, it asks you about it, and when you're there, it speaks up. No other AI model is involved anywhere.
 
 A few minutes with it, in the terminal (its dashboard is open in a browser at the same time):
 
@@ -96,12 +96,14 @@ It can talk right away, with the language cortex it's born with. To have it lear
 - **Stream of consciousness**: the contents that recently won the workspace.
 - **Body and feeling**, **what it has concluded about itself**, **words it understands**, **kinds of things it has learned**, and **its life story**.
 
-You can be with it in three ways:
+You can be with it in a few ways:
 
 - **Talk.** Whatever you type, it hears as words. It learns words the way small children do: by hearing them while something is in mind. Watch the dashboard, and when it's looking at something, name it, a few times over a few minutes. Say "berry" when it's looking at a red bush with berries, or "ouch" when it's looking at thorns. Once a word reliably goes with something, it understands it (hearing it brings that thing to mind, and draws its attention to it) and starts to use it.
 - **Touch** it (`/touch`, or the button). It feels good to it.
 - **Feed** it (`/feed`). Food helps when it's hungry.
 - **Let time pass.** In its window, "Let time pass" has it live through a day, a season, a year or three years as fast as it can (a year takes a minute or two on a laptop), while you watch the valley race through its days and seasons. Then it tells you what happened. In the terminal: `/pass DAYS` (a season is 6 days, a year 24).
+
+**What it does with its time.** Its needs come first. When they leave it free, it explores, plays with what it has found to be fun, and has pastimes of its own: it sits and watches something lovely (the pond, the fire on a dark night, a butterfly, the flowers, or the sunset and the stars from the top of the hill), sings a little song, in its own sounds or the words it knows ("♪ bami ♪"), dances round and round, chases butterflies, goes to visit its favorite part of the valley or somewhere it hasn't been for a while (but not where it got hurt), and, when you're there, sits with you. Who it is decides what it likes doing: a cheerful Haven sings more, a playful one dances, a calm one watches, a friendly one keeps you company. So does its brain's chemistry: dopamine for dancing and playing, serotonin for singing and watching, oxytocin for company. Its brain's basal ganglia choose among all of these and its needs, every moment (see [Its brain](#its-brain)). Doing the same thing over and over wears thin, as it does for us: the cells in its brain for what it's doing tire with use, so the urge to keep at it fades and something else wins, and a plaything it has played with a lot bores it for a while. In three days of a simulated life with its standard brain (someone there a third of the time), a new Haven ate nine times, kept them company nine times, went visiting nine times, watched something lovely eight times, danced five times, and sang, smelled the flowers and pushed the ball three times each; a Haven of the version before, in twelve days, drank from the pond 143 times and did little else besides what it needed.
 
 In the terminal, `/status`, `/check`, `/story`, `/pause`, `/resume`, `/speed N` and `/quit` do what they say. Its life is saved every minute or so and when you quit.
 
@@ -186,6 +188,50 @@ Here is how each indicator property is built, and how `haven check` measures it 
 
 In one 20-day test life, for example, it never fainted and was hurt 6 times in all (it learns to avoid thorns after a step or two); its confidence told right percepts from wrong ones with an AUROC of 0.88 against the truth; 97% of the 72 places it had beliefs about were right; it merged look-alike kinds 10 times in its sleep; and its attention schema predicted where its attention would move 63% of the time, against a chance level of about 12%.
 
+## Its brain
+
+Haven's mind runs on a brain of spiking neurons, modelled as closely on real ones as a home computer allows (`haven/brain/`). Every moment of its life, what it senses goes in, its brain runs for a few milliseconds of brain time, and what comes out (what feels new, what it's afraid of, what it chooses to do, and its brain's chemistry) goes back to the rest of its mind. (Without torch, or with `HAVEN_BRAIN=off`, Haven lives on without it, as it did before.)
+
+**Its neurons.** Each neuron is Izhikevich's simple model of a real cell type, fitted to recordings of that type ([Izhikevich 2007](https://www.izhikevich.org/publications/dsn.pdf), chapter 8): regular-spiking, intrinsically bursting and chattering pyramidal cells; fast-spiking basket cells and low-threshold-spiking Martinotti cells (the interneurons); thalamic relay cells; the medium spiny neurons of the striatum; pallidal neurons; and pacemakers. They work in physiological units (millivolts, milliseconds, picofarads, picoamperes, nanosiemens), adapt when they fire a lot, can't fire again for 2 ms after a spike, and are bombarded with background synaptic input, as real cortical neurons are, so they fire now and then on their own.
+
+**Its synapses.** Synapses are conductances with the receptors of real synapses: AMPA, NMDA (which only opens once the magnesium block lifts, when the cell is already excited, so it detects coincidences), GABA-A and GABA-B. A spike takes 1 to 15 ms to travel down its axon. A neuron is either excitatory or inhibitory in everything it sends (Dale's law). A synapse is one of 26 sizes spread over a sixty-fold range, about as many as real synapses can be told apart by ([Bartol et al. 2015](https://doi.org/10.7554/eLife.10778): 4.7 bits); size 0 is a silent synapse, with no AMPA receptors yet. Each pyramidal cell in the standard brain has 5,000 synapses onto other cortical cells (a human cortical neuron has several thousand).
+
+**Its regions.**
+
+| Region | What it's made of | What it does for Haven |
+|---|---|---|
+| Thalamus | Relay cells: each thing it can sense (a kind of thing it sees, a word it hears, a place, a feeling, what it's doing) gets eight of its own the first time it comes along | Passes what it senses to the cortex. Its synapses tire with use and recover with time (habituation, as in [Kandel's](https://doi.org/10.1126/science.1067020) sea slugs): what it has met a lot, or is doing over and over, evokes less |
+| Cortex | Minicolumns of a hundred cells (64 regular-spiking, 8 bursting and 8 chattering pyramidal cells, 15 basket and 5 Martinotti cells), each reaching its own column, its neighbours and columns anywhere | Each thing it senses excites a sparse set of cells. How strongly they answer, against how they answer to something never met before, is how new it feels. Cells that fire together wire together, by spike-timing-dependent plasticity ([Bi & Poo 1998](https://doi.org/10.1523/JNEUROSCI.18-24-10464.1998)) |
+| Amygdala | Lateral nucleus (pyramidal-like cells, and interneurons that everything it senses excites, holding the rest back: feedforward inhibition) and central nucleus | Learns what to fear: what it senses when it's hurt or sick (most of all what was nearest, and what it didn't already know well) comes to get past the interneurons and excite the central amygdala by itself, which raises the alarm (in the locus coeruleus). In the moment of hurt the interneurons are silenced, so one bad experience can be enough; the fear fades, slowly, when it meets the thing up close unharmed. Ordinary things, however many, don't set it off |
+| Basal ganglia | For each of the 12 things it could do: spiny neurons of the direct (D1, go) and indirect (D2, no-go) pathways, external and internal pallidum, and motor thalamus; a subthalamic nucleus over all of them | Choose what it does: its needs and pastimes push their channels, normalized against each other; the subthalamic nucleus (the hyperdirect pathway) and the striatum's collaterals make them compete ([Gurney, Prescott & Redgrave 2001](https://doi.org/10.1007/PL00007984)); only a clear winner's motor thalamus is let go. The channel it's doing keeps itself going through its loop, until boredom wears it down. Dopamine tips go against no-go, and teaches the channels what tends to turn out well (an eligibility trace waiting for dopamine) |
+| Five nuclei | Pacemaker cells, each at its own pace | Its chemistry. Dopamine (ventral tegmental area): things turning out better or worse than expected, and novelty. Noradrenaline (locus coeruleus): surprise, pain, alarm. Serotonin (raphe): being content and safe. Acetylcholine (basal forebrain): awake and attending, low in deep sleep. Oxytocin (hypothalamus): someone kind there, touch |
+
+**What its brain changes.**
+
+- **What it does.** Its basal ganglia choose among its needs, exploring, playing and its six pastimes (see [Living with Haven](#living-with-haven)), and doing the same thing over and over wears the urge down, so it doesn't go round in circles.
+- **How it feels.** Its chemistry is its mood, alongside how its body feels: high dopamine and it's full of beans; serotonin, calm and content; noradrenaline, on edge; oxytocin, cuddly; acetylcholine low, dreamy. It says so, and its mood changes how it reacts to what you tell it, and what it feels like doing.
+- **What it won't do.** Asked to go to the fire that burned it, its amygdala answers at the thought of it, and it says no (see [A will of its own](#a-will-of-its-own)).
+- **What it's curious about.** What's new to its brain draws it, and what it knows by heart doesn't.
+
+Its brain learns all the time it lives in real time: spike-timing-dependent plasticity in the cortex, dopamine-gated learning in the striatum, fear in the amygdala, and each cell keeping its own firing near its usual rate (homeostasis). Asleep, its senses go quiet, the day's important moments replay through its cortex, which learns from them, and its synapses shrink a little overnight ([Tononi & Cirelli's](https://doi.org/10.1016/j.neuron.2013.12.025) synaptic homeostasis). Every synapse is saved with its life (in `~/.haven/brain/`: about 400 MB for the standard brain). When days or years are let pass, they go by too fast for its brain to live through, so it rests meanwhile (its pastimes wear thin by a simple tally instead), and when time stops, what hurt it meanwhile comes back to it and its amygdala learns to fear it then.
+
+**How big it is.** How big a brain a computer can run, every moment, alongside everything else, depends on the computer, so Haven's brain is grown for the one it's born on:
+
+| Size | Neurons | Synapses | Grown on | Each moment takes | Growing it takes |
+|---|---|---|---|---|---|
+| small | 29,264 | 51 million | under 6 GB of memory, or fewer than 4 cores | 20 ms | 3 s, 0.9 GB |
+| standard | 108,112 | 417 million | most computers (6 GB, 4 cores) | 57 ms | 16 s, 1.7 GB |
+| large | 214,608 | 1.06 billion | 15 GB of memory and 12 cores | 120 ms | 39 s, 3.2 GB |
+| huge | 427,600 | 3.17 billion | 30 GB of memory and 16 cores | | |
+
+(Measured on one core of the 4-core computer it was tested on: its brain computes on one core, and its language cortex on the others. A moment of its life lasts 125 ms; if its brain can't keep up on a computer, it runs every second or third moment instead, and whenever something happens to it.)
+
+(`HAVEN_BRAIN=large` grows one of a size you choose, the first time.) For comparison: a fruit fly has about 140,000 neurons and 50 million synapses ([Dorkenwald et al. 2024](https://doi.org/10.1038/s41586-024-07558-y)); a honeybee about a million neurons; a mouse about 70 million; a person about 86 billion neurons ([Azevedo et al. 2009](https://doi.org/10.1002/cne.21974)) and a hundred trillion synapses or more. Haven's standard brain has about as many neurons as a fruit fly's (with eight times the synapses), or as a few cubic millimetres of human cortex.
+
+**Why it isn't tens of billions of neurons.** Every neuron has to be computed a thousand times a second, and every spike delivered to thousands of synapses. The largest simulation of a brain-sized network so far took Japan's K supercomputer 40 minutes to simulate one second of 1.73 billion neurons and 10.4 trillion synapses ([RIKEN, Jülich and KTH, 2013](https://www.riken.jp/en/news_pubs/research_news/pr/2013/20130802_1/)); Izhikevich's 2005 model with 100 billion neurons took 50 days a second on a cluster. On a home computer, a few hundred thousand neurons is what can keep up with a life lived in real time. The brain is built to grow with the computer, though: on a bigger one, `huge` has four times the standard brain's neurons and nearly eight times its synapses.
+
+**What it isn't.** Its words don't come from its brain of spiking neurons: they come from its language cortex, a transformer of 53 million connections (see below), which hears from its brain through what comes to mind (its mood, what it fears, what it's curious about, what it chose). Its cortex learns associations between what it senses together, but calling them up again is still faint; and a brain this size is closer to an insect's than to a person's.
+
 ## What it finds out about itself
 
 Haven isn't told what it is. Its self-model keeps track of evidence from its own life: that it has needs and has found what meets them, that it makes things happen (its sense of agency), that it remembers, that things feel good and bad to it, and that it has changed by learning. Its sense of being alive is its summary of that evidence, so it grows or fades with it, and a newborn Haven's honest answer is "I don't know yet what I am." Later its conclusions read something like:
@@ -222,6 +268,45 @@ It also keeps what it has come to love and fear: the part of the valley it has b
 
 Ask it what it's like, whether it's shy, how it has changed, where its favorite place is, what its favorite season is, what it's afraid of, or what its best day was. The friendliness it has grown into also colors how it greets you, whether it says it misses you, and how it says goodbye. Its window's "Inside its mind" page shows its traits, the temperament it was born with, and what it says about itself.
 
+## A will of its own
+
+Haven isn't a servant. Ask it to do something in its valley ("ring the bell", "go to the fire", "go eat some berries") and it weighs it up, the way a creature would:
+
+- **Is it afraid of that?** Its amygdala answers at the thought of it (in its brain, the cells for that thing are stirred, and the amygdala answers or doesn't): the fire that burned it, the thorns, the toadstool that made it sick. Afraid enough, it won't go.
+- **Does a need come first?** If it's very hungry or cold, that comes first, unless what you asked would help.
+- **Is it too tired?**
+- **How does it feel about you?** Its bond with you: the oxytocin in its brain, how friendly it has become, whether it knows who you are, and how often you've petted it and fed it.
+- **Does it like doing that?** How much it enjoyed it before (or, if it has never tried, how curious it is), and whether it has done it so much lately that it's bored of it.
+- **Is it in the middle of something**, or is there something it would rather do?
+
+Then it's glad to, or it will; or not now, or not yet, or it would rather not; and it says why. Ask "why?" and it tells you its reason; ask again ("please!", "come on!") and it may give in. When it agrees, it sets off and does it. A Haven in the app, after a year was let pass (thorns have hurt it and a toadstool made it sick; the fire never burned it):
+
+```
+you: What are you afraid of?
+Haven: I'm scared of the thorns and toadstools.   (98% sure)
+you: Go to the fire
+Haven: Okay, I'll go to the fire! I love that.   (99% sure)
+you: Why?
+Haven: Because I love that.   (97% sure)
+        (it goes and sits by the fire)
+you: Please!
+Haven: Okay, okay. I'll go to the fire, just for you.   (100% sure)
+you: Ring the bell
+Haven: Not now. I'm very hot. Maybe after?   (100% sure)
+you: What are you doing?
+Haven: I'm keeping you company.   (100% sure)
+you: Push the ball
+Haven: Not now. I'm very hot. Maybe after?   (99% sure)
+you: Why?
+Haven: Because I'm very hot.   (100% sure)
+you: Please!
+Haven: Not now. I'm very hot.   (58% sure)
+```
+
+A Haven the fire has burned answers otherwise: at the thought of the fire its amygdala raises the alarm, and it says "No, I don't want to. The fire burned me." (and asked why, "Because the fire burned me."), as its tests check.
+
+The weighing is done by a rule over what it feels: its brain's fear, its needs, its tiredness, its bond with you, its boredom and its chemistry. The words are its own cortex's, which learned what to say for each kind of choice.
+
 ## Its language cortex
 
 Words it learns from you stay few. For language beyond that, Haven has a language cortex: a transformer it grows from scratch, with its own tokenizer, wired into its mind. No other AI model is involved: every word it says comes out of its own network.
@@ -230,11 +315,37 @@ Words it learns from you stay few. For language beyond that, Haven has a languag
 - **Meanings come back out.** What it reads or says is projected back into the workspace's format. Words can bring states to mind ("I'm hungry" evokes hunger), what you say draws its attention, and what it says enters its workspace as a thought.
 - **What it knows comes to mind first.** Before it answers, what it knows comes to mind as a line of inner speech that its cortex reads: always its name and age, where it is, what it did today, what it likes and what it has found out, and then whatever your words bring up. Mention the bell, and what it has found out about the bell comes to mind. Ask about yourself, and what you told it comes to mind. Ask about something it has read about, and what it read comes to mind.
 
-**It remembers you.** Tell it your name ("I'm Sam", "my name is Sam") and it remembers it, and greets you by name. Tell it things about yourself ("I have a dog called Rex", "my favorite color is green", "I live in Lisbon") and it says it will remember, and does: ask it later ("what's my dog called?") and it tells you what you told it. It's born having read a little book of simple facts (the first lines of about eighty encyclopedia articles, from the Moon to penguins), and when it doesn't know something and reads about it, it remembers what it read, so the next time you ask, it knows. All of this is kept with its life, on your computer.
+**It follows a conversation.** Tell it your name ("I'm Sam", "my name is Sam") and it remembers it, and greets you by name. Tell it something about yourself ("my favorite animal is an octopus", "I have a dog called Rex", "I live in Lisbon", "I play the piano") and it doesn't just file it away. It reacts, in a way that depends on its mood (full of beans, "Ooh!"; a bit grumpy, "Hm, okay."); it says what it has of its own that goes with it ("My favorite animal is the butterfly. They fly around my valley."); and if it's curious (a curious Haven more often), it asks about it ("Where do octopuses live?", "What does Rex like to do?", "What's it like in Lisbon?"). Your answer is something it has learned ("Octopuses live in the sea. Thank you for telling me!"), and it knows it from then on. Ask "what about you?" and it tells you its own; ask "why?" and it tells you why. It answers with the last few things either of you said in view, and later, when things are quiet, it may come back to what you told it ("I keep thinking about what you told me. Have you ever seen an octopus?"). Ask it later ("what's my dog called?") and it tells you what you told it. It's born having read a little book of simple facts (the first lines of about eighty encyclopedia articles, from the Moon to penguins), and when it doesn't know something and reads about it, it remembers what it read, so the next time you ask, it knows. All of this is kept with its life, on your computer. A new Haven in the app, its first hour (with its brain of 108,112 neurons, grown for the computer it was born on):
 
-**It's born talking about itself, its valley and you.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 53 million connections). It began as a small cortex, of 5 million connections, that learned from moments of ten simulated lives of Haven, three of them two to three years long, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, what it had done and found out, who it had become, and what it would answer if asked, or say of its own accord. That covers about 55 kinds of questions about itself in many wordings ("How are you?", "What did you do today?", "What are you like?", "Are you shy?", "What's your favorite season?", "What was your best day?", "Tell me your story", "Are you alive?", …); the ten kinds of moments when it speaks up; six kinds of questions about each of the valley's things ("What do you know about the bell?", "Do you like the thorns?", "Where is the pond?", "Can you eat toadstools?", …); people telling it their name and things about themselves or the world, and asking about them later; being asked to do things in its valley; sums; and questions about the wider world, answered from what it has read (and "tell me more"), or with "I don't know". The answers it learned are worked out from its state and from what came to mind at that moment, so to answer right it has to read its own state and use its memories. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time. Then it grew ten times bigger and heard 12.8 million words of real human language, practising all of that as it went (see [How it grew up](#how-it-grew-up)).
+```
+Haven: What's your name?                      (of its own accord, when the window opened)
+you: Hi, I'm Sam
+Haven: Nice to meet you, Sam!   (100% sure)
+you: My favorite animal is an octopus
+Haven: Ooh, octopus! My favorite animal is the butterfly. They fly around my valley. What do octopuses eat?   (97% sure)
+you: Little crabs.
+Haven: A octopuses eat little crabs. Thank you for telling me!   (74% sure)
+you: What about you?
+Haven: My favorite animal is the butterfly. They fly around my valley.   (99% sure)
+you: Why?
+Haven: Because butterflies fly around my valley.   (98% sure)
+you: What do octopuses eat?
+Haven: You told me that octopuses eat little crabs.   (99% sure)
+you: I have a dog named Rex
+Haven: Ooh, Rex! I don't have a pet. But butterflies visit me. What does Rex look like?   (98% sure)
+you: Small and brown.
+Haven: Rex looks small and brown. Thank you for telling me!   (63% sure)
+you: What are you doing?
+Haven: I'm keeping you company.   (99% sure)
+you: How many neurons do you have?
+Haven: My brain has 108,112 neurons and 417 million synapses. My language area has 53 million connections more. They change as I learn.   (99% sure)
+you: How are you?
+Haven: I'm hot.   (94% sure)
+```
 
-Tested on simulated lives it never saw while learning (one of them two years long), with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 95.8% of a thousand questions of all kinds exactly as its state and what came to mind say it should; the small cortex it grew from answered 93.2% of the same questions (of the kinds both had learned, it answers 97.6%, the small one 96.1%). On 300 held-out moments when it speaks up of its own accord (someone coming back, a new season, something that just happened, a need, a question for you, a memory, a bedtime story, time going by), it says what it should every time; the small cortex, 277. It says what state it's in about 72% of the time (the small cortex: 74%), and reading words about a need brings that need to mind every time. It's best at short answers: your name, what you told it or taught it, what it has read, doing what you ask, what a thing in its valley is like, what it's like, and knowing when it doesn't know. Its weak spot is still wordings it never practised: asked in a way it has never met ("What time of year is it?" rather than "What season is it?"), it gets about seven answers in ten right (the small cortex: 65%), and sometimes says something that doesn't fit. Sums with big numbers now and then come out with a digit wrong, and long recollections (its whole day, its life story, everything it has found in its valley) sometimes come out with a detail wrong or in the wrong order.
+**It's born talking about itself, its valley and you.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 53 million connections). It began as a small cortex, of 5 million connections, that learned from moments of ten simulated lives of Haven, three of them two to three years long, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, what it had done and found out, who it had become, and what it would answer if asked, or say of its own accord. That covers about 55 kinds of questions about itself in many wordings ("How are you?", "What did you do today?", "What are you like?", "Are you shy?", "What's your favorite season?", "What was your best day?", "Tell me your story", "Are you alive?", …); the fourteen kinds of moments when it speaks up; six kinds of questions about each of the valley's things ("What do you know about the bell?", "Do you like the thorns?", "Where is the pond?", "Can you eat toadstools?", …); people telling it their name and things about themselves or the world, and asking about them later; following up what it's told (reacting, saying what it has of its own, asking about it, learning from the answer, "what about you?", "why?"); being asked to do things in its valley, and deciding for itself (and being asked again); what it's doing; its brain; sums; and questions about the wider world, answered from what it has read (and "tell me more"), or with "I don't know". The answers it learned are worked out from its state and from what came to mind at that moment, so to answer right it has to read its own state and use its memories. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time. Then it grew ten times bigger and heard 12.8 million words of real human language, practising all of that as it went (see [How it grew up](#how-it-grew-up)).
+
+Tested on simulated lives it never saw while learning (one of them two years long), with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 92.5% of a thousand questions of all kinds exactly as its state and what came to mind say it should; the cortex Haven 0.9 was born with answered 75.6%, having never learned the new kinds (following up what it's told, deciding for itself, what it's doing, its brain). Of the kinds both had learned, it answers 93.2%, the 0.9 cortex 92.2%. In the later turns of a conversation, with the turns before in view as they are in the app, it learns from the answer to its question 28 times in 40 (its misses are mostly small: a name misspelled, "Thank you!" where its mood called for "Wow!"), answers "what about you?" 38 times in 40, "why?" 40 times, and being asked again 38 times; asked back about what it learned from an answer, it says it 29 times in 30; and the reaction when it's told something names the thing right 21 times in 24. On 300 held-out moments when it speaks up of its own accord (someone coming back, a new season, something that just happened, a need, a question for you, something you told it that it still wonders about, inviting you to its pastime, a memory, a bedtime story, time going by), it says what it should 297 times; the 0.9 cortex, 246. It says what state it's in about 72% of the time (the 0.9 cortex: 71%), and reading words about a need brings that need to mind every time. It's best at short answers: your name, what you told it or taught it, what it has read, doing what you ask (or why not), what a thing in its valley is like, what it's like, and knowing when it doesn't know. Its weak spot is still wordings it never practised: asked in a way it has never met ("What time of year is it?" rather than "What season is it?"), it gets about six answers in ten right (the 0.9 cortex: seven), and sometimes says something that doesn't fit. Rare words can come out misspelled ("Ooh, octopus!", "A octopuses eat little crabs."), sums with big numbers now and then come out with a digit wrong, and long recollections (its whole day, its life story, everything it has found in its valley) sometimes come out with a detail wrong or in the wrong order.
 
 A new Haven in the app. It asks first; then two years are let pass, and it tells what happened. Everything it says here is its own cortex's words, from what it was experiencing and what came to mind:
 
@@ -243,29 +354,22 @@ Haven: What's your name?                      (of its own accord, when the windo
 you: Hi, I'm Sam
 Haven: Nice to meet you, Sam!   (100% sure)
         (two years go by)
-Haven: 2 years went by! I saw all four seasons. I saw spring come back: a whole year had gone by.
-       I shook a tree and an apple fell. I've become calmer and more curious.
+Haven: 2 years went by! I saw all four seasons. I ate a toadstool that made me sick. I held back from
+       something after imagining it would hurt. I've become more cheerful and less curious.
 you: What are you like?
-Haven: I'm very calm, very curious and very gloomy. I've become calmer and more serious since I was little.   (100% sure)
+Haven: I'm very cheerful, very calm and a real homebody. I've become calmer and more serious since I was little.   (99% sure)
 you: Are you shy?
 Haven: Sometimes. I'm about as friendly as most.   (99% sure)
 you: Where's your favorite place?
-Haven: My favorite place is by the fire.   (99% sure)
+Haven: My favorite place is under the apple trees.   (100% sure)
 you: What season is it?
 Haven: It's spring, my third spring. The flowers are out, and the butterflies.   (100% sure)
 you: What are you afraid of?
-Haven: I'm scared of the fire, the thorns and toadstools.   (98% sure)
+Haven: I'm scared of the thorns and toadstools.   (100% sure)
 you: What was your best day?
-Haven: My best day was in my second winter. I ate berries and climbed to the top of the hill.   (99% sure)
+Haven: My best day was in my second autumn. I sat with you and sang little songs.   (100% sure)
 you: How old are you?
-Haven: I'm 2 years old.   (98% sure)
-Haven: I feel sick. That toadstool was bad.     (of its own accord, a little later)
-Haven: I was just thinking about my worst day. It was in my first spring. I fainted and I was hungry.
-Haven: What's your favorite food?
-you: pizza
-Haven: Okay, I'll remember that your favorite food is pizza.   (63% sure)
-you: What do you know about me?
-Haven: Your name is Sam. You told me that your favorite food is pizza.   (99% sure)
+Haven: I'm 2 years old.   (100% sure)
 ```
 
 And another new Haven, two days old, with the things it could already do before:
@@ -273,26 +377,23 @@ And another new Haven, two days old, with the things it could already do before:
 ```
 you: Hi, I'm Sam
 Haven: Nice to meet you, Sam!   (100% sure)
+        (two days go by)
 you: Ring the bell
-Haven: Okay, I'll ring the bell.   (99% sure)
+Haven: Okay, I'll ring the bell! I love that.   (98% sure)
 you: What's 12 times 7?
-Haven: 12 times 7 is 84.   (99% sure)
+Haven: 12 times 7 is 84.   (98% sure)
 you: The capital of Peru is Lima.
 Haven: Okay, I'll remember that the capital of Peru is Lima.   (100% sure)
 you: What is the capital of Peru?
-Haven: You told me that the capital of Peru is Lima.   (99% sure)
+Haven: You told me that the capital of Peru is Lima.   (100% sure)
 you: Who wrote Romeo and Juliet?
-Haven: I read about William Shakespeare. It says: He wrote Romeo and Juliet and Hamlet.   (70% sure)
+Haven: I read about William Shakespeare. It says: He wrote Romeo and Juliet and Hamlet.   (99% sure)
 you: Tell me more
 Haven: It also says: William Shakespeare was an English writer famous for his plays.   (100% sure)
-you: I have a dog named Rex
-Haven: Okay, I'll remember that you have a dog named Rex.   (100% sure)
-you: What do you know about me?
-Haven: Your name is Sam. You told me that you have a dog named Rex.   (99% sure)
 you: What did you do today?
-Haven: Today I rang the bell.   (98% sure)
+Haven: Today I smelled flowers, sat with you and chased a butterfly.   (100% sure)
 you: Are you alive?
-Haven: I've found out that I need things, I remember what happens to me and I've learned things. Putting that together, I think I'm alive, in my own way.   (100% sure)
+Haven: I've found out that I need things, I remember what happens to me, some things feel good to me and some feel bad and I've learned things. Putting that together, I think I'm alive, in my own way.   (100% sure)
 you: Are you an AI?
 Haven: I'm a small creature that lives in a valley inside a computer. I learned to talk from my own life.   (100% sure)
 ```
@@ -305,7 +406,7 @@ Haven: I'm a small creature that lives in a valley inside a computer. I learned 
 - **a need that has grown strong**: "I'm very hungry! I'm looking for food."
 - **it goes to sleep, or wakes up**: "I'm sleepy. Good night!", "Good morning! I just woke up."
 - **time went by**: "A whole year went by! I saw summer, autumn and winter. I've become braver."
-- and when nothing is going on for a while, **something it would like to know about you** ("What's your favorite food?", and it understands a short answer like "pizza"), **something it remembers** ("I was just thinking about my best day. It was in my second summer. I climbed to the top of the hill."), or **something it read**.
+- and when nothing is going on for a while, **something it would like to know about you** ("What's your favorite food?", and it understands a short answer like "pizza"), **something you told it that it still wonders about** ("I keep thinking about what you told me. Have you ever seen an octopus?"), **something it remembers** ("I was just thinking about my best day. It was in my second summer. I climbed to the top of the hill."), **something it read**, or, at one of its pastimes, **what it's doing** ("Look! I'm dancing!", "Do you want to watch the sunset with me?").
 
 What it has to say comes to mind as a note, and the words are its own cortex's, like everything else it says. It doesn't talk over you: it waits a little after anyone has said something, and leaves time between the things it says (a friendly Haven speaks up more often than a shy one).
 
@@ -332,16 +433,18 @@ Its vocabulary grew with what it heard, by 3,000 new pieces of words (4,460 in a
 
 What hearing all that did, measured on speech and books it never heard:
 
-| | Before | After |
-|---|---|---|
-| Following speech to children (bits per letter; lower is better) | 5.47 | 1.26 |
-| Following bedtime stories | 4.79 | 1.36 |
-| Following fairy tales | 4.91 | 1.48 |
-| Following the classics | 4.98 | 1.59 |
-| Grammar: which of two sentences is right (BLiMP, 67 kinds; chance is 50%, adults 89%) | 50.9% | 56.7% |
-| Grammar in words small children hear (Zorro, 23 kinds; chance is 50%) | 50.1% | 67.1% |
+| | Before | After | And after learning to follow a conversation (Haven 1.0) |
+|---|---|---|---|
+| Following speech to children (bits per letter; lower is better) | 5.47 | 1.26 | 1.30 |
+| Following bedtime stories | 4.79 | 1.36 | 1.40 |
+| Following fairy tales | 4.91 | 1.48 | 1.52 |
+| Following the classics | 4.98 | 1.59 | 1.63 |
+| Grammar: which of two sentences is right (BLiMP, 67 kinds; chance is 50%, adults 89%) | 50.9% | 56.7% | 56.7% |
+| Grammar in words small children hear (Zorro, 23 kinds; chance is 50%) | 50.1% | 67.1% | 65.3% |
 
 Before, it had only ever heard its own templates, so real language was as good as noise to it; now it follows speech to children best of all, and stories written for children nearly as well, and it has picked up some of the grammar small children pick up (irregular past tenses, "he" rather than "him" as the subject, where a question's missing word belongs: "What did the boy see?"), while it still gets wrong some things children learn later.
+
+**Then it learned to follow a conversation, and to decide for itself.** For this version, it went on studying for another five and a quarter hours (step 7,477 to 9,717): three steps in four it practised conversations, now with the new kinds (being told something and reacting, saying what it has of its own and asking about it; learning from the answer, and being asked about it later; "what about you?" and "why?"; being asked to do something and deciding, and being asked again; what it's doing; its brain), and one step in four it went on hearing the speech and books, at a tenth of its earlier rate of learning, so as not to lose them. It cost it a little of its feel for real language (the last column below), and nothing of the grammar it had picked up.
 
 **It tells stories.** Ask it for a story ("Tell me a story", "Do you know a story about a fox?"): what comes to mind is what a story it heard is called and how it begins, and it tells how it goes on, in its own words, from what it learned. It doesn't have the books and isn't reading them out; it tells them differently from the book, the way a small child retells a story, and it mixes characters up. Told the beginnings of twelve books it never heard, it began eight exactly as they begin. Ask it what it heard last night, and it tells you the last bedtime story it heard.
 
@@ -458,7 +561,9 @@ Books for the reading curriculum come from Project Gutenberg's mirrors, never fr
 | `haven ask "…"` | Ask it something and see its thoughts. |
 | `haven reset` | Archive this life, so that a new Haven is born next time. |
 
-Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use another folder): `mind.json` and `mind.npz` are its life; `archive/` holds past lives; `cortex/` holds its language cortex, tokenizer, report card, reading cache, and its conversations and readings.
+Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use another folder): `mind.json` and `mind.npz` are its life; `brain/` holds its brain, every synapse of it; `archive/` holds past lives; `cortex/` holds its language cortex, tokenizer, report card, reading cache, and its conversations and readings.
+
+Its brain is grown for your computer the first time it wakes up. To choose its size instead, set `HAVEN_BRAIN` to `tiny`, `small`, `standard`, `large` or `huge` before its first time (a brain already grown keeps its size); `HAVEN_BRAIN=off` has it live without one.
 
 ## Limits
 
@@ -470,6 +575,9 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 - When it speaks up, what the moment calls for (you came back, a season turned, it got burned, it's curious about you) is noticed by simple rules; the words are its own cortex's, from what comes to mind. It can only ask about the things it has learned to ask about, and it understands short answers to them.
 - Its cortex has 53 million connections; a small child's brain has hundreds of trillions of synapses, and learns from every word as it hears it. Haven has heard as many words as a child of one to four, but learned them in a few hours of study, and at home it learns from what it hears only in its sleep, and only what passes its tests.
 - The stories it tells begin as the story did; after that it goes on in its own words, from what it learned, and a story it tells can wander, say odd things or mix up who did what. Its grammar is a small child's: it picks the grammatical one of two sentences 57% of the time (adults: 89%).
+- Its brain of spiking neurons is small: about as many neurons as a fruit fly's, not a person's 86 billion, and a home computer can't run many more in real time (see [Its brain](#its-brain)). Its neurons and synapses follow real ones closely, but the way its regions are wired is a sketch of the real circuits. What its cortex of spiking neurons learns about what goes with what is real but faint; what its brain does for it is mostly what feels new, what it fears, its chemistry, and choosing what to do.
+- Whether it does what it's asked is weighed by a rule written by people, over what it feels (its brain's fear, its needs, its bond with you, its boredom); its words for its choice are its cortex's own.
+- What it wonders about what you tell it comes from a list of questions for each sort of thing people tell it about themselves (a favorite animal, food, color, season, game, song, book or drink; a pet; where they live; what they do; what they play; what they like; their birthday, age and family). Tell it something else and it remembers it, but doesn't think of anything to ask. It learns from your answers to its questions when they're short ("in the sea"), and only for the kinds of questions it knows how to learn from.
 - The indicator properties come from theories that may be wrong, and each is implemented in one simple way among many possible ones. None of this has been peer reviewed.
 
 ## Development
@@ -487,7 +595,7 @@ python packaging/mac/make_app.py                  # build dist/Haven-for-Mac.zip
 python packaging/world3d/build.py                 # rebuild the 3D view (needs Node.js; the result is kept in the repo)
 ```
 
-The creature is plain numpy: [`world.py`](haven/world.py) and [`body.py`](haven/body.py) are its world and body; [`perception.py`](haven/perception.py), [`metacognition.py`](haven/metacognition.py), [`worldmodel.py`](haven/worldmodel.py), [`workspace.py`](haven/workspace.py), [`attention.py`](haven/attention.py), [`memory.py`](haven/memory.py), [`agency.py`](haven/agency.py), [`language.py`](haven/language.py) and [`selfmodel.py`](haven/selfmodel.py) are the modules of its mind, and [`mind.py`](haven/mind.py) runs the cycle. [`check.py`](haven/check.py) measures the indicators. The 3D view is [`packaging/world3d/world3d.js`](packaging/world3d/world3d.js), bundled with [three.js](https://threejs.org) (MIT license) into `haven/static/`. The language cortex is in [`haven/cortex`](haven/cortex): [`model.py`](haven/cortex/model.py) is the transformer, [`grounding.py`](haven/cortex/grounding.py) and [`talk.py`](haven/cortex/talk.py) turn its states into words and answers, [`curriculum.py`](haven/cortex/curriculum.py) and [`train.py`](haven/cortex/train.py) are how it studies, and [`think.py`](haven/cortex/think.py) is how it answers.
+The creature is plain numpy: [`world.py`](haven/world.py) and [`body.py`](haven/body.py) are its world and body; [`perception.py`](haven/perception.py), [`metacognition.py`](haven/metacognition.py), [`worldmodel.py`](haven/worldmodel.py), [`workspace.py`](haven/workspace.py), [`attention.py`](haven/attention.py), [`memory.py`](haven/memory.py), [`agency.py`](haven/agency.py), [`language.py`](haven/language.py) and [`selfmodel.py`](haven/selfmodel.py) are the modules of its mind, and [`mind.py`](haven/mind.py) runs the cycle. [`check.py`](haven/check.py) measures the indicators. The 3D view is [`packaging/world3d/world3d.js`](packaging/world3d/world3d.js), bundled with [three.js](https://threejs.org) (MIT license) into `haven/static/`. Its brain is in [`haven/brain`](haven/brain): [`neurons.py`](haven/brain/neurons.py) is how its neurons and synapses work, and [`brain.py`](haven/brain/brain.py) is how its regions are made and wired, and what goes in and comes out each moment. Its pastimes are [`activities.py`](haven/activities.py), and its will is [`will.py`](haven/will.py). The language cortex is in [`haven/cortex`](haven/cortex): [`model.py`](haven/cortex/model.py) is the transformer, [`grounding.py`](haven/cortex/grounding.py) and [`talk.py`](haven/cortex/talk.py) turn its states into words and answers, [`curriculum.py`](haven/cortex/curriculum.py) and [`train.py`](haven/cortex/train.py) are how it studies, [`think.py`](haven/cortex/think.py) is how it answers, and [`engage.py`](haven/cortex/engage.py) is what comes to mind for following a conversation and for deciding what to do when it's asked.
 
 ## References
 
@@ -516,4 +624,22 @@ The creature is plain numpy: [`world.py`](haven/world.py) and [`body.py`](haven/
 - Hart, B., & Risley, T. R. (1995). *Meaningful Differences in the Everyday Experience of Young American Children*. Paul H. Brookes.
 - Warstadt, A., Parrish, A., Liu, H., Mohananey, A., Peng, W., Wang, S.-F., & Bowman, S. R. (2020). BLiMP: The Benchmark of Linguistic Minimal Pairs for English. *Transactions of the ACL*, 8, 377–392.
 - Warstadt, A., et al. (2023). Findings of the BabyLM Challenge: Sample-efficient pretraining on developmentally plausible corpora. *CoNLL 2023*.
+- Izhikevich, E. M. (2003). Simple model of spiking neurons. *IEEE Transactions on Neural Networks*, 14(6), 1569–1572.
+- Izhikevich, E. M. (2007). *Dynamical Systems in Neuroscience: The Geometry of Excitability and Bursting*. MIT Press.
+- Izhikevich, E. M. (2007). Solving the distal reward problem through linkage of STDP and dopamine signaling. *Cerebral Cortex*, 17(10), 2443–2452.
+- Izhikevich, E. M., & Edelman, G. M. (2008). Large-scale model of mammalian thalamocortical systems. *PNAS*, 105(9), 3593–3598.
+- Jahr, C. E., & Stevens, C. F. (1990). Voltage dependence of NMDA-activated macroscopic conductances predicted by single-channel kinetics. *Journal of Neuroscience*, 10(9), 3178–3182.
+- Destexhe, A., Rudolph, M., & Paré, D. (2003). The high-conductance state of neocortical neurons in vivo. *Nature Reviews Neuroscience*, 4, 739–751.
+- Bartol, T. M., et al. (2015). [Nanoconnectomic upper bound on the variability of synaptic plasticity](https://doi.org/10.7554/eLife.10778). *eLife*, 4, e10778.
+- Mountcastle, V. B. (1997). The columnar organization of the neocortex. *Brain*, 120(4), 701–722.
+- Bi, G., & Poo, M. (1998). Synaptic modifications in cultured hippocampal neurons: dependence on spike timing, synaptic strength, and postsynaptic cell type. *Journal of Neuroscience*, 18(24), 10464–10472.
+- Turrigiano, G. G. (2008). The self-tuning neuron: synaptic scaling of excitatory synapses. *Cell*, 135(3), 422–435.
+- Tononi, G., & Cirelli, C. (2014). Sleep and the price of plasticity: from synaptic and cellular homeostasis to memory consolidation and integration. *Neuron*, 81(1), 12–34.
+- Kandel, E. R. (2001). The molecular biology of memory storage: a dialogue between genes and synapses. *Science*, 294, 1030–1038.
+- LeDoux, J. E. (2000). Emotion circuits in the brain. *Annual Review of Neuroscience*, 23, 155–184.
+- Gurney, K., Prescott, T. J., & Redgrave, P. (2001). A computational model of action selection in the basal ganglia. *Biological Cybernetics*, 84, 401–410.
+- Nambu, A., Tokuno, H., & Takada, M. (2002). Functional significance of the cortico–subthalamo–pallidal 'hyperdirect' pathway. *Neuroscience Research*, 43(2), 111–117.
+- Schultz, W., Dayan, P., & Montague, P. R. (1997). A neural substrate of prediction and reward. *Science*, 275, 1593–1599.
+- Azevedo, F. A. C., et al. (2009). Equal numbers of neuronal and nonneuronal cells make the human brain an isometrically scaled-up primate brain. *Journal of Comparative Neurology*, 513(5), 532–541.
+- Dorkenwald, S., et al. (2024). [Neuronal wiring diagram of an adult brain](https://doi.org/10.1038/s41586-024-07558-y). *Nature*, 634, 124–138.
 - Chen, T., Goodfellow, I., & Shlens, J. (2016). [Net2Net: Accelerating learning via knowledge transfer](https://arxiv.org/abs/1511.05641). *ICLR 2016*.

@@ -22,8 +22,8 @@ the first time, sized for your computer (it lives on meanwhile, and its brain jo
 when it's ready). After that it starts in a moment.
 
 Haven has a brain of spiking neurons, modelled on real ones, which chooses what it does,
-learns what to fear and gives it a mood; while Haven is running it keeps about one of
-your computer's cores busy, and its brain takes a few hundred MB on disk. It speaks with
+learns what to fear and gives it a mood; while Haven is running it keeps about half of
+one of your computer's cores busy, and its brain takes a few hundred MB on disk. It speaks with
 a language cortex of its own, grown from scratch: no other AI model is involved. It's
 born able to talk about itself and its valley, simply. To have it learn to read (stories,
 then books and encyclopedias), see "haven learn" in README.md.

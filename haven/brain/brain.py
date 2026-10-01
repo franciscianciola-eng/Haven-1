@@ -989,10 +989,10 @@ def fit() -> str:
     """The biggest brain this computer can keep running alongside everything else, at every moment of Haven's life."""
     import os
 
-    gb, cores = memory_gb(), os.cpu_count() or 2
-    if gb >= 30 and cores >= 12:
+    gb, cores = memory_gb(), os.cpu_count() or 2  # (it computes on one core, so many cores mean a fast computer)
+    if gb >= 30 and cores >= 16:
         return "huge"
-    if gb >= 14 and cores >= 8:
+    if gb >= 15 and cores >= 12:
         return "large"
     if gb >= 6 and cores >= 4:
         return "standard"
