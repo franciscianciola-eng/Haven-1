@@ -17,7 +17,19 @@ import numpy as np
 
 from . import activities
 from .activities import ACTIVITIES, BASE
-from .agency import EFFECTS, ActorCritic, BeliefMap, Goals, KindKnowledge, Planner, frontier, goal_cells, reflexes
+from .agency import (
+    EFFECTS,
+    OPEN,
+    UNKNOWN,
+    ActorCritic,
+    BeliefMap,
+    Goals,
+    KindKnowledge,
+    Planner,
+    frontier,
+    goal_cells,
+    reflexes,
+)
 from .attention import GOALS, NOTHING, AttentionSchema, features
 from .body import WEIGHTS, Body
 from .language import Lexicon, sound
@@ -33,6 +45,7 @@ from .world import (
     APPLE,
     BUSH,
     DAY,
+    DIRECTIONS,
     FIRE,
     FLOOR,
     MUSHROOM,
@@ -462,6 +475,14 @@ class Mind:
                 self.knowledge.tried_using(k, last.reward, effects, weight)
             if act in ("eat", "forward", "use"):
                 self.knowledge.felt(k, last.reward, weight)
+        if act == "forward" and last.outcome.bumped and not last.outcome.pushed:
+            # (it bumped into what it took to be open ground: an edge it can't climb, which it keeps in mind)
+            dx, dy = DIRECTIONS[pose[2]]
+            ax, ay = pose[0] + dx, pose[1] + dy
+            if self.beliefs.inside(ax, ay) and (
+                self.beliefs.kind[ay, ax] in (OPEN, UNKNOWN) or self.beliefs.visits[ay, ax]
+            ):
+                self.beliefs.edges.add((int(pose[0]), int(pose[1]), int(pose[2])))
         x, y, _ = pose
         here = int(self.beliefs.kind[y, x])
         if last.outcome.moved and here < 0 and last.ahead_near and last.ahead_trust > 0.5:

@@ -32,6 +32,7 @@ class BeliefMap:
         self.visits = np.zeros((height, width), dtype=int)
         self.warmth = np.full((height, width), np.nan)
         self.hurt = np.zeros((height, width))  # places where it got hurt, whatever was there
+        self.edges: set[tuple[int, int, int]] = set()  # ways it found it can't go (from where, facing which way)
         self.updates = 0
         self.weighted = 0.0  # total confidence of the evidence it has taken in
 
@@ -82,6 +83,7 @@ class BeliefMap:
             "visits": self.visits,
             "warmth": self.warmth,
             "hurt": self.hurt,
+            "edges": [list(edge) for edge in sorted(self.edges)],
             "counts": [self.updates, self.weighted],
         }
 
@@ -92,6 +94,7 @@ class BeliefMap:
         self.visits = np.array(state["visits"], dtype=int)
         self.warmth = np.array(state["warmth"], dtype=float)
         self.hurt = np.array(state["hurt"], dtype=float)
+        self.edges = {(int(x), int(y), int(h)) for x, y, h in state.get("edges", [])}
         self.updates, self.weighted = int(state["counts"][0]), float(state["counts"][1])
 
 
@@ -316,6 +319,8 @@ def search(
         x, y, h = state
         for action in order:
             if action == "forward":
+                if (x, y, h) in beliefs.edges:
+                    continue  # (it found it can't go that way from here: up a cliff)
                 dx, dy = DIRECTIONS[h]
                 # Where it's heading it can go into, whatever it has taken it for (its nest is not the bell).
                 entering = mode == "enter" and (x + dx, y + dy) in cells

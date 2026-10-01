@@ -151,3 +151,19 @@ def test_welfare_it_cannot_die():
     mind.live(5)
     assert mind.counts["fainted"] == 1 and mind.body.energy >= 0.3
     assert (mind.world.x, mind.world.y) == mind.world.nest
+
+
+def test_it_keeps_in_mind_where_it_cant_climb():
+    from haven.agency import OPEN, BeliefMap, KindKnowledge, search
+
+    beliefs = BeliefMap(5, 5)
+    beliefs.kind[:, :] = OPEN
+    knowledge = KindKnowledge()
+    straight, _ = search((2, 4, 0), "enter", {(2, 0)}, beliefs, knowledge)
+    assert straight == ["forward"] * 4
+    beliefs.edges.add((2, 3, 0))  # (it bumped into a cliff there, going north)
+    around, poses = search((2, 4, 0), "enter", {(2, 0)}, beliefs, knowledge)
+    assert len(around) > 4 and (2, 3, 0) not in [p for p, a in zip(poses, around, strict=True) if a == "forward"]
+    restored = BeliefMap(5, 5)
+    restored.load_state(beliefs.to_state())
+    assert restored.edges == {(2, 3, 0)}
