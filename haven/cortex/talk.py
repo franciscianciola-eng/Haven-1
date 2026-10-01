@@ -3591,7 +3591,7 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         else:
             forms, reply = SMALL_TALK[rng.choice(list(SMALL_TALK))]
             said.append(Turn(plain(rng.choice(forms), rng), reply, "small talk"))
-    if just is None and rng.random() < 0.2:  # and they tell it something about themselves, or teach it something
+    if just is None and rng.random() < 0.3:  # and they tell it something about themselves, or teach it something
         teaching = rng.random() < 0.35
         fact_said = a_lesson(rng)[0] if teaching else a_fact(rng)[0]
         if rng.random() < 0.25:

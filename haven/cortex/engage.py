@@ -578,11 +578,14 @@ def told_practice(
     what it has of its own, what it wonders; then maybe their answer, and what it learns; or "what about you?"."""
     glad, _ = REACTIONS.get(mood, REACTIONS[None])
     questions = wonders(fact)
+    learnable = [q for q in questions if any(re.match(pattern, q) for pattern, _ in ANSWERS)]
+    if learnable and rng.random() < 0.7:  # (practising most what it can learn from the answer to)
+        questions = learnable
     question = rng.choice(questions) if questions and rng.random() < 0.3 + 0.6 * curious else None
     own = own_for(fact, favorites) if rng.random() < 0.6 else None
     notes = [n for n in (wonder_note(question) if question else "", own_note(own) if own else "") if n]
     turns = [(said, told_reply(fact, glad, own, question, rng), "being told")]
-    if question and rng.random() < 0.75:
+    if question and rng.random() < 0.9:
         answer = wonder_answer(question, rng)
         learned = learned_from(question, answer) if answer else None
         if learned:
@@ -593,7 +596,7 @@ def told_practice(
                 if more:
                     notes.append(wonder_note(more))
             turns.append((answer, learned_reply(learned, more, rng, mood), "learning"))
-    elif own and rng.random() < 0.5:
+    elif own and rng.random() < 0.75:
         turns.append(
             (rng.choice(("What about you?", "And you?", "How about you?", "what about you")), own, "about you")
         )
