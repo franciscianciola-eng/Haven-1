@@ -117,3 +117,27 @@ def test_packed_weights_come_back_nearly_as_they_were(tmp_path):
     assert again.head.weight is again.embed.weight
     tokens = torch.randint(0, 300, (1, 20))
     assert torch.allclose(again(tokens)[0], model(tokens)[0], atol=0.05)
+
+
+def test_a_long_telling_does_not_go_round_in_circles():
+    model = small().eval()
+
+    def grams(tokens):
+        return [tuple(tokens[i : i + 3]) for i in range(len(tokens) - 2)]
+
+    looping, _ = model.generate([1, 2, 3], max_new=60, temperature=0.0)
+    assert len(grams(looping)) > len(set(grams(looping)))  # (an untrained cortex goes round in circles)
+    told, _ = model.generate([1, 2, 3], max_new=60, temperature=0.0, no_repeat=3)
+    assert len(grams(told)) == len(set(grams(told)))  # but not when it mustn't
+
+    def cycling(tokens, state=None, past=None):  # a cortex that always wants to say 0, 1, 2, 3, 4, 0, 1, ...
+        logits = torch.full((1, tokens.shape[1], 300), -10.0)
+        logits[0, -1, (int(tokens[0, -1]) + 1) % 5] = 10.0
+        logits[0, -1, 9] = 5.0  # (and next best, 9)
+        return logits, None, [None] * len(model.blocks)
+
+    model.run = cycling
+    told, _ = model.generate([4], max_new=8, temperature=0.0, no_repeat=3)
+    assert told == [0, 1, 2, 3, 4, 0, 1, 9]  # once round, then not again
+    told, _ = model.generate([0, 1, 2, 3, 4], max_new=11, temperature=0.0, no_repeat=3)
+    assert told == [0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 9]  # but what came to mind, it can say again

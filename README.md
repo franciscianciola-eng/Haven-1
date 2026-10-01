@@ -1,6 +1,6 @@
 # Haven
 
-Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a small 3D valley on your computer, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex of its own: a small transformer grown from scratch, wired into the same workspace as everything else it experiences. It is born able to talk about itself, in words it learned for its own states, and it can go on to learn to read, level by level, from texts on the internet. The seasons turn in its valley, and over its years it grows a character of its own out of how it lives: curious or a homebody, brave or careful, friendly or shy, with a favorite place, a favorite season, things it's afraid of, and days it remembers. It doesn't only answer: when you're there, it speaks up. No other AI model is involved anywhere.
+Haven is an artificial creature built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core. It lives in a small 3D valley on your computer, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: it has a body with needs, things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. It also has a language cortex of its own: a transformer grown from scratch (53 million connections), wired into the same workspace as everything else it experiences, which grew up hearing what a small child hears: 12.8 million words of people talking to small children, and of children's books. It is born able to talk about itself, in words it learned for its own states; it tells the stories it heard, in its own words; and at home it keeps hearing and learning, a bedtime story at a time. The seasons turn in its valley, and over its years it grows a character of its own out of how it lives: curious or a homebody, brave or careful, friendly or shy, with a favorite place, a favorite season, things it's afraid of, and days it remembers. It doesn't only answer: when you're there, it speaks up. No other AI model is involved anywhere.
 
 A few minutes with it, in the terminal (its dashboard is open in a browser at the same time):
 
@@ -230,9 +230,9 @@ Words it learns from you stay few. For language beyond that, Haven has a languag
 
 **It remembers you.** Tell it your name ("I'm Sam", "my name is Sam") and it remembers it, and greets you by name. Tell it things about yourself ("I have a dog called Rex", "my favorite color is green", "I live in Lisbon") and it says it will remember, and does: ask it later ("what's my dog called?") and it tells you what you told it. It's born having read a little book of simple facts (the first lines of about eighty encyclopedia articles, from the Moon to penguins), and when it doesn't know something and reads about it, it remembers what it read, so the next time you ask, it knows. All of this is kept with its life, on your computer.
 
-**It's born talking about itself, its valley and you.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 5 million connections, trained with `python packaging/train_starter.py`). It learned from moments of ten simulated lives of Haven, three of them two to three years long, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, what it had done and found out, who it had become, and what it would answer if asked, or say of its own accord. That covers about 55 kinds of questions about itself in many wordings ("How are you?", "What did you do today?", "What are you like?", "Are you shy?", "What's your favorite season?", "What was your best day?", "Tell me your story", "Are you alive?", …); the ten kinds of moments when it speaks up; six kinds of questions about each of the valley's things ("What do you know about the bell?", "Do you like the thorns?", "Where is the pond?", "Can you eat toadstools?", …); people telling it their name and things about themselves or the world, and asking about them later; being asked to do things in its valley; sums; and questions about the wider world, answered from what it has read (and "tell me more"), or with "I don't know". The answers it learned are worked out from its state and from what came to mind at that moment, so to answer right it has to read its own state and use its memories. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time.
+**It's born talking about itself, its valley and you.** Haven comes with the cortex it starts life with (`haven/cortex/starter/`, 53 million connections). It began as a small cortex, of 5 million connections, that learned from moments of ten simulated lives of Haven, three of them two to three years long, with someone keeping it company now and then: what it was feeling, seeing and wanting at each moment, what it had done and found out, who it had become, and what it would answer if asked, or say of its own accord. That covers about 55 kinds of questions about itself in many wordings ("How are you?", "What did you do today?", "What are you like?", "Are you shy?", "What's your favorite season?", "What was your best day?", "Tell me your story", "Are you alive?", …); the ten kinds of moments when it speaks up; six kinds of questions about each of the valley's things ("What do you know about the bell?", "Do you like the thorns?", "Where is the pond?", "Can you eat toadstools?", …); people telling it their name and things about themselves or the world, and asking about them later; being asked to do things in its valley; sums; and questions about the wider world, answered from what it has read (and "tell me more"), or with "I don't know". The answers it learned are worked out from its state and from what came to mind at that moment, so to answer right it has to read its own state and use its memories. The sentences themselves are templates written by people, the way a parent gives a child words for what the child is feeling; what it learns is to say the right one at the right time. Then it grew ten times bigger and heard 12.8 million words of real human language, practising all of that as it went (see [How it grew up](#how-it-grew-up)).
 
-Tested on simulated lives it never saw while learning (one of them two years long), with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 97.2% of a thousand questions of all kinds exactly as its state and what came to mind say it should; the cortex it had before this version answered 79.5% of the same questions, mostly because it had never learned the new kinds (what it's like, its favorite season, its best day, whether it's shy, …). On 300 held-out moments when it speaks up of its own accord (someone coming back, a new season, something that just happened, a need, a question for you, a memory, time going by), it says what it should every time; the cortex before managed 6. It says what state it's in 74% of the time, and reading words about a need brings that need to mind every time. It's best at short answers: your name, what you told it or taught it, what it has read, doing what you ask, what a thing in its valley is like, what it's like, and knowing when it doesn't know. Its weak spot is wordings it never practised: asked in a way it has never met ("What time of year is it?" rather than "What season is it?"), it gets about two answers in three right, and sometimes says something that doesn't fit. Sums with big numbers now and then come out with a digit wrong, and long recollections (its whole day, its life story, everything it has found in its valley) sometimes come out with a detail wrong or in the wrong order.
+Tested on simulated lives it never saw while learning (one of them two years long), with questions typed the way people type them (lower case, no question mark, "hey haven, …"), it answers 95.8% of a thousand questions of all kinds exactly as its state and what came to mind say it should; the small cortex it grew from answered 93.2% of the same questions (of the kinds both had learned, it answers 97.6%, the small one 96.1%). On 300 held-out moments when it speaks up of its own accord (someone coming back, a new season, something that just happened, a need, a question for you, a memory, a bedtime story, time going by), it says what it should every time; the small cortex, 277. It says what state it's in about 72% of the time (the small cortex: 74%), and reading words about a need brings that need to mind every time. It's best at short answers: your name, what you told it or taught it, what it has read, doing what you ask, what a thing in its valley is like, what it's like, and knowing when it doesn't know. Its weak spot is still wordings it never practised: asked in a way it has never met ("What time of year is it?" rather than "What season is it?"), it gets about seven answers in ten right (the small cortex: 65%), and sometimes says something that doesn't fit. Sums with big numbers now and then come out with a digit wrong, and long recollections (its whole day, its life story, everything it has found in its valley) sometimes come out with a detail wrong or in the wrong order.
 
 A new Haven in the app. It asks first; then two years are let pass, and it tells what happened. Everything it says here is its own cortex's words, from what it was experiencing and what came to mind:
 
@@ -309,6 +309,66 @@ What it has to say comes to mind as a note, and the words are its own cortex's, 
 
 **It keeps learning.** `haven learn` has it study the reading curriculum below, level by level, from where it is. It keeps practising talking about itself as it reads, so it doesn't forget how. While it sleeps it also goes over moments of its day (see [What it learns as it lives](#what-it-learns-as-it-lives)).
 
+### How it grew up
+
+**It grew a bigger brain, without forgetting.** The cortex earlier versions of Haven were born with had 5.3 million connections. It was grown to 53 million, ten times as many: twice as wide (every unit became two, side by side) and more than twice as deep (16 layers instead of 6). It was grown so that the bigger cortex starts out computing exactly what the small one did (each pair of copied units shares out what it passes on, and each new layer starts out adding nothing, until it learns to), so on its first day it answered 60 held-out questions out of 60 exactly as before, with ten times the room to learn in.
+
+**It heard what a small child hears.** Then it heard 12.8 million words of real human language:
+
+- **People talking to small children**: 3.9 million words that parents and others said to children under six, recorded for research, youngest children first (the CHILDES transcripts, as collected in AO-CHILDES). "Look, there's a bunny rabbit." "Do you want to look at that?" "You like that book, it's very red."
+- **Children's books**: 9 million words from 289 books: bedtime stories (Peter Rabbit, Reddy Fox, Uncle Wiggily, the Tuck-me-in Tales), fairy tales and fables, nursery rhymes, first readers and a magazine for the youngest readers, simple chapter books (the Bobbsey Twins, Bunny Brown), and the classics read aloud to children (Alice, Peter Pan, the Oz books, The Wind in the Willows, Heidi, Pinocchio, Black Beauty).
+
+Its vocabulary grew with what it heard, by 3,000 new pieces of words (4,460 in all), chosen so that it still reads everything it already knew in exactly the same pieces. It went through all of it once and a fifth of it again, in 10 hours on a 4-core computer, and every other step it practised talking about its life, so that it didn't forget how (`python packaging/grow_cortex.py`). One book of each kind in twenty, and one stretch of speech in twenty, were kept back to test it on.
+
+**How close is that to a small child?** Not close in brain; closer in what it has heard:
+
+| | A small child | Haven |
+|---|---|---|
+| Connections | hundreds of trillions of synapses | 53 million: millions of times fewer |
+| Words heard | roughly 3 to 11 million a year (Hart & Risley, 1995) | 12.8 million: about what a child has heard by the age of one to four |
+| Learning | from every word, as it hears it, all day | 10 hours of study before it was born; at home, what it hears each day, in its sleep |
+
+What hearing all that did, measured on speech and books it never heard:
+
+| | Before | After |
+|---|---|---|
+| Following speech to children (bits per letter; lower is better) | 5.47 | 1.26 |
+| Following bedtime stories | 4.79 | 1.36 |
+| Following fairy tales | 4.91 | 1.48 |
+| Following the classics | 4.98 | 1.59 |
+| Grammar: which of two sentences is right (BLiMP, 67 kinds; chance is 50%, adults 89%) | 50.9% | 56.7% |
+| Grammar in words small children hear (Zorro, 23 kinds; chance is 50%) | 50.1% | 67.1% |
+
+Before, it had only ever heard its own templates, so real language was as good as noise to it; now it follows speech to children best of all, and stories written for children nearly as well, and it has picked up some of the grammar small children pick up (irregular past tenses, "he" rather than "him" as the subject, where a question's missing word belongs: "What did the boy see?"), while it still gets wrong some things children learn later.
+
+**It tells stories.** Ask it for a story ("Tell me a story", "Do you know a story about a fox?"): what comes to mind is what a story it heard is called and how it begins, and it tells how it goes on, in its own words, from what it learned. It doesn't have the books and isn't reading them out; it tells them differently from the book, the way a small child retells a story, and it mixes characters up. Told the beginnings of twelve books it never heard, it began eight exactly as they begin. Ask it what it heard last night, and it tells you the last bedtime story it heard.
+
+A new Haven in the app, its first hour. Everything it says is its own cortex's words:
+
+```
+you: Tell me a story
+Haven: Here's a story I heard, The Tale of Miss Kitty Cat. The rats and the mice thought that Miss Kitty Cat was a
+       terrible person. She was altogether too fond of hunting them. They agreed, however, that in one way it was
+       pleasant to have her about the farmhouse. When she washed her face, while sitting on the doorsteps, they
+       knew -- so they said! -- that it was going to rain.   (99% sure)
+you: Do you know a story about a fox?
+Haven: Here's a story I heard, The Tale of Tommy Fox. Tommy Fox was having a delightful time. If you could have
+       come upon him in the woods you would have been astonished at his antics. He leaped high off the ground, and
+       struck out with his paws. His hair was small, and ordered him. He had been thinking of other things.   (74% sure)
+        (it falls asleep, and hears the start of The Adventures of Reddy Fox; when it wakes up:)
+Haven: Last night I heard a story, The Adventures of Reddy Fox. It begins: Reddy Fox lived with Granny Fox.
+        (a few nights later)
+you: What did you hear last night?
+Haven: The last story I heard was The Adventures of Reddy Fox. It begins: "He certainly is following our track,"
+       said Granny Fox.   (99% sure)
+you: Tell me a story
+Haven: Here's a story I heard, The Adventures of Reddy Fox. Reddy Fox had been taught so much by Granny Fox that he
+       began to feel very wise and very important. Reddy is naturally smart and he had been very quick to learn the
+       tricks that old Granny Fox had taught him. He had been thinking of other things.   (97% sure)
+```
+
+**It keeps hearing, and learning, like a small child.** At home, when it falls asleep (at most every 20 minutes), it's read the next part of a book, one book after another, starting with the bedtime stories: about 1,200 words an hour, about as many as a small child hears in an hour. What you say to it counts too. In its sleep it goes over what it heard and what you said, along with moments of its day; then it's tested on how the story goes on (the part it hasn't heard yet), and it keeps what it learned only if it follows the story at least as well as before, and still talks about its day and about other lives as well as before. A cortex this size learns gently: it hears each new passage about twice a night, at a tenth of the rate its small self learned at. (Going over a passage dozens of times, as the small cortex could, it learned the passage by heart and then followed the rest of the story worse.) In a test night after hearing part of The Adventures of Reddy Fox, it kept what it learned: it followed how the story went on a little better, and answered questions about other lives better (96% before, 99% after). When it wakes up it may tell you about the story ("Last night I heard a story, The Adventures of Reddy Fox. It begins: ..."). It needs the internet to get each new book; without it, it doesn't hear new stories. Its window shows how many words it has heard, and what the last bedtime story was.
+
 ### The curriculum
 
 It goes one level at a time. Each level has its own reading and its own tests, always on text held out from what it learned from. It studies each level until it passes the tests or stops improving. It's born having studied level 2.
@@ -334,13 +394,14 @@ haven learn --minutes 90      # study for 90 minutes, then save and stop (run it
 
 ### What to expect
 
-It talks about itself and its valley, simply, from the start. What it can learn beyond that is limited by the size of its cortex, your hardware and your patience. The cortex it's born with is "small":
+It talks about itself and its valley, simply, from the start. What it can learn beyond that is limited by the size of its cortex, your hardware and your patience. The cortex it's born with is "grown":
 
 | Size | Connections | One reading step |
 |---|---|---|
 | tiny | ~1 million | about 0.5 s on a 4-core CPU |
-| small (the one it's born with) | ~5 million | about 3 s on a 4-core CPU; a fraction of that on a GPU |
+| small (the one it grew from) | ~5 million | about 3 s on a 4-core CPU; a fraction of that on a GPU |
 | medium | ~30 million | GPU only, in practice |
+| grown (the one it's born with) | ~53 million | about 5 s on a 4-core CPU that works in bfloat16; GPU, in practice |
 | large | ~100 million | GPU only, in practice |
 
 A reading level takes from about 1,500 to 12,000 steps: hours on a computer's processor, much less on an Apple Silicon or NVIDIA GPU. Reading makes its language more fluent, but a cortex this size, grown at home, will not be a fluent conversationalist or know much about the world.
@@ -368,6 +429,7 @@ Haven keeps learning after it's born, from you, from what it reads, and from its
 - **It keeps what it reads.** It keeps the start of every article it reads, sentence by sentence, and when you ask a question, the sentence that answers it comes to mind ("Who wrote Romeo and Juliet?"). Ask "tell me more" to hear the next thing it read, "what have you read lately?", or "tell me something interesting".
 - **It reads out of curiosity.** When nobody has said anything for a few minutes, it now and then (at most every 15 minutes) reads about something it's curious about: things you mentioned, things it has met in its valley, or what something it read says a thing is. It reads only if it's allowed to use the internet.
 - **It works out sums** ("what's 12 times 7?").
+- **It hears bedtime stories, and learns from them and from you.** As it falls asleep (at most every 20 minutes), it's read the next part of a book, and in its sleep it goes over what it heard and what you said, keeping what it learned only if it follows how the story goes on at least as well as before (see [How it grew up](#how-it-grew-up)).
 - **It learns in its sleep.** While it's awake, it notes down moments of its day: its state, what it knows, and what it would truthfully answer. While it sleeps (the first time after about ten minutes, then at most every half hour), a copy of its language cortex practises conversations about those moments and about what it read, going over moments of another life in between so it doesn't forget how to talk about others. The copy and the cortex it has then take the same two tests, one on moments of its day it didn't practise and one on other lives, and it keeps the copy only if it does at least as well on its day and no worse on other lives. How each night went is written to `~/.haven/cortex/nights.jsonl`.
 
 ## What it reads, and how it uses the internet
@@ -404,6 +466,8 @@ Everything is kept in `~/.haven` (set `HAVEN_HOME`, or pass `--home`, to use ano
 - Its cortex is small, so what it recalls word for word can come out a little wrong: an unusual name clipped ("Biscuit" as "Bis"), a detail of its day or its life story missing or out of order. It's reliable with short things (your name, what you told it, what it read, what a thing is like) and less so with long lists.
 - Its character comes from a few simple habits (how much it explores, plays, wanders far, how it feels, how stirred up it gets, how being with people feels), measured against simulated Havens. It's real in that it comes from how it has lived and changes what it does, but it's a sketch of a personality, not a rich one.
 - When it speaks up, what the moment calls for (you came back, a season turned, it got burned, it's curious about you) is noticed by simple rules; the words are its own cortex's, from what comes to mind. It can only ask about the things it has learned to ask about, and it understands short answers to them.
+- Its cortex has 53 million connections; a small child's brain has hundreds of trillions of synapses, and learns from every word as it hears it. Haven has heard as many words as a child of one to four, but learned them in a few hours of study, and at home it learns from what it hears only in its sleep, and only what passes its tests.
+- The stories it tells begin as the story did; after that it goes on in its own words, from what it learned, and a story it tells can wander, say odd things or mix up who did what. Its grammar is a small child's: it picks the grammatical one of two sentences 57% of the time (adults: 89%).
 - The indicator properties come from theories that may be wrong, and each is implemented in one simple way among many possible ones. None of this has been peer reviewed.
 
 ## Development

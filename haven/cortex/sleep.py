@@ -33,7 +33,9 @@ BATCH = 8
 LR = 1e-4  # (sweeps: without going over another life too, practice cost it on other lives, and was thrown away)
 HELD = 4  # one moment in this many is kept back, to test on
 TOLERANCE = 0.02  # how much worse on other lives still counts as no worse (the tests are small)
-LISTENING = 3  # with things it heard to go over, one practice step in this many is hearing them again
+LISTENING = 3  # with things it heard to go over, at most one practice step in this many is hearing them again...
+PASSES = 2  # ...and it hears each of them about twice (more, and a cortex this size learns them by heart)
+SIZED = 5.3e6  # connections of the cortex the learning rate was found for (a bigger one learns more gently)
 FOLLOWING = 0.01  # how much worse at following a story (bits per byte) still counts as no worse
 
 
@@ -169,11 +171,14 @@ def night(
         before["following"] = following(model, tok, upcoming)
     student = copy.deepcopy(model)
     student.train()
-    optimizer = torch.optim.AdamW(student.parameters(), lr=LR if lr is None else lr, weight_decay=0.0)
+    rate = LR * min(1.0, SIZED / model.parameters_count()) if lr is None else lr  # (ten times bigger: a tenth)
+    optimizer = torch.optim.AdamW(student.parameters(), lr=rate, weight_decay=0.0)
     losses = []
-    listening = bool(heard or people)
+    pieces = sum(len(tok.encode(text)) + 2 for text in (*heard, *people))
+    listens = min(steps // LISTENING, math.ceil(PASSES * pieces / ((BATCH // 2) * (model.cfg.context + 1))))
+    when = {int((i + 0.5) * steps / listens) for i in range(listens)} if listens else set()  # (spread out)
     for step in range(steps):
-        if listening and step % LISTENING == LISTENING - 1:
+        if step in when:
             loss = listening_loss(student, tok, list(heard), list(people), rng)
         else:
             loss = practice_loss(student, tok, practice, rng, rehearse)
@@ -194,6 +199,8 @@ def night(
         "heard": len(heard),
         "said to it": len(people),
         "steps": steps,
+        "listening": len(when),
+        "rate": rate,
         "loss": [round(float(np.mean(losses[:10])), 3), round(float(np.mean(losses[-10:])), 3)] if losses else None,
         "before": {k: round(v, 3) for k, v in before.items()},
         "after": {k: round(v, 3) for k, v in after.items()},

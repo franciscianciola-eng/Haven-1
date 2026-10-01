@@ -165,12 +165,20 @@ class Cortex(nn.Module):
         top_k: int = 40,
         stop: tuple[int, ...] = (),
         generator: torch.Generator | None = None,
+        no_repeat: int = 0,
     ) -> tuple[list[int], list[float]]:
-        """Continue the prompt. Returns the new tokens and the log-probability of each."""
+        """Continue the prompt. Returns the new tokens and the log-probability of each.
+
+        `no_repeat`: never say again a run of that many pieces it has already said, unless the prompt has it too (so a
+        long telling can't go round in circles, "and they went on, and they went on, ...", but can say a name again)."""
         device = self.embed.weight.device
         room = self.cfg.context - 1
         ids = list(prompt)[-max(room - max_new, 1) :]
         out, logprobs = [], []
+        said: dict[tuple, set[int]] = {}  # what it has said after each run of no_repeat - 1 pieces
+        given: dict[tuple, set[int]] = {}  # ...and what the prompt has after each
+        for i in range(len(ids) - no_repeat + 1 if no_repeat else 0):
+            given.setdefault(tuple(ids[i : i + no_repeat - 1]), set()).add(ids[i + no_repeat - 1])
         logits_all, _, past = self.run(torch.tensor([ids], device=device), state)
         logits = logits_all[0, -1].float()
         for step in range(max_new):
@@ -179,6 +187,11 @@ class Cortex(nn.Module):
                     break  # no room left to think in
                 logits_all, _, past = self.run(torch.tensor([[ids[-1]]], device=device), past=past)
                 logits = logits_all[0, -1].float()
+            run = tuple(out[-(no_repeat - 1) :]) if no_repeat and len(out) >= no_repeat - 1 else None
+            banned = said.get(run, set()) - given.get(run, set()) if run is not None else ()
+            if banned:
+                logits = logits.clone()
+                logits[list(banned)] = float("-inf")
             probs = F.softmax(logits / max(temperature, 1e-4), dim=-1)
             if top_k and top_k < probs.numel():
                 cutoff = torch.topk(probs, top_k).values[-1]
@@ -191,6 +204,8 @@ class Cortex(nn.Module):
             logprobs.append(float(F.log_softmax(logits, dim=-1)[token]))
             if token in stop:
                 break
+            if run is not None:
+                said.setdefault(run, set()).add(token)
             out.append(token)
             ids.append(token)
         return out, logprobs

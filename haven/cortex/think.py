@@ -51,9 +51,9 @@ def agreement(texts: list[str]) -> float:
     return float(np.mean([len(a & b) / max(len(a | b), 1) for a, b in pairs]))
 
 
-def repeats(text: str, context: str = "") -> bool:
+def repeats(text: str, context: str = "", times: int = 1) -> bool:
     """Whether words go round in circles ("I can climb the hill and climb the hill"): say something more often
-    than it came to mind."""
+    than it came to mind (by more than `times`: a long telling can say "said the fox" twice)."""
 
     def grams(words: str) -> dict[tuple, int]:
         found = re.findall(r"[a-z']+", words.lower())
@@ -63,7 +63,7 @@ def repeats(text: str, context: str = "") -> bool:
         return counted
 
     known = grams(context)
-    return any(n > 1 and n > known.get(gram, 0) for gram, n in grams(text).items())
+    return any(n > times and n > known.get(gram, 0) for gram, n in grams(text).items())
 
 
 def unfounded(text: str, context: str) -> bool:
@@ -483,14 +483,16 @@ class OwnThinker(Thinker):
                     prompt[-(self.model.cfg.context - most) :],
                     state,
                     max_new=most,
-                    temperature=0.0 if i == 0 else 0.6,
+                    temperature=0.0 if i == 0 else 0.4 if most > 100 else 0.6,
                     stop=(END, YOU),
+                    no_repeat=4 if most > 100 else 0,  # (a story mustn't go round in circles)
                 )
                 words = self.tok.decode(tokens).strip()
                 found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
         mind = self.tok.decode(prompt)  # what came to mind, and what was said
         # A draft that goes round in circles loses; so does one that says a number or name it can't back up.
-        found.sort(key=lambda d: (not repeats(d[0], mind), not unfounded(d[0], mind), d[1]))
+        times = 2 if most > 100 else 1  # (a story can say "said the fox" twice)
+        found.sort(key=lambda d: (not repeats(d[0], mind, times), not unfounded(d[0], mind), d[1]))
         for words, _ in found:  # the ones it didn't pick pass by as thoughts; the likeliest comes last
             self._tell("draft")
             self._tell("words", words)

@@ -131,3 +131,11 @@ def test_it_goes_over_the_story_it_heard_in_its_sleep_and_tells_it(cortex_home, 
     heard = thinker.recollect(life.mind, "What did you hear last night?")
     assert heard[0].startswith("The last story I heard was The Tale of a Hen")
     assert "words here" in thinker.describe()
+
+
+def test_a_long_telling_may_say_a_phrase_twice_but_not_three_times():
+    from haven.cortex.think import repeats
+
+    story = "The fox ran to the wood. The fox ran home. Then it slept."
+    assert repeats(story) and not repeats(story, times=2)
+    assert repeats(story + " The fox ran away.", times=2)
