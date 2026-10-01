@@ -139,3 +139,23 @@ def test_a_long_telling_may_say_a_phrase_twice_but_not_three_times():
     story = "The fox ran to the wood. The fox ran home. Then it slept."
     assert repeats(story) and not repeats(story, times=2)
     assert repeats(story + " The fox ran away.", times=2)
+
+
+def test_it_knows_when_it_says_again_what_it_said_just_now(cortex_home, monkeypatch):
+    thinker, _ = make_thinker("own", cortex_home, web=Web(delay=0, allow_private=True))
+    life = Life(Mind(seed=1), None)
+    life.conversation += [
+        {"tick": 0, "who": "you", "text": "What's your name?"},
+        {"tick": 0, "who": "haven", "text": "My name is Haven."},
+        {"tick": 0, "who": "you", "text": "What's your name?"},
+    ]
+    minded = []  # (what came to mind, each time it put a reply into words)
+
+    def say(prompt, state, drafts, most=100, heard=None):
+        minded.append(thinker.tok.decode(prompt))
+        return ("My name is Haven." if len(minded) == 1 else "Like I said, my name is Haven."), 0.9
+
+    monkeypatch.setattr(thinker, "_say", say)
+    answer, _ = thinker.deliberate(life, "What's your name?")
+    assert answer == "Like I said, my name is Haven."
+    assert "I said that just now: My name is Haven." in minded[1] and "I said that just now" not in minded[0]

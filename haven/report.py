@@ -69,6 +69,13 @@ def readout(mind: Mind) -> list[str]:
         f"Feeling {feeling_words(mind.valence, mind.arousal)}"
         + (f"; {', '.join(needs)}." if needs else "; its needs are met.")
     )
+    if mind.brain is not None:  # the mood its brain's chemistry makes, and why (as it would say it)
+        from .cortex.engage import mood_cause, mood_words
+
+        mood = mood_words(mind.chemistry)
+        why = mood_cause(mood, mind.stirred, mind.tick)
+        if mood:
+            lines.append(f"Its brain's chemistry has it feeling {mood}" + (f' ("{why}").' if why else "."))
     if not b.asleep:
         goal = GOALS[mind.goals.current]
         step = f" Next: {mind.suggestion}." if mind.suggestion else ""
