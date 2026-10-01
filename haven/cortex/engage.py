@@ -200,6 +200,19 @@ def own_for(fact: str, favorites: dict[str, str]) -> str | None:
     return None
 
 
+def own_reason(own: str) -> str | None:
+    """Why it likes what it said it likes, if it said ("My favorite animal is the butterfly. They fly around my
+    valley." → "butterflies fly around my valley")."""
+    parts = own.split(". ", 1)
+    if len(parts) < 2 or parts[0].startswith("I don't"):
+        return None
+    reason = parts[1].rstrip(".")
+    thing = re.match(r"^My favou?rite \w+ (?:is|are) (?:the |an? )?(\w+)", parts[0])
+    if thing and reason.startswith("They "):
+        reason = f"{plural(thing.group(1))} {reason[5:]}"
+    return reason
+
+
 def wonder_note(question: str) -> str:
     return f"I wonder: {question}"
 
@@ -656,6 +669,10 @@ def told_practice(
             (rng.choice(("What about you?", "And you?", "How about you?", "what about you")), own, "about you")
         )
         notes.append(about_you_note(own))
+        reason = own_reason(own)
+        if reason and rng.random() < 0.5:  # and why it likes that
+            notes.append(why_note(reason))
+            turns.append((rng.choice(("Why?", "why?", "How come?", "Why's that?")), why_reply(reason), "why"))
     return Practice(notes, turns)
 
 

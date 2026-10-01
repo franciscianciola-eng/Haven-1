@@ -812,6 +812,24 @@ def a_lesson(rng: random.Random) -> tuple[str, str, tuple[str, ...]]:
     )
 
 
+def a_learned(rng: random.Random) -> tuple[str, str, tuple[str, ...]]:
+    """Something it learned from someone's answer to what it wondered: (their answer, what it keeps, how they might ask
+    about it later: its own question among them)."""
+    for _ in range(20):
+        fact = a_fact_told(rng)
+        asks = [q for q in engage.wonders(fact) if engage.learnable(q)]
+        if not asks:
+            continue
+        question = rng.choice(asks)
+        answer = engage.wonder_answer(question, rng)
+        kept = engage.learned_from(question, answer) if answer else None
+        if kept:
+            subject = re.match(r"^(?:Where do|What do|What does|What's it like in|What is) (?!an? )(\w+)", question)
+            about = (f"What do you know about {subject.group(1)}?",) if subject else ()
+            return answer, kept, (question, question, *about)
+    return a_lesson(rng)
+
+
 def lesson(text: str) -> str | None:
     """Something about the world someone is teaching it ("The capital of Peru is Lima."), as it would say it back."""
     t = CORRECTION.sub("", bare(text), count=1).strip()
@@ -829,6 +847,8 @@ def best_lesson(text: str, lessons: list[str]) -> str | None:
     """What it was taught that a question is about: the lesson that shares the most of its words (the latest, if
     two do as well), and doesn't leave much of the question out."""
     asked = set(_tokens(text))
+    if re.search(r"\bwhat(?:'s| is| are)\b.*\blike\b(?! to)", text, re.IGNORECASE):
+        asked.discard("like")  # ("What is Max like?": "like" asks what he's like, it isn't a word to find)
     best, score = None, 0.0
     for taught in reversed(lessons):
         words = set(_tokens(taught))
@@ -3383,7 +3403,9 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     person = person_name(rng) if rng.random() < 0.35 else None
     earlier = [a_fact(rng) for _ in range(rng.choice((0, 0, 1, 2, 3)))]
     told = [second_person(said) for said, _ in earlier]
-    lessons = [a_lesson(rng) for _ in range(rng.choice((0, 0, 1, 1, 2)))]  # what they taught it about the world
+    lessons = [  # what they taught it about the world (or told it, when it wondered)
+        a_learned(rng) if rng.random() < 0.4 else a_lesson(rng) for _ in range(rng.choice((0, 0, 1, 1, 2)))
+    ]
     taught = [kept for _, kept, _ in lessons]
     pool = BOOK + tuple(moment.get("readings", ()))  # its little book, and whatever it has read since (at night)
     book = rng.sample(pool, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))  # what it has read

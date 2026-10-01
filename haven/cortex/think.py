@@ -109,16 +109,10 @@ class Thread:
         return found[0] if found and time.monotonic() - found[1] < self.LASTS else None
 
     def mine(self, own: str) -> None:
-        from .engage import plural
+        from .engage import own_reason
 
         self.own = own
-        parts = own.split(". ", 1)  # ("My favorite animal is the butterfly. They fly around my valley.": the reason)
-        if len(parts) > 1 and not parts[0].startswith("I don't"):
-            reason = parts[1].rstrip(".")
-            thing = re.match(r"^My favou?rite \w+ (?:is|are) (?:the |an? )?(\w+)", parts[0])
-            if thing and reason.startswith("They "):  # ("butterflies fly around my valley")
-                reason = f"{plural(thing.group(1))} {reason[5:]}"
-            self.reason = reason
+        self.reason = own_reason(own) or self.reason  # ("...the butterfly. They fly around my valley.": the reason)
 
     def asked_to(self, req, decision) -> None:
         self.request = (req, decision)
