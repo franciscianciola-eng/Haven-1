@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import pickle
 import re
 import threading
 import time
@@ -17,6 +18,7 @@ from .world import DAY
 STORY_EVERY = 1200.0  # seconds, at least, between bedtime stories (see cortex/hearing.py)
 
 AUTOSAVE = 600  # ticks between saves
+SYNAPSES_EVERY = 900.0  # seconds, at least, between saves of every synapse of its brain (hundreds of MB)
 QUIET = 180.0  # seconds nobody has said anything before Haven reads about something out of curiosity
 CURIOUS_EVERY = 900.0  # seconds, at least, between the things it reads out of curiosity
 SLEEP_EVERY = 1800.0  # seconds, at least, between nights it learns from its day (its days are short)
@@ -74,8 +76,33 @@ class Life:
         self._spoken = 0
         self.asked: tuple[str, float] | None = None  # what it asked the person, and when, until they answer
         self.passing: dict | None = None  # while time goes by quickly: how far along it is
+        self.brain_state = "none"  # its brain of neurons: "waking" (growing or loading), "awake", or "none"
+        self._synapses_saved = time.monotonic()  # when every synapse of its brain was last saved
 
     # --- running --------------------------------------------------------------------
+
+    def wake_brain(self) -> None:
+        """Load its brain (or grow a newborn one), in the background: it lives on meanwhile, and the brain joins in
+        when it's ready."""
+        if self.store is None or self.mind.brain is not None:
+            return
+        self.brain_state = "waking"
+
+        def waking() -> None:
+            try:
+                from .brain import wake
+
+                brain = wake(self.store.root, self.mind.seed)
+            except (OSError, RuntimeError, ValueError, KeyError, EOFError, pickle.UnpicklingError) as error:
+                # (a brain that won't load mustn't stop its life)
+                self.brain_state = "none"
+                self._emit("event", f"its brain couldn't wake up ({type(error).__name__}); it lives on without it")
+                return
+            with self.lock:
+                self.mind.brain = brain
+            self.brain_state = "awake" if brain is not None else "none"
+
+        threading.Thread(target=waking, name="haven-brain-waking", daemon=True).start()
 
     def start(self) -> None:
         self._stop.clear()
@@ -86,7 +113,7 @@ class Life:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=5)
-        self.save()
+        self.save(synapses=True)
 
     def _run(self) -> None:
         next_tick = time.monotonic()
@@ -106,6 +133,7 @@ class Life:
     def advance(self, ticks: int) -> None:
         for _ in range(ticks):
             with self.lock:
+                self.mind.company = self.initiative.present()
                 self.mind.step()
                 self._since_save += 1
                 self._announce()
@@ -146,6 +174,7 @@ class Life:
 
     def _pass(self) -> None:
         passing = self.passing
+        self.mind.brain_resting = True  # (time goes by too fast for its brain of neurons to live through it)
         try:
             while passing["done"] < passing["total"] and not self._stop.is_set():
                 with self.lock:
@@ -169,6 +198,7 @@ class Life:
                 if self.thinker is not None and hasattr(self.thinker, "day"):
                     self.thinker.day.clear()  # what it noted of its day before is long ago now
                 self._last_night = time.monotonic()
+                mind.brain_resting = False
             self.save()
             self.passing = None
             self._emit("event", f"lived {days} days" + ("" if days == passing["days"] else " (it was stopped)"))
@@ -279,12 +309,19 @@ class Life:
         finally:
             thinker.busy.release()
 
-    def save(self) -> None:
+    def save(self, synapses: bool = False) -> None:
+        """Save its life; its brain's state too, and every synapse of it when `synapses` (or every so often)."""
         if self.store is None:
             return
         with self.lock:
             state = self.mind.to_state()
             self._since_save = 0
+            brain = self.mind.brain
+            if brain is not None:
+                synapses = synapses or time.monotonic() - self._synapses_saved > SYNAPSES_EVERY
+                brain.save(self.store.root / "brain", synapses=synapses)
+                if synapses:
+                    self._synapses_saved = time.monotonic()
         self.store.save(state)
 
     # --- the person ------------------------------------------------------------------
@@ -337,6 +374,8 @@ class Life:
         hearing = getattr(self.thinker, "_hearing", None)  # (the last bedtime story it heard, once it has heard one)
         latest = hearing.latest() if hearing is not None else None
         state["story"] = latest.title if latest else None
+        if state.get("brain") is None and self.brain_state == "waking":
+            state["brain"] = {"waking": True}
         return state
 
     # --- telling the people watching -------------------------------------------------

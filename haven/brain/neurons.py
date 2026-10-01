@@ -44,6 +44,7 @@ CELLS = {
     ),  # low-threshold spiking Martinotti cell (inhibitory)
     "TC": (200.0, 1.6, -60.0, -50.0, 35.0, 0.01, 0.0, -60.0, 10.0),  # thalamocortical relay cell (in relay mode)
     "MSN": (50.0, 1.0, -80.0, -25.0, 40.0, 0.01, -20.0, -55.0, 150.0),  # medium spiny neuron of the striatum
+    "GP": (50.0, 1.0, -60.0, -45.0, 30.0, 0.1, 0.2, -55.0, 10.0),  # pallidal neuron: a fast autonomous pacemaker
     "PM": (100.0, 0.7, -60.0, -40.0, 35.0, 0.03, -2.0, -50.0, 100.0),  # a pacemaker (dopamine, serotonin... cells)
 }
 INHIBITORY = frozenset({"FS", "LTS"})
@@ -210,7 +211,7 @@ class Network:
             # (below rest, a real membrane leaks back linearly: the model's parabola would pull far too hard)
             pull = torch.maximum(v, self.vr).sub_(self.vt).mul_(v - self.vr).mul_(self.kc)
             v.add_(pull.addcmul_(self.hc, current))
-        v.clamp_(min=-100.0, max=60.0)
+        v.clamp_(min=-90.0, max=60.0)  # (no lower than the most negative reversal potential, GABA-B's)
         if self.recent:  # the absolute refractory period
             held = torch.cat(self.recent)
             v[held] = self.c[held]

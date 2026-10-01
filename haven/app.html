@@ -87,10 +87,12 @@ main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
 .where { margin-top: 4px; font-size: 13px; color: var(--muted); }
-.bar { display: grid; grid-template-columns: 78px 1fr 34px; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
+.bar { display: grid; grid-template-columns: 92px 1fr 36px; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
 .bar .track { height: 7px; background: var(--chip); border-radius: 4px; overflow: hidden; }
 .bar .fill { height: 100%; border-radius: 4px; transition: width .4s; }
 .bar .num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.brain { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+.brain .small { margin-bottom: 2px; }
 .source { display: inline-block; padding: 0 8px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: 12px; margin-right: 6px; }
 .small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .cortex { padding: 0 16px 10px; }
@@ -148,6 +150,7 @@ canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
       <div class="overlay hud" id="hud">
         <h2>How it is</h2>
         <div id="bars"></div>
+        <div id="brain" class="brain" hidden></div>
       </div>
       <div class="controls">
         <button id="follow" type="button" aria-pressed="true" title="Keep the camera on Haven">Follow Haven</button>
@@ -399,6 +402,17 @@ function render(s) {
     bar("energy", b.energy, "var(--good)") + bar("health", b.integrity, "var(--good)") +
     bar("hunger", d.hunger, "var(--accent)") + bar("too hot/cold", d.temperature, "var(--accent)") +
     bar("tiredness", d.tiredness, "var(--accent)");
+  const brain = s.brain;  // its brain of spiking neurons: its chemistry, as levels against the usual (1×)
+  $("brain").hidden = !brain;
+  if (brain && brain.waking) $("brain").innerHTML = `<div class="small">Its brain of neurons is waking up…</div>`;
+  else if (brain) {
+    const c = brain.chemistry;
+    const chem = (label, v, color) => `<div class="bar"><span>${label}</span><div class="track"><div class="fill" style="width:${Math.round(Math.min(1, v / 3) * 100)}%;background:${color}"></div></div><span class="num">${v.toFixed(1)}×</span></div>`;
+    $("brain").innerHTML = `<div class="small" title="Spiking neurons modelled on real ones, firing as you watch (${brain.ms} ms of computing each moment)">Brain: ${brain.neurons.toLocaleString()} neurons · ${(brain.synapses / 1e6).toFixed(0)} million synapses</div>` +
+      chem("dopamine", c.dopamine, "#f2c14e") + chem("noradrenaline", c.noradrenaline, "#ff7a59") +
+      chem("serotonin", c.serotonin, "#7bd389") + chem("acetylcholine", c.acetylcholine, "#5cb6ff") +
+      chem("oxytocin", c.oxytocin, "#ff8fb1");
+  }
   const focus = $("focus"), w = s.workspace;
   focus.replaceChildren();
   if (w) { focus.append(el("span", "source", w.source), document.createTextNode(w.label)); }

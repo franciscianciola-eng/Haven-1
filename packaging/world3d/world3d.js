@@ -531,7 +531,7 @@ ICONS.pin = (c) => {  // where it's going, when it's doing something it was aske
 };
 const EVENT_ICONS = {
   ate: "sparkle", drank: "drop", rang: "note", pushed: "sparkle", smelled: "heart", shook: "sparkle",
-  warmed: "warm", sick: "sick", hurt: "ouch", touched: "heart",
+  warmed: "warm", sick: "sick", hurt: "ouch", touched: "heart", chased: "sparkle",
 };
 
 // --- the view --------------------------------------------------------------------------------------
@@ -759,6 +759,7 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     }
     view.heading = world.heading;
     view.asleep = world.asleep;
+    view.doing = world.asleep ? null : world.doing || null;  // a pastime: watching, singing, dancing...
     if (world.tick !== view.lastTick) {
       if (view.lastTick >= 0) {
         for (const kind of world.did || []) if (kind !== "bumped") effect(kind, view.haven.position.clone().add(new Vector3(0, 0.75, 0)));
@@ -873,26 +874,36 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     const step = before.distanceTo(h.position);
     view.moving = Math.max(0, view.moving - dt * 2);
     let want = Math.atan2(DIRS[view.heading][0], DIRS[view.heading][1]);
+    if (view.doing === "company") {  // keeping you company, it turns to look at you
+      want = Math.atan2(camera.position.x - h.position.x, camera.position.z - h.position.z);
+    }
     let diff = want - view.shownHeading;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     view.shownHeading += diff * (1 - Math.exp(-dt * 9));
     h.rotation.y = view.shownHeading;
     const walking = step > 0.002;
-    const bob = walking ? Math.abs(Math.sin(t * 13)) * 0.07 : 0;
+    const dancing = view.doing === "dance", watching = view.doing === "watch" && !walking;
+    const bob = walking ? Math.abs(Math.sin(t * 13)) * 0.07 : dancing ? Math.abs(Math.sin(t * 7)) * 0.16 : 0;
     const breathe = view.asleep ? 1 + Math.sin(t * 1.6) * 0.035 : 1 + Math.sin(t * 2.4) * 0.012;
     const petted = Math.max(0, 1 - (now - view.touchedAt) / 700);
     ud.body.position.y = bob + petted * Math.abs(Math.sin((now - view.touchedAt) / 90)) * 0.06;
-    ud.body.scale.set(breathe + petted * 0.06, (view.asleep ? 0.86 : 1) / breathe, breathe + petted * 0.06);
+    ud.body.scale.set(breathe + petted * 0.06, (view.asleep ? 0.86 : watching ? 0.92 : 1) / breathe, breathe + petted * 0.06);
+    ud.body.rotation.z = dancing ? Math.sin(t * 7) * 0.18 : 0;  // swaying to its own tune
     const blink = !view.asleep && Math.sin(t * 0.9) > 0.985;
     ud.eyes.forEach((eye) => { eye.scale.y = view.asleep || blink ? 0.15 : 1; });
     ud.sprout.rotation.z = Math.sin(t * (walking ? 9 : 2)) * (walking ? 0.25 : 0.08);
     ud.ears.forEach((ear, i) => { ear.rotation.x = view.asleep ? 0.5 : Math.sin(t * 3 + i) * 0.06; });
     ud.feet.forEach((foot, i) => { foot.position.z = 0.06 + (walking ? Math.sin(t * 13 + i * Math.PI) * 0.07 : 0); });
 
-    // Sleeping, it breathes out little z's.
+    // Sleeping, it breathes out little z's; singing, little notes; keeping you company, now and then a heart.
     if (view.asleep && (!view.lastZ || now - view.lastZ > 1400)) {
       view.lastZ = now;
       effect("z", h.position.clone().add(new Vector3(0.15, 0.7, 0)));
+    }
+    const every = { sing: 700, dance: 1100, company: 2600 }[view.doing];
+    if (every && !view.asleep && (!view.lastNote || now - view.lastNote > every)) {
+      view.lastNote = now;
+      effect(view.doing === "company" ? "heart" : "note", h.position.clone().add(new Vector3(0.18, 0.75, 0)));
     }
 
     // The ball rolls to where it is now.

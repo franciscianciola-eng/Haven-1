@@ -354,6 +354,7 @@ class Goals:
 
     def __init__(self):
         self.current = "explore"
+        self.pick = "explore"  # what it's doing: a goal, or a pastime (see activities.py)
         self.since = 0
         self.switches = 0
 
@@ -381,14 +382,30 @@ class Goals:
             self.switches += 1
         return self.current
 
+    def pick_among(self, options: dict[str, float], tick: int, base: dict[str, str]) -> str:
+        """Choose among its needs and pastimes alike (`base`: the goal each pastime pursues), without flitting."""
+        best = max(options, key=options.get)
+        now = self.pick if self.pick in options else self.current
+        settled = tick - self.since > 30 or options[best] > 0.6
+        if best != now and settled and options[best] > options.get(now, 0.0) + 0.12:
+            self.set_pick(best, tick, base)
+        return self.pick
+
+    def set_pick(self, pick: str, tick: int, base: dict[str, str]) -> None:
+        if pick != self.pick:
+            self.pick, self.since = pick, tick
+            self.switches += 1
+        self.current = base.get(pick, pick)
+
     def index(self) -> int:
         return GOALS.index(self.current)
 
     def to_state(self) -> dict:
-        return {"current": self.current, "since": self.since, "switches": self.switches}
+        return {"current": self.current, "pick": self.pick, "since": self.since, "switches": self.switches}
 
     def load_state(self, state: dict) -> None:
         self.current, self.since, self.switches = state["current"], int(state["since"]), int(state["switches"])
+        self.pick = state.get("pick", self.current)
 
 
 class ActorCritic:
@@ -491,8 +508,13 @@ def goal_cells(
     remembered: Callable[[str], tuple[int, int] | None],
     tick: int,
     skip: set | frozenset = frozenset(),
+    drank_lately: bool = False,
+    bored: set | frozenset = frozenset(),
 ) -> tuple[str, list[tuple[int, int]]]:
     """Where it could go to pursue a goal, according to what it believes (never onto what hurts).
+
+    Too hot, it has a drink if it hasn't just had one (`drank_lately`); if it has, it looks for shade. Playing, it
+    goes to what's fun, but not to the kinds of things it's `bored` of for now.
 
     Exploring, or hungry without knowing yet what food is, it goes to try things it hasn't tried
     (`skip`: places where trying something just now came to nothing).
@@ -504,7 +526,9 @@ def goal_cells(
         cells = [c for c in cells if c not in skip and abs(c[0] - x) + abs(c[1] - y) <= 10]
         if cells:
             return "face", sorted(cells, key=lambda c: abs(c[0] - x) + abs(c[1] - y))[:12]
-    mode, cells = _goal_cells(goal, pose, beliefs, knowledge, cold, temperature, remembered, tick, skip)
+    mode, cells = _goal_cells(
+        goal, pose, beliefs, knowledge, cold, temperature, remembered, tick, skip, drank_lately, bored
+    )
     if mode == "enter":
         cells = [c for c in cells if not hurts(c, beliefs, knowledge)]
         cells = sorted(cells, key=lambda c: abs(c[0] - x) + abs(c[1] - y))[:12]
@@ -536,6 +560,8 @@ def _goal_cells(
     remembered: Callable[[str], tuple[int, int] | None],
     tick: int,
     skip: set | frozenset = frozenset(),
+    drank_lately: bool = False,
+    bored: set | frozenset = frozenset(),
 ) -> tuple[str, list[tuple[int, int]]]:
     x, y, _ = pose
     kinds = beliefs.kind
@@ -549,10 +575,14 @@ def _goal_cells(
             return "enter", [place]
         return "enter", frontier(beliefs, pose, tick)
     if goal == "play":
-        fun = [k for k in range(len(knowledge.use_tries)) if knowledge.use_tries[k] >= 2 and knowledge.fun(k) > 0.1]
+        fun = [
+            k
+            for k in range(len(knowledge.use_tries))
+            if knowledge.use_tries[k] >= 2 and knowledge.fun(k) > 0.1 and k not in bored
+        ]
         cells = [(int(cx), int(cy)) for cy, cx in zip(*np.nonzero(np.isin(kinds, fun)))] if fun else []
         return ("face", cells) if cells else ("enter", frontier(beliefs, pose, tick))
-    if goal == "warmth" and not cold:  # too hot: a drink, if it knows where, or somewhere cooler
+    if goal == "warmth" and not cold and not drank_lately:  # too hot: a drink, if it knows where, or somewhere cooler
         drinks = [k for k in range(len(knowledge.use_tries)) if knowledge.does(k, "drank")]
         cells = [(int(cx), int(cy)) for cy, cx in zip(*np.nonzero(np.isin(kinds, drinks)))] if drinks else []
         if cells:

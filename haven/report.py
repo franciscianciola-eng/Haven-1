@@ -167,7 +167,8 @@ def snapshot(mind: Mind) -> dict:
             "captured": schema.captured,
         },
         "goal": mind.goals.current,
-        "goal_text": f"{mind.errand['do']}, as it was asked" if mind.errand else GOALS[mind.goals.current],
+        "goal_text": f"{mind.errand['do']}, as it was asked" if mind.errand else doing(mind),
+        "brain": brain(mind),
         "next": mind.suggestion,
         "said": [{"tick": t, "text": text} for t, text in mind.said[-6:]][::-1],
         "log": [{"tick": t, "text": text} for t, text in mind.log[-14:]][::-1],
@@ -248,6 +249,7 @@ def world(mind: Mind) -> dict:
         "did": did(mind),
         "voice": None if w.voice is None else {"ago": w.tick - w.voice[0], "text": w.voice[1]},
         "errand": errand(mind),
+        "doing": mind.activity,  # a pastime (activities.py): watch, sing, dance, chase, visit, company
     }
 
 
@@ -267,7 +269,9 @@ def did(mind: Mind) -> list[str]:
         return []
     o = last.outcome
     happened = [
-        e for e in ("ate", "drank", "rang", "pushed", "smelled", "shook", "warmed", "sick", "bumped") if getattr(o, e)
+        e
+        for e in ("ate", "drank", "rang", "pushed", "smelled", "shook", "warmed", "sick", "bumped", "chased")
+        if getattr(o, e)
     ]
     return happened + ["hurt"] * bool(o.pain)
 
@@ -286,3 +290,46 @@ def welfare(mind: Mind) -> dict:
     if mind.body.fainted:
         return {"ok": False, "message": "Haven fainted and is recovering in its nest."}
     return {"ok": True, "message": ""}
+
+
+PASTIMES = {  # what it's doing, as the window says it
+    "sing": "sing a little song",
+    "dance": "dance",
+    "chase": "chase a butterfly",
+    "company": "keep you company",
+}
+
+
+def doing(mind: Mind) -> str:
+    """What it's trying to do, in a few words: a need, or one of its pastimes."""
+    activity = mind.activity
+    if activity == "watch":
+        from .activities import SIGHTS
+
+        return (
+            f"watch {SIGHTS.get(mind.watching or '', 'something lovely')}"
+            if mind.watching
+            else "find something to watch"
+        )
+    if activity == "visit":
+        return f"go to {mind.visiting}" if mind.visiting else "go somewhere it likes"
+    return PASTIMES.get(activity or "", GOALS[mind.goals.current])
+
+
+def brain(mind: Mind) -> dict | None:
+    """Its brain of spiking neurons, for the window: how big, how it's firing, its chemistry."""
+    found = mind.brain
+    if found is None:
+        return None
+    reading = mind.reading
+    return {
+        "size": found.size,
+        "neurons": found.neurons(),
+        "synapses": found.synapses(),
+        "chemistry": {k: round(v, 2) for k, v in mind.chemistry.items()},
+        "rates": {k: round(v, 2) for k, v in reading.rates.items()} if reading else {},
+        "novelty": round(mind.novelty, 2),
+        "fear": round(mind.fear, 2),
+        "senses": len(found.senses),
+        "ms": round(found.timing, 1),
+    }

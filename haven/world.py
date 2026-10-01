@@ -218,6 +218,7 @@ class Outcome:
     smelled: bool = False
     warmed: bool = False
     climbed: bool = False
+    chased: bool = False  # it pounced at a butterfly, and off it went
 
 
 class World:
@@ -542,6 +543,9 @@ class World:
             outcome.warmed = True
         elif thing == THORN:
             outcome.pain = 0.3  # pricked
+        elif thing == BUTTERFLY and spot in self.butterflies:
+            self._flutter(self.butterflies.index(spot), away=True)
+            outcome.chased = True
 
     def _roll(self, dx: int, dy: int, cells: int) -> bool:
         """Moves the ball up to `cells` along a direction. It goes up a step if pushed, not up a cliff."""

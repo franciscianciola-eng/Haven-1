@@ -81,6 +81,7 @@ LA_E, LA_I, CEA = 400, 80, 80  # amygdala: lateral (pyramidal-like and interneur
 LA_HOME = 40  # lateral amygdala cells each thing it senses reaches
 MSNS = 24  # medium spiny neurons of each pathway, per channel
 PALLIDUM, MOTOR = 6, 8  # globus pallidus (external, internal) cells and motor thalamus cells, per channel
+STN = 40  # subthalamic nucleus cells
 NUCLEUS = 40  # pacemaker cells in each neuromodulatory nucleus
 UNIT = {  # nS of the largest synapse of each projection
     "cortex": 2.0,
@@ -88,17 +89,23 @@ UNIT = {  # nS of the largest synapse of each projection
     "thalamus": 2.5,
     "amygdala": 6.0,
     "fear": 8.0,
+    "alarm": 1.5,
     "striatum": 3.0,
     "pathways": 20.0,
     "pallidum": 5.0,
     "pallidal output": 40.0,
+    "hyperdirect": 3.0,
+    "collaterals": 12.0,
 }
 BACKGROUND = (0.1, 1.5)  # background synaptic bombardment: events per ms per cell, nS per 100 pF
 TARGET = {"cortex E": 0.5, "cortex I": 4.0}  # spontaneous rates (Hz) homeostasis keeps them near
 EPISODES = 240  # important moments of a day kept for replay in its sleep
 REST_MSN = 260.0  # pA: the cortex's steady input to spiny cells (urges come on top of it)
+LOOP = 0.25  # how much more urge the action being done gets, from its own loop back through cortex and thalamus
 USUAL_RATE = 4.0  # Hz: how fast the nuclei's pacemaker cells fire at their usual level
 FEAR_STEP = 10.0  # sizes a synapse onto the lateral amygdala grows in a moment of hurt (fear can take one lesson)
+EXTINCTION = 0.6  # and shrinks, at most, in a moment of meeting it unharmed (fear fades, more slowly)
+CUES = ("see:", "word:", "event:", "place:")  # what fear can be learned for (not what it does, or how it feels)
 STDP_WINDOW, STDP_STEP = 30, 3.0  # ms within which two spikes count as a pair; most sizes one pair moves a synapse
 PACEMAKER = 58.0  # pA: the steady current that keeps them at it
 # Habituation of relay synapses, per moment of use, and recovery per moment (a moment is about a minute of its day):
@@ -154,9 +161,10 @@ class Brain:
         n = len(OPTIONS)
         self.d1 = net.population("striatum D1", [("MSN", MSNS * n)])
         self.d2 = net.population("striatum D2", [("MSN", MSNS * n)])
-        self.gpe = net.population("globus pallidus externa", [("FS", PALLIDUM * n)])
-        self.gpi = net.population("globus pallidus interna", [("FS", PALLIDUM * n)])
+        self.gpe = net.population("globus pallidus externa", [("GP", PALLIDUM * n)])
+        self.gpi = net.population("globus pallidus interna", [("GP", PALLIDUM * n)])
         self.motor = net.population("motor thalamus", [("TC", MOTOR * n)])
+        self.stn = net.population("subthalamic nucleus", [("RS", STN)])
         self.nuclei = {
             chem: net.population(name, [("PM", NUCLEUS)])
             for chem, name in zip(
@@ -256,6 +264,7 @@ class Brain:
             )
         )
         self.slow = torch.ones(self.nrelays)  # long-term habituation of each relay cell (days)
+        self.cue = torch.zeros(self.nrelays, dtype=torch.bool)  # relay cells of things fear can be learned for
         self.quick = torch.ones(self.nrelays)  # short-term (minutes to hours)
         # Thalamus to the lateral amygdala: each thing it senses reaches a few dozen cells there, weakly at first;
         # what goes with being hurt grows strong (given out with the senses, in sense_of).
@@ -299,7 +308,7 @@ class Brain:
                 "alarm",
                 self.cea,
                 torch.randint(14, 20, (CEA, 20), dtype=torch.uint8, generator=g),
-                UNIT["fear"],
+                UNIT["alarm"],
                 torch.full((CEA,), 3, dtype=torch.long),
                 targets=(self.nuclei["noradrenaline"].start + torch.randint(0, NUCLEUS, (CEA, 20), generator=g)).int(),
                 plastic=False,
@@ -345,6 +354,38 @@ class Brain:
                     plastic=False,
                 )
             )
+        # The hyperdirect pathway: the subthalamic nucleus, stirred by every urge at once, excites the whole internal
+        # pallidum, so only a channel whose go-cells fire hard enough gets through (Gurney, Prescott & Redgrave 2001).
+        gpi = torch.arange(self.gpi.start, self.gpi.stop)
+        net.connect(
+            Projection(
+                "hyperdirect pathway",
+                self.stn,
+                torch.full((STN, 40), 18, dtype=torch.uint8),
+                UNIT["hyperdirect"],
+                torch.full((STN,), 2, dtype=torch.long),
+                targets=gpi[torch.randint(0, gpi.numel(), (STN, 40), generator=g)].int(),
+                plastic=False,
+            )
+        )
+        # Spiny cells' collaterals inhibit the go-cells of other channels: the channels compete.
+        d1 = torch.arange(self.d1.start, self.d1.stop)
+        own = torch.arange(n).repeat_interleave(MSNS)
+        others = torch.randint(0, d1.numel(), (d1.numel(), 30), generator=g)
+        others = torch.where(own[others] == own.unsqueeze(1), (others + MSNS) % d1.numel(), others)
+        net.connect(
+            Projection(
+                "striatal collaterals",
+                self.d1,
+                torch.full((d1.numel(), 30), 18, dtype=torch.uint8),
+                UNIT["collaterals"],
+                torch.ones(d1.numel(), dtype=torch.long),
+                targets=d1[others].int(),
+                excitatory=False,
+                fast=True,
+                plastic=False,
+            )
+        )
 
     def _settle(self) -> None:
         """Development: each region's cells find their resting excitability, so that with nothing to sense they fire
@@ -359,18 +400,19 @@ class Brain:
         for pop in self.nuclei.values():  # about 4 Hz (their f-I curve: 60 pA at rheobase, 0.22 Hz/pA above it)
             bias[pop.slice] = PACEMAKER + 6.0 * torch.randn(pop.size, generator=self.gen)
         jitter = 1.0 + 0.08 * torch.randn(self.gpe.size, generator=self.gen)  # (each cell at its own pace)
-        bias[self.gpe.slice] = 340.0 * jitter  # about 50 Hz
-        bias[self.gpi.slice] = 460.0 * jitter  # about 60 Hz, held back a little by the externa
+        bias[self.gpe.slice] = 100.0 * jitter  # about 50 Hz
+        bias[self.gpi.slice] = 135.0 * jitter  # about 60 Hz, held back a little by the externa
         bias[self.motor.slice] = 220.0 * (
             1.0 + 0.15 * torch.randn(self.motor.size, generator=self.gen)
         )  # ~30 Hz if let
-        rest = {"thalamus": 0.5, "lateral amygdala": 0.5, "central amygdala": 1.0}
+        rest = {"thalamus": 0.5, "lateral amygdala": 0.5, "central amygdala": 1.0, "subthalamic nucleus": 10.0}
         msn = torch.cat([torch.arange(self.d1.start, self.d1.stop), torch.arange(self.d2.start, self.d2.stop)])
         window = 50
         for rounds in range(24):
             net.begin()
             net.drive.zero_()
             net.drive[msn] = REST_MSN
+            net.drive[self.stn.slice] = 60.0
             net.prepare()
             for _ in range(window):
                 net.step()
@@ -430,6 +472,7 @@ class Brain:
         )
         self.slow[local] = 1.0
         self.quick[local] = 1.0
+        self.cue[local] = name.startswith(CUES)
         la = self.la.start + torch.randperm(LA_E, generator=rng)[:LA_HOME]
         self.fearful.targets[local] = la.int().unsqueeze(0)
         self.fearful.sizes[local] = torch.randint(1, 5, (RELAYS, LA_HOME), dtype=torch.uint8, generator=rng)
@@ -517,9 +560,9 @@ class Brain:
         novelty = getattr(self, "_novelty", 0.0)
         inputs = {
             "dopamine": 60.0 * g("reward", 0.0) + 30.0 * novelty * g("curious", 1.0),
-            "noradrenaline": 50.0 * g("surprise", 0.0)
-            + 60.0 * g("pain", 0.0)
-            + 20.0 * novelty
+            "noradrenaline": 20.0 * g("surprise", 0.0)
+            + 40.0 * g("pain", 0.0)
+            + 10.0 * novelty
             - (30.0 if asleep else 0.0),
             "serotonin": 40.0 * g("content", 0.0) - 50.0 * g("pain", 0.0) - 30.0 * g("sick", 0.0),
             "acetylcholine": (-40.0 if asleep else 0.0) + 25.0 * novelty,
@@ -529,15 +572,22 @@ class Brain:
             self.net.drive[pop.slice] = inputs[chem]
 
     def _channels(self, urges: dict[str, float]) -> None:
-        """Each channel's go- and no-go cells are pushed by how strongly it's urged; dopamine tips them toward go."""
+        """Each channel's go- and no-go cells are pushed by how strongly it's urged, against how strongly everything is
+        (divisive normalization, as the cortex does with what it passes on); dopamine tips them toward go."""
         net, dopamine = self.net, self.levels["dopamine"]
+        strongest = max([v for k, v in urges.items() if k in OPTIONS] + [0.15])
         for i, option in enumerate(OPTIONS):
-            urge = float(min(max(urges.get(option, 0.0), 0.0), 1.5))
+            urge = float(min(max(urges.get(option, 0.0), 0.0), 1.5)) / strongest  # (against the strongest)
+            urge = 0.9 * min(1.0, max(0.0, (urge - 0.55) / 0.45))  # (what isn't nearly as urgent stays quiet)
             go = slice(self.d1.start + i * MSNS, self.d1.start + (i + 1) * MSNS)
             stop = slice(self.d2.start + i * MSNS, self.d2.start + (i + 1) * MSNS)
             fresh = self.freshness(f"doing {option}") if option == self.current else 1.0  # (bored of it, or not)
-            net.drive[go] = REST_MSN + 260.0 * urge * fresh
-            net.drive[stop] = REST_MSN + 120.0 * urge
+            if option == self.current:  # the loop through cortex and thalamus keeps a chosen action going
+                urge += LOOP
+            net.drive[go] = REST_MSN + 450.0 * urge * fresh
+            net.drive[stop] = REST_MSN + 150.0 * urge
+        total = sum(min(max(v, 0.0), 1.5) for k, v in urges.items() if k in OPTIONS)
+        net.drive[self.stn.slice] = 60.0 + 120.0 * total  # (the hyperdirect pathway: all urges at once)
         net.gain[self.d1.slice] = 1.0 + 0.4 * (dopamine - 1.0)
         net.gain[self.d2.slice] = max(0.2, 1.0 - 0.4 * (dopamine - 1.0))
 
@@ -574,13 +624,14 @@ class Brain:
         r.novelty = sum(n * w for n, w in zip(news, weights, strict=True)) / sum(weights) if weights else 0.0
         if not imagine:
             self._novelty = r.novelty
-        r.fear = min(1.0, max(0.0, net.rate(self.cea, ms) - 2.0) / 30.0)
+        r.fear = min(1.0, max(0.0, net.rate(self.cea, ms) - 2.0) / 40.0)
         motor = spikes[self.motor.slice].float().view(len(OPTIONS), MOTOR).mean(1) * 1000.0 / ms
         if not imagine:
             self.channel_rates = 0.75 * self.channel_rates + 0.25 * motor
         r.channels = {o: float(v) for o, v in zip(OPTIONS, self.channel_rates, strict=True)}
-        best = int(torch.argmax(self.channel_rates))
-        if self.channel_rates[best] > 3.0:
+        ranked = torch.sort(self.channel_rates, descending=True)
+        best, runner_up = int(ranked.indices[0]), float(ranked.values[1])
+        if self.channel_rates[best] > 3.0 and self.channel_rates[best] > 1.15 * runner_up:  # (a clear winner)
             r.choice = OPTIONS[best]
         for chem, pop in self.nuclei.items():
             if not imagine:
@@ -609,15 +660,16 @@ class Brain:
         # Fear: relay synapses onto lateral amygdala cells that fired with the hurt grow (Hebb, while it hurts);
         # without hurt, what it fears slowly fades (extinction).
         relays = (net.last[self.thalamus.slice] >= net.t - STDP_WINDOW).nonzero().squeeze(1)  # (fired lately)
-        if relays.numel():
-            post = net.last[self.fearful.targets[relays].long()] >= net.t - STDP_WINDOW
-            sizes = self.fearful.sizes[relays].float()
+        cued = relays[self.cue[relays]]  # (what it sees, hears, finds happening, where it is: not what it does)
+        if cued.numel():
+            post = net.last[self.fearful.targets[cued].long()] >= net.t - STDP_WINDOW
+            sizes = self.fearful.sizes[cued].float()
             if hurt > 0.1:
                 sizes += post.float() * (FEAR_STEP * hurt) + torch.rand(sizes.shape, generator=self.gen) * 0.5
             else:
-                sizes -= post.float() * 0.08 * torch.rand(sizes.shape, generator=self.gen)
-            self.fearful.sizes[relays] = sizes.round().clamp(1, LEVELS - 1).to(torch.uint8)
-            net.sync(self.fearful, relays)
+                sizes -= post.float() * EXTINCTION * torch.rand(sizes.shape, generator=self.gen)
+            self.fearful.sizes[cued] = sizes.round().clamp(1, LEVELS - 1).to(torch.uint8)
+            net.sync(self.fearful, cued)
         # Striatum: an eligibility trace for every synapse whose relay and spiny cell fired together; dopamine
         # turns it into learning (more go for what turned out well, more no-go for what didn't).
         self.eligibility.mul_(0.7)
@@ -810,6 +862,7 @@ class Brain:
             "striatal": self.striatal.sizes,
             "quick": self.quick,
             "slow": self.slow,
+            "cue": self.cue,
             "senses": {
                 name: (int((s.relays[0] - self.thalamus.start) // RELAYS), s.met, s.last, s.novelty, s.seen)
                 for name, s in self.senses.items()
@@ -849,6 +902,7 @@ class Brain:
             net.sync(projection, targets=True)
         brain.quick.copy_(state["quick"])
         brain.slow.copy_(state["slow"])
+        brain.cue.copy_(state["cue"])
         for pop in (*brain.nuclei.values(), brain.gpe, brain.gpi, brain.motor):
             net.noise[pop.slice] *= 0.0 if pop in brain.nuclei.values() else 0.3
         brain.senses = {}

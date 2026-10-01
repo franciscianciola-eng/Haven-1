@@ -329,6 +329,7 @@ def run(args: argparse.Namespace, store: Store, term) -> int:
         return 1
     url = f"http://127.0.0.1:{server.server_port}"
     chat.start()
+    life.wake_brain()
     life.start()
     term.say(f"{mind.me.name} is awake ({mind.age / 1200:.1f} days old). Its window: {url}")
     term.dim("Keep this window open while you're with it. To let it rest, press Rest on the page, or Ctrl+C here.")
