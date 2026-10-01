@@ -3103,6 +3103,7 @@ class Turn:
     said: str | None  # (None: it speaks up without being asked)
     answer: str
     kind: str  # what sort of exchange it is, for seeing what it's good at
+    learn: bool = True  # (False: it's there to be read, not learned: what it said before it says again, as such)
 
 
 def casual(text: str, rng: random.Random) -> str:
@@ -3748,6 +3749,7 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             turn = rng.choice(recent)
             text = turn.said if turn.kind not in QUESTIONS or rng.random() < 0.5 else rng.choice(QUESTIONS[turn.kind])
             extra.append(engage.said_note(turn.answer))
+            turn.learn = False  # (what it said the first time is there to read: in mind, "I said that" means again)
             said.append(Turn(casual(text, rng), engage.said_again(turn.answer, mood), "said again"))
     if just is None and rng.random() < 0.3:  # and they tell it something about themselves, or teach it something
         teaching = rng.random() < 0.35

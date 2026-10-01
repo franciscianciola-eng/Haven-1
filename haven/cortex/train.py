@@ -571,7 +571,7 @@ def conversation_ids(tok: Tokenizer, moment: dict, rng: random.Random) -> tuple[
     thought, turns = converse(moment, rng)
     ids = [THINK, *tok.encode(thought)]
     mark = [False] * len(ids)
-    for question, answer in ((t.said, t.answer) for t in turns):
+    for question, answer, learn in ((t.said, t.answer, getattr(t, "learn", True)) for t in turns):
         asked = [HAVEN] if question is None else [YOU, *tok.encode(question), HAVEN]  # (None: it speaks up)
         ids += asked
         mark += [bool(mark) and mark[-1] and question is not None] + [False] * (
@@ -579,7 +579,7 @@ def conversation_ids(tok: Tokenizer, moment: dict, rng: random.Random) -> tuple[
         )  # a turn after its answer ends it
         said = tok.encode(answer)
         ids += said
-        mark += [True] * len(said)
+        mark += [learn] * len(said)  # (unless it's there only to be read)
     ids.append(END)
     mark.append(True)
     return ids, mark

@@ -149,6 +149,8 @@ def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(live
             if turn.kind == "said again":  # it knows it's saying it again
                 again = turn.answer.removeprefix("Like I said, ").removeprefix("I told you already. ")
                 assert again.lower() in thought.lower() and "I said that just now: " in thought
+                first = [t for t in turns if t is not turn and t.answer.lower().endswith(again.lower())]
+                assert any(not t.learn for t in first)  # (the time before is there to read, not to learn)
             if turn.kind == "why it feels":  # how it feels, and why, is in mind (or it isn't: then it says so)
                 felt = re.search(r"I feel ([a-z ]+?)(?:, because ([^.]+))?\.", thought)
                 if turn.answer.startswith("Because "):
@@ -162,7 +164,8 @@ def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(live
                     n in thought for n in ("Why I said that:", "They want to know", "My brain:", "Right now I'm")
                 )
             if turn.kind == "about you" and turn.answer.startswith(("Like I said", "I told you already")):
-                assert "I said that just now: " in thought
+                assert "I said that just now: " in thought  # (and what it said first is there to read)
+                assert any(not t.learn for t in turns[: turns.index(turn)])
             if turn.kind == "feel" and ", because " in turn.answer:  # why it feels as it does is in mind
                 assert turn.answer.split("I feel ", 1)[1] in thought
             if turn.kind in ("what it read", "a fact"):

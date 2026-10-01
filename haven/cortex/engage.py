@@ -835,7 +835,7 @@ class Practice:
     """Turns of a practice conversation, and what came to mind for them."""
 
     notes: list[str]
-    turns: list[tuple[str | None, str, str]]  # (what the person said, what Haven says, what sort of exchange)
+    turns: list[tuple]  # (what the person said, what Haven says, what sort of exchange[, whether it's to be learned])
 
 
 def told_practice(
@@ -883,6 +883,7 @@ def about_you(own: str, said: bool, notes: list[str], turns: list, mood: str | N
     notes.append(about_you_note(own))
     if said:
         notes.append(said_note(own))
+        turns[0] = (*turns[0][:3], False)  # (what it said first is there to read: "I said that" means again)
     turns.append((asked, said_again(own, mood) if said else own, "about you"))
     reason = own_reason(own)
     if reason and rng.random() < 0.5:  # and why it likes that
