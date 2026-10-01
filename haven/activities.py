@@ -100,10 +100,10 @@ def urges(mind, percepts: list, drives: np.ndarray) -> dict[str, float]:
         pull = max(pull, 0.7)
     wants = {
         "watch": room * (0.25 + 0.35 * t["calm"]) * (seen[0][0] if seen else 0.0) * (0.6 + 0.4 * chem["serotonin"]),
-        "sing": room * 0.3 * (0.4 + t["cheerful"]) * happy * (0.4 if night else 1.0) * min(chem["serotonin"], 2.0),
-        "dance": room * 0.3 * (0.4 + t["playful"]) * happy * (0.3 if night else 1.0) * min(chem["dopamine"], 2.0),
+        "sing": room * 0.6 * (0.4 + t["cheerful"]) * happy * (0.4 if night else 1.0) * min(chem["serotonin"], 2.0),
+        "dance": room * 0.6 * (0.4 + t["playful"]) * happy * (0.3 if night else 1.0) * min(chem["dopamine"], 2.0),
         "chase": room * 0.45 * (0.4 + t["playful"]) * float(butterfly),
-        "visit": room * 0.3 * (0.4 + t["curious"]) * pull * (0.3 if night else 1.0),
+        "visit": room * 0.6 * (0.4 + t["curious"]) * pull * (0.3 if night else 1.0),
         "company": 0.55 * (0.3 + t["friendly"]) * float(mind.company) * min(chem["oxytocin"], 2.0),
     }
     return {a: v * (0.25 + 0.75 * freshness(mind, a)) for a, v in wants.items()}

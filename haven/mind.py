@@ -1129,6 +1129,9 @@ class Mind:
         )
         if self.activity == "sing":
             text = activities.voice(text)
+            if self.said and self.said[-1][1].startswith("♪") and tick - self.said[-1][0] < 8:
+                self.world.voice = (tick, text)  # (a song goes on: heard, but not every note told)
+                return
         self.world.voice = (tick, text)
         self.said = [*self.said[-49:], (tick, text)]
         self._note(tick, f'said "{text}"')
