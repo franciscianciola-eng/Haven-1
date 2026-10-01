@@ -8,7 +8,7 @@ import time
 
 import numpy as np
 
-from haven.cortex import talk
+from haven.cortex import engage, talk
 from haven.life import Life
 from haven.mind import Mind
 from haven.personality import TRAITS, Character
@@ -162,10 +162,16 @@ def test_conversations_where_it_speaks_up_first():
             continue
         spoke += 1
         said = turns[0].answer
+        days = {moment["memo"]["today"], *re.findall(r"Today I [^.]*\.", thought)}  # (its day, maybe with pastimes)
         derived = {  # (friendly or shy: as its character, in what comes to mind, says)
-            talk.back_answer({"character": thought, "today": moment["memo"]["today"]}, person)
+            talk.back_answer({"character": thought, "today": day}, person)
             for person in (None, *re.findall(r"I'm talking with (\w+)\.", thought))
+            for day in days
         }
+        derived |= {engage.later_wonder_answer(q) for q in re.findall(r"I wonder: ([^?]*\?)", thought)}
+        derived |= {engage.invite_answer(r) for r in re.findall(r"I'd like you to (.+?) with me\.", thought)}
+        for busy in re.findall(r"I'm ([^,.]+), and I'd like you to see\.", thought):
+            derived |= {f"Look! I'm {busy}!", f"Look! I'm {busy}."}
         notes = re.findall(r"(?:Just now, I|I did what you asked|I stopped trying|I gave up trying)[^.]*\.", thought)
         derived |= {talk.event_answer(n) for n in notes}
         derived |= {talk.need_answer(n) for n in re.findall(r"I'm [a-z ]+, so [^.]*\.", thought)}

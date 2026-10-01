@@ -76,6 +76,7 @@ class Life:
         self._spoken = 0
         self.asked: tuple[str, float] | None = None  # what it asked the person, and when, until they answer
         self.passing: dict | None = None  # while time goes by quickly: how far along it is
+        self.talk = None  # what the conversation is about lately (cortex/think.Thread), once there is one
         self.brain_state = "none"  # its brain of neurons: "waking" (growing or loading), "awake", or "none"
         self._synapses_saved = time.monotonic()  # when every synapse of its brain was last saved
 
@@ -246,6 +247,12 @@ class Life:
             )
             if asked:
                 self.asked = (asked, time.monotonic())
+            if kind == "wonder" and "I wonder: " in note:  # it asked what it wondered: the answer may teach it
+                from .cortex.think import Thread
+
+                if getattr(self, "talk", None) is None:
+                    self.talk = Thread()
+                self.talk.wonder(note.split("I wonder: ", 1)[1])
 
     def question(self) -> str | None:
         """What it asked the person, if it's still waiting for an answer (and it's no longer waiting after this)."""

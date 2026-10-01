@@ -42,6 +42,7 @@ class Initiative:
         self.shared: set[str] = set()  # what it has read and told them of its own accord
         self.met = False  # whether it has talked with them before (only then is their coming in a coming back)
         self.passed: str | None = None  # time went by quickly: what it has to say about that
+        self.wondered: set[str] = set()  # what they told it that it has come back to, wondering
 
     # --- what it notices ---------------------------------------------------------------------------
 
@@ -126,6 +127,8 @@ class Initiative:
 
     def _something(self, mind, readings: list[tuple[str, str]]):
         """With nothing else going on: something it would like to know, something it remembers, or read."""
+        from .activities import SIGHTS
+        from .cortex import engage
         from .cortex.talk import (
             ASKED_FACTS,
             ASKS,
@@ -150,10 +153,33 @@ class Initiative:
         pieces += [f"You told me that {fact}." for _, fact in mind.told[-3:]]
         pieces = [p for p in pieces if p and p not in self.remembered]
         fresh = [(title, sentence) for title, sentence in readings if title not in self.shared]
-        choices = [kind for kind, there in (("question", questions), ("memory", pieces), ("reading", fresh)) if there]
+        wondering = [(fact, engage.wonders(fact)) for _, fact in mind.told[-3:] if fact not in self.wondered]
+        wondering = [(fact, asks) for fact, asks in wondering if asks]
+        at = mind.activity if mind.activity in ("watch", "sing", "dance", "chase", "visit") else None
+        choices = [
+            kind
+            for kind, there in (
+                ("question", questions),
+                ("memory", pieces),
+                ("reading", fresh),
+                ("wonder", wondering),
+                ("invite", at),
+                ("show", at),
+            )
+            if there
+        ]
         if not choices:
             return None
         kind = self.rng.choice(choices)
+        if kind == "wonder":  # something they told it, that it still wonders about
+            fact, asks = self.rng.choice(wondering)
+            self.wondered.add(fact)
+            return "wonder", engage.later_wonder_note(fact, self.rng.choice(asks)), None
+        if kind in ("invite", "show"):  # at one of its pastimes: it would like them to join in, or see
+            sight = SIGHTS.get(mind.watching or "", mind.watching)
+            if kind == "invite":
+                return "invite", engage.invite_note(engage.pastime_words(engage.RATHER, at, sight, mind.visiting)), None
+            return "show", engage.show_note(engage.pastime_words(engage.BUSY, at, sight, mind.visiting)), None
         if kind == "question":
             key = questions[0] if questions == ["your name"] else self.rng.choice(questions)
             self.asked.add(key)

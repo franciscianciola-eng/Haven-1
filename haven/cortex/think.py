@@ -85,6 +85,54 @@ def topic_of(text: str) -> str | None:
     return max(words, key=len) if words else None
 
 
+class Thread:
+    """What a conversation is about lately: what it wondered and asked, what it said of its own, what it decided."""
+
+    LASTS = 600.0  # seconds what it wondered stays open for an answer
+
+    def __init__(self):
+        self.wondered: tuple[str, float] | None = None
+        self.own: str | None = None  # what it said of its own, for "what about you?"
+        self.reason: str | None = None  # why it said what it said, for "why?"
+        self.request = None  # (what it was asked, what it decided), for being asked again
+
+    def wonder(self, question: str) -> None:
+        self.wondered = (question, time.monotonic())
+
+    def wondering(self) -> str | None:
+        found, self.wondered = self.wondered, None
+        return found[0] if found and time.monotonic() - found[1] < self.LASTS else None
+
+    def mine(self, own: str) -> None:
+        self.own = own
+        parts = own.split(". ", 1)  # ("My favorite animal is the butterfly. They fly around my valley.": the reason)
+        self.reason = parts[1].rstrip(".") if len(parts) > 1 else self.reason
+
+    def asked_to(self, req, decision) -> None:
+        self.request = (req, decision)
+        if decision.reason:
+            self.reason = decision.reason
+
+    def declined(self) -> bool:
+        from .engage import WILLING
+
+        return self.request is not None and self.request[1].answer not in WILLING
+
+
+def own_favorites(mind) -> dict[str, str]:
+    """Its own favorites, as it says them (only what it has found out for itself)."""
+    found = {}
+    season = mind.character.favorite_season()
+    if season:
+        found["season"] = f"My favorite season is {season}."
+    days = mind.age / 1200
+    found["age"] = f"I'm {int(days)} days old." if days < 24 else f"I'm {int(days // 24)} years old."
+    return found
+
+
+own_favorites_of = own_favorites
+
+
 class Thinker:
     """What Life needs from a language cortex."""
 
@@ -401,29 +449,54 @@ class OwnThinker(Thinker):
         )
 
     def deliberate(self, life, text: str, drafts: int = 3) -> tuple[str, float]:
+        from ..will import consider
+        from . import engage
         from .library import asked_to_read
-        from .talk import DONT_KNOW, MORE, addressed, answer_to, notes, request, story_asked, sum_of
+        from .talk import DONT_KNOW, addressed, answer_to, notes, request, request_note, story_asked, sum_of
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
         self.hearing.heard_said(text)  # (what people say to it, it goes over in its sleep, as it does what it hears)
         text = addressed(text, life.mind.me.name)  # ("Hi Pip!" is being greeted, as "Hi Haven!" is)
+        if getattr(life, "talk", None) is None:
+            life.talk = Thread()
+        talk = life.talk  # (what this conversation is about, lately)
         asked = (
             life.question() if hasattr(life, "question") else None
         )  # it asked them something, and this is the answer
         meant = answer_to(asked, text) if asked else None  # ("pizza": "My favorite food is pizza.")
-        wanted = None if meant else asked_to_read(text)
+        wondered = talk.wondering()  # it wondered something about what they told it, and this may be the answer
+        learned = engage.learned_from(wondered, text) if wondered and not meant else None
+        wanted = None if meant or learned else asked_to_read(text)
         if wanted and self.web is not None and not self.library.title_for(wanted):
             self.look_up(wanted, life)  # asked to read about something: it reads it first
+        decision = None
         with life.lock:  # what it's experiencing as it's asked, and what comes to mind
             mind = life.mind
-            just = self.listen(mind, meant or text)
+            if learned:  # the answer to what it wondered: something learned
+                mind.lessons = [*(item for item in mind.lessons if item[1] != learned), (mind.tick, learned)][-200:]
+                mind._note(mind.tick, f"was taught that {learned}")
+                just = learned
+            else:
+                just = self.listen(mind, meant or text)
             req = None if just else request(text)
             extra = [] if just else self.recollect(mind, text, req)
+            follow, question = self._follow(mind, talk, text, just, meant or text, learned)
+            if req is not None:  # asked to do something: it makes up its own mind
+                decision = consider(mind, req)
+                extra = [engage.decision_note(req.do, decision) if e == request_note(req) else e for e in extra]
+                talk.asked_to(req, decision)
+            elif engage.INSIST.match(text) and talk.declined():  # asked again: it may give in
+                req, _ = talk.request
+                decision = consider(mind, req, insisted=True)
+                follow.append(engage.decision_note(req.do, decision, again=True))
+                talk.asked_to(req, decision)
             state = torch.tensor(mind_state(mind), device=self.device).unsqueeze(0)
-            known = notes(mind, text, (), just, extra)
-            # It answers from what comes to mind, as it learned to; only "tell me more" needs what was just said.
-            history = [t for t in life.conversation[-3:-1] if not t.get("earlier")] if MORE.search(text) else []
+            known = notes(mind, text, (), just, extra + follow)
+            # It answers from what comes to mind, with what was said lately in view.
+            history = [
+                t for t in life.conversation[-5:-1] if not t.get("earlier") and mind.tick - t.get("tick", 0) < 2400
+            ]
         with self.model_lock:
             heard = self.model.meaning([YOU, *self.tok.encode(text)], state).float().cpu().numpy()
         with life.lock:
@@ -442,17 +515,66 @@ class OwnThinker(Thinker):
             if self.look_up(topic, life):  # it didn't know, so it reads about it, and says what it read
                 with life.lock:
                     extra = self.recollect(mind, text)
-                    known = notes(mind, text, (), just, extra)
+                    known = notes(mind, text, (), just, extra + follow)
                 if extra:
                     words, confidence = self._say(prompt_for(known), state, drafts)
-        if req is not None and words.startswith("Okay, I'll"):
+        if decision is not None and decision.answer in engage.WILLING:
             with life.lock:
-                mind.take_errand(req.do, req.thing, req.action, req.need)  # it said it would, so it sets off
+                mind.take_errand(req.do, req.thing, req.action, req.need)  # it chose to, so it sets off
+        if question and question.rstrip("?").lower() in words.lower():
+            talk.wonder(question)  # it asked what it wondered: the answer may teach it something
         with self.model_lock:
             meaning = self.model.meaning([HAVEN, *self.tok.encode(words)], state).float().cpu().numpy()
         with life.lock:
             mind.think(words, meaning, confidence)  # what it says enters its workspace
         return words, confidence
+
+    def _follow(self, mind, talk, text: str, just: str | None, said: str, learned: str | None):
+        """What else comes to mind to follow the conversation: what it wonders about what it was told, what it has of
+        its own that goes with it, what it would say about itself if asked the same, why it said what it said, its
+        mood, its brain, what it's doing. Returns (notes, the question it wonders, if any)."""
+        from ..activities import SIGHTS
+        from . import engage
+        from .talk import statement
+
+        follow, question = [], None
+        mood = engage.mood_note(mind.chemistry)
+        if mood:
+            follow.append(mood)
+        fact = None if learned else (statement(said) if just else None)
+        favorites = own_favorites_of(mind)
+        if fact:  # something about themselves: it wonders, and has something of its own to say
+            curious = mind.character.traits["curious"]
+            choices = engage.wonders(fact)
+            if choices and random.random() < 0.3 + 0.6 * curious:
+                question = random.choice(choices)
+                follow.append(engage.wonder_note(question))
+            own = engage.own_for(fact, favorites)
+            if own:
+                follow.append(engage.own_note(own))
+                talk.mine(own)
+        elif learned and random.random() < 0.3 * mind.character.traits["curious"]:
+            choices = [q for q in engage.wonders(learned) if q]
+            if choices:
+                question = random.choice(choices)
+                follow.append(engage.wonder_note(question))
+        if engage.ABOUT_YOU.match(text) and talk.own:
+            follow.append(engage.about_you_note(talk.own))
+        if engage.WHY.match(text) and talk.reason:
+            follow.append(engage.why_note(talk.reason))
+        if engage.BRAIN_ASKED.search(text) and mind.brain is not None:
+            follow.append(engage.brain_note(mind.brain.neurons(), mind.brain.synapses(), self.connections()))
+        busy = engage.pastime_words(
+            engage.BUSY, mind.activity, SIGHTS.get(mind.watching or "", mind.watching), mind.visiting
+        )
+        if busy and re.search(r"\bwhat (?:are|r) (?:you|u) (?:doing|up to)\b|\bwhatcha\b", text, re.IGNORECASE):
+            follow.append(f"Right now I'm {busy}.")
+        return follow, question
+
+    def connections(self) -> int:
+        """How many connections its language cortex has."""
+        model = getattr(self, "model", None)
+        return int(model.parameters_count()) if model is not None else 0
 
     def speak_up(self, life, note: str, drafts: int = 3) -> tuple[str, float]:
         """Say something of its own accord: what it has to say comes to mind last (see speaking.py), and it puts it

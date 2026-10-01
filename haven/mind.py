@@ -1046,8 +1046,10 @@ class Mind:
             if content is not None:
                 self._remember(content, tick, pose, "hurt")
         if obs.touch:
+            self.counts["touched"] = self.counts.get("touched", 0) + 1  # (kindness it remembers: see will.py)
             self.me.milestone("first touch", tick, "was touched by someone for the first time")
         if obs.fed:
+            self.counts["fed"] = self.counts.get("fed", 0) + 1
             self._note(tick, "was given food")
         cold_night = in_nest and b.temperature < 0.5 and obs.light < 0.3
         if (

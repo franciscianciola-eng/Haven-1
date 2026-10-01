@@ -123,8 +123,17 @@ def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(live
                 assert "You asked me to " in thought
             if turn.kind == "more" and turn.answer.startswith("It also says: "):
                 assert turn.answer.removeprefix("It also says: ") in thought
-            if turn.kind == "being told":
-                assert turn.answer.removeprefix("Okay, I'll remember that ").rstrip(".") in thought
+            if turn.kind == "being told":  # what it'll remember, or what it wonders and has of its own, is in mind
+                if turn.answer.startswith("Okay, I'll remember that "):
+                    assert turn.answer.removeprefix("Okay, I'll remember that ").rstrip(".") in thought
+                else:
+                    asked = re.findall(r"[A-Z][^.!?]*\?", turn.answer)
+                    assert all(f"I wonder: {q}" in thought for q in asked), (turn.answer, thought)
+                    assert "You just told me that " in thought
+            if turn.kind == "learning":
+                assert turn.answer.split(".")[0].lower() in thought.lower()
+            if turn.kind in ("why", "about you", "its brain", "pastime"):
+                assert any(n in thought for n in ("Why I said that:", "They want to know", "My brain:", "Right now I'm"))
             if turn.kind in ("what it read", "a fact"):
                 title = turn.answer.removeprefix("I read about ").split(". It says: ")[0]
                 assert f"I read about {title}:" in thought

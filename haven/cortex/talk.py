@@ -17,6 +17,7 @@ right time, because its state and its memories are what they are.
 
 from __future__ import annotations
 
+import functools
 import random
 import re
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from ..mind import Mind, need_words
 from ..personality import TRAITS
 from ..selfmodel import VERDICTS
 from ..world import BELL, DAY, FIRE, NEST, SAND, SEASON_DAYS, SEASONS, THORN, TREE, TURNING, WATER, YEAR
+from . import engage
 from .book import BOOK
 from .stories import STORIES, Story
 
@@ -1430,6 +1432,40 @@ DONE = {  # what it did, as it says it: (once, more than once)
     "felt sick after eating a toadstool": ("felt sick", "felt sick"),
     "climbed to the top of the hill": ("climbed to the top of the hill", "climbed to the top of the hill"),
 }
+
+
+DONE.update(  # its pastimes (activities.py)
+    {
+        "sang a little song": ("sang a little song", "sang little songs"),
+        "danced": ("danced", "danced"),
+        "chased a butterfly": ("chased a butterfly", "chased butterflies"),
+        "sat with you": ("sat with you", "sat with you"),
+        **{
+            f"watched {s}": (f"watched {s}", f"watched {s}")
+            for s in (
+                "the pond",
+                "the fire",
+                "a butterfly",
+                "the flowers",
+                "the sunset",
+                "the stars",
+                "the ball",
+                "the bell",
+            )
+        },
+    }
+)
+PASTIMES_DONE = (
+    "sang a little song",
+    "danced",
+    "chased a butterfly",
+    "sat with you",
+    "watched the fire",
+    "watched the sunset",
+    "watched the flowers",
+    "watched a butterfly",
+    "watched the stars",
+)
 
 
 def today(mind: Mind) -> str:
@@ -3137,6 +3173,11 @@ def other_life(moment: dict, rng: random.Random) -> tuple[dict, dict]:
         known["me"] = known["me"].replace("I'm Haven,", f"I'm {name},")
         answer["name"] = f"My name is {name}."
         answer["what"] = answer["what"].replace("I'm Haven,", f"I'm {name},")
+    if rng.random() < 0.4:  # a day with its pastimes in it
+        found = re.match(r"^Today I (.+)\.$", known.get("today", "") or "")
+        done = re.split(r", | and ", found.group(1)) if found else []
+        done = list(dict.fromkeys([*done[:2], *rng.sample(PASTIMES_DONE, rng.choice((1, 2)))]))
+        known["today"] = answer["day"] = f"Today I {listing(done)}."
     if rng.random() < 0.25:
         first = rng.choice(UNUSUAL)
         told = re.split(r"(?<=\.) (?=I )", known["story"]) if known["story"] else []
@@ -3175,6 +3216,9 @@ SPEAKING = {  # what it speaks up about, and how often, in the conversations it 
     "wake": 0.04,
     "passed": 0.08,
     "heard": 0.06,
+    "wonder": 0.08,
+    "invite": 0.06,
+    "show": 0.06,
 }
 ASKED_FACTS = {  # what it would like to know, and what it's called once it has been told
     "your favorite food": "favorite food",
@@ -3186,6 +3230,15 @@ ASKED_FACTS = {  # what it would like to know, and what it's called once it has 
     "what you do": "job",
 }
 DAYS_DONE = ("I went to work.", "I went for a walk.", "I cooked dinner.", "I saw my friends.", "I read a book.")
+
+
+def a_fact_told(rng: random.Random) -> str:
+    """Something someone told it about themselves, as it says it back (one it would wonder about)."""
+    for _ in range(20):
+        fact = statement(a_fact(rng)[0])
+        if fact and engage.wonders(fact):
+            return fact
+    return "your favorite animal is an octopus"
 
 
 def a_reply(key: str, rng: random.Random) -> str:
@@ -3253,6 +3306,25 @@ def speaking_up(
         heard = list(moment.get("heard", ()))
         story = heard[-1] if heard and rng.random() < 0.5 else rng.choice(TALES or STORIES)
         return bedtime_note(story), Turn(None, bedtime_answer(story), "speaking up"), None
+    if kind == "wonder":  # something they told it earlier, that it still wonders about
+        facts = [f for f in told if engage.wonders(f)] or [a_fact_told(rng)]
+        fact = rng.choice(facts)
+        question = rng.choice(engage.wonders(fact))
+        return (
+            engage.later_wonder_note(fact, question),
+            Turn(None, engage.later_wonder_answer(question), "speaking up"),
+            None,
+        )
+    if kind in ("invite", "show"):  # at one of its pastimes, with someone there
+        activity = rng.choice(("watch", "sing", "dance", "chase", "visit"))
+        sight = rng.choice(("the fire", "the pond", "a butterfly", "the flowers", "the sunset", "the stars"))
+        place = rng.choice(("the meadow", "the top of the hill", "the pond", "the apple trees"))
+        if kind == "invite":
+            rather = engage.pastime_words(engage.RATHER, activity, sight, place)
+            return engage.invite_note(rather), Turn(None, engage.invite_answer(rather), "speaking up"), None
+        busy = engage.pastime_words(engage.BUSY, activity, sight, place)
+        doing = engage.pastime_words(engage.DOING, activity, sight, place)
+        return engage.show_note(busy), Turn(None, engage.show_answer(doing), "speaking up"), None
     if kind == "sleep":
         return SLEEP_NOTE, Turn(None, SLEEP_ANSWER, "speaking up"), None
     if kind == "wake":
@@ -3267,6 +3339,40 @@ def speaking_up(
         )
     note = passed_note(days, [h for h in highlights if h])
     return note, Turn(None, passed_answer(note), "speaking up"), None
+
+
+NEW_TURNS = 0.07  # how often a turn asks about its brain, or what it's doing
+
+
+def own_favorites(known: dict) -> dict[str, str]:
+    """Its own favorites, as it says them, from what it knows of itself (what it isn't sure of is left out)."""
+    found = {}
+    season = re.search(r"My favorite season is (\w+)", known.get("favorites", "") or "")
+    if season:
+        found["season"] = f"My favorite season is {season.group(1)}."
+    age = re.search(r"I'm ([^.]+ old)", known.get("me", "") or "")
+    if age:
+        found["age"] = f"I'm {age.group(1)}."
+    return found
+
+
+def brain_or_pastime_turn(rng: random.Random) -> tuple[str, Turn]:
+    """Asked about its brain (as big as it is), or what it's doing (one of its pastimes)."""
+    if rng.random() < 0.45:
+        neurons, synapses = rng.choice(engage.BRAINS)
+        note = engage.brain_note(neurons, synapses, 53_000_000)
+        return note, Turn(
+            plain(rng.choice(engage.BRAIN_QUESTIONS), rng),
+            engage.brain_reply(neurons, synapses, 53_000_000, rng),
+            "its brain",
+        )
+    activity = rng.choice(("watch", "sing", "dance", "chase", "visit", "company"))
+    sight = rng.choice(("the fire", "the pond", "a butterfly", "the flowers", "the sunset", "the stars"))
+    place = rng.choice(("the meadow", "the top of the hill", "the pond", "the apple trees", "my nest"))
+    note = f"Right now I'm {engage.pastime_words(engage.BUSY, activity, sight, place)}."
+    return note, Turn(
+        plain(rng.choice(engage.WHAT_DOING), rng), engage.pastime_words(engage.DOING, activity, sight, place), "pastime"
+    )
 
 
 def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> tuple[str, list[Turn]]:
@@ -3284,6 +3390,12 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     shown: dict[str, int] = {}  # how much of each thing it read it has told them so far
     extra: list[str] = []  # what else comes to mind: what it read that answers them, being asked to do something
     said: list[Turn] = []
+    chemistry = engage.synthetic_chemistry(rng)  # (its brain's chemistry: how it feels, beyond its needs)
+    mood = engage.mood_words(chemistry)
+    if mood:
+        extra.append(engage.mood_note(chemistry))
+    curious = float(known.get("traits", {}).get("curious", 0.5)) if isinstance(known.get("traits"), dict) else 0.5
+    favorites = own_favorites(known)
 
     def tell(entry, text: str, index: int = 0) -> None:
         extra.append(f"I read about {entry.title}: {entry.sentences[index]}")
@@ -3307,8 +3419,10 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
                     said.append(Turn(reply, f"Nice to meet you, {name}!", "their name"))
                 else:
                     just = statement(meant)
-                    if just:
-                        said.append(Turn(reply, f"Okay, I'll remember that {just}.", "being told"))
+                    if just:  # it reacts, says what it has of its own, wonders, and maybe learns
+                        practice = engage.told_practice(reply, just, mood, curious, favorites, rng)
+                        extra += practice.notes
+                        said += [Turn(*turn) for turn in practice.turns]
             introduced_now = introduced_now or turn.answer.startswith(("Hi!", "Oh, hi.", "You're back!"))
     if person is None and not introduced_now and rng.random() < 0.2:  # they say who they are first
         for _ in range(5):
@@ -3328,6 +3442,11 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             extra.append(note)
             said.append(turn)
             continue
+        if rng.random() < NEW_TURNS:  # its brain, or what it's doing (a pastime)
+            note, turn = brain_or_pastime_turn(rng)
+            extra.append(note)
+            said.append(turn)
+            continue
         roll = rng.random()
         if roll < 0.26 and known.get("traits") and rng.random() < 0.1:  # whether it's brave, shy, playful...
             trait = rng.choice(TRAITS)
@@ -3337,6 +3456,8 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         elif roll < 0.26:
             intent = rng.choice(RECALLED if rng.random() < EMPHASIS else list(QUESTIONS))
             reply = answer[intent]
+            if intent == "feel" and mood and rng.random() < 0.6:
+                reply = f"{reply} I feel {mood}."  # (its brain's chemistry, as well as its needs)
             if person and intent in ("hello", "bye"):
                 reply = reply.replace("Hi!", f"Hi, {person}!").replace("Bye!", f"Bye, {person}!")
             said.append(Turn(casual(rng.choice(QUESTIONS[intent]), rng), reply, intent))
@@ -3417,8 +3538,30 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             if req is None:
                 continue
             thing = things[req.thing]
-            extra += [thing_note(req.thing, thing["stats"], thing["where"]), request_note(req)]
-            said.append(Turn(text, request_answer(req, body, thing["stats"]), "request"))
+            extra.append(thing_note(req.thing, thing["stats"], thing["where"]))
+            plain_answer = request_answer(req, body, thing["stats"])
+            if plain_answer.startswith(("I'm asleep", "I haven't seen")):
+                extra.append(request_note(req))
+                said.append(Turn(text, plain_answer, "request"))
+                continue
+            drives = body["drives"]
+            need = int(np.argmax(drives))
+            level = float(drives[need])
+            choose = functools.partial(
+                engage.synthetic_decision,
+                rng,
+                need,
+                level,
+                need_words(need, level, bool(body["cold"])),
+                req.need == need,
+                req.thing,
+                req.action,
+            )
+            decision = choose()
+            again = choose(insisted=True) if rng.random() < 0.35 else None
+            practice = engage.request_practice(req, text, decision, rng, again, why=rng.random() < 0.35)
+            extra += practice.notes
+            said += [Turn(*turn) for turn in practice.turns]
         elif roll < 0.86:  # teaching it a word
             word = rng.choice(NAMING_WORDS)
             text = plain(rng.choice(NAMING_FORMS).format(a(word)), rng)
@@ -3458,7 +3601,11 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             )
         text = plain(fact_said, rng)
         just = lesson(text) if teaching else statement(text)
-        if just:
+        if just and not teaching:  # something about themselves: it reacts, wonders, and maybe learns
+            practice = engage.told_practice(text, just, mood, curious, favorites, rng)
+            extra += practice.notes
+            said += [Turn(*turn) for turn in practice.turns]
+        elif just:
             said.append(Turn(text, f"Okay, I'll remember that {just}.", "being told"))
     thought = recall(known, [t.said for t in said if t.said], person, told, (), just, extra)
     return thought, said
