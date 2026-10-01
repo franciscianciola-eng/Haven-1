@@ -162,6 +162,7 @@ def run_live(args: argparse.Namespace, store: Store, term: Terminal) -> int:
     life.listeners.append(
         lambda kind, text: term.haven(mind.me.name, text) if kind == "said" else term.dim(f"  · {text}")
     )
+    life.wake_brain()  # (with torch: its brain of spiking neurons joins in when it's ready)
     life.start()
     term.say(f"{mind.me.name} is alive ({mind.age / 1200:.1f} days old). Its dashboard: {url}")
     term.dim(HELP)

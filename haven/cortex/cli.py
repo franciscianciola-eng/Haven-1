@@ -107,6 +107,7 @@ def chat(args: argparse.Namespace, store, term) -> int:
         return 1
     term.dim(message)
     name = mind.me.name
+    life.wake_brain()  # (its brain of spiking neurons joins in when it's ready)
     life.start()  # its life goes on while you talk
     term.say(f"You're talking with {name}. Type to talk; /status to see inside it, /touch, /feed, /quit.")
     try:

@@ -66,11 +66,11 @@ OPTIONS = (
 CHEMICALS = ("dopamine", "noradrenaline", "serotonin", "acetylcholine", "oxytocin")
 # size: (cortical columns, target columns of each column, thalamic relay cells)
 SIZES = {
-    "tiny": (64, 12, 1024),  # for tests
-    "small": (256, 24, 2048),  # for simulated lives
-    "standard": (1024, 50, 4096),  # about 100,000 neurons and 400 million synapses
-    "large": (2048, 64, 8192),  # about 200,000 neurons and a billion synapses
-    "huge": (4096, 96, 16384),  # about 400,000 neurons and 3 billion synapses
+    "tiny": (64, 12, 1024),  # 9,040 neurons, 6.8 million synapses (for tests)
+    "small": (256, 24, 2048),  # 29,264 neurons, 51 million synapses
+    "standard": (1024, 50, 4096),  # 108,112 neurons, 417 million synapses
+    "large": (2048, 64, 8192),  # 214,608 neurons, 1.06 billion synapses
+    "huge": (4096, 96, 16384),  # 427,600 neurons, 3.17 billion synapses
 }
 MOMENT = 12  # ms of brain time at each moment of its life
 COLUMN = (("RS", 64), ("IB", 8), ("CH", 8), ("FS", 15), ("LTS", 5))  # a minicolumn: 80 pyramidal cells, 20 interneurons

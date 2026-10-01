@@ -17,19 +17,24 @@ Keep the terminal window open while you're with Haven. When you're done, press "
 Haven's window: its life is saved, and it picks up where it left off next time.
 
 THE FIRST TIME takes a few minutes, and needs the internet, to install what Haven runs
-on (1 to 3 GB) and to get its language cortex (about 50 MB). After that it starts in a
-moment.
+on (1 to 3 GB) and to get its language cortex (about 50 MB). Haven also grows its brain
+the first time, sized for your computer (it lives on meanwhile, and its brain joins in
+when it's ready). After that it starts in a moment.
 
-Haven speaks with a language cortex of its own, grown from scratch: no other AI model is
-involved. It's born able to talk about itself and its garden, simply. To have it learn to
-read (stories, then books and encyclopedias), see "haven learn" in README.md.
+Haven has a brain of spiking neurons, modelled on real ones, which chooses what it does,
+learns what to fear and gives it a mood; while Haven is running it keeps about one of
+your computer's cores busy, and its brain takes a few hundred MB on disk. It speaks with
+a language cortex of its own, grown from scratch: no other AI model is involved. It's
+born able to talk about itself and its valley, simply. To have it learn to read (stories,
+then books and encyclopedias), see "haven learn" in README.md.
 
 Everything runs on your computer. Nothing you say is sent anywhere. The internet is only
-used for setting up, and for Haven to look things up in the Simple English Wikipedia
-when it doesn't know about something.
+used for setting up, for Haven's bedtime stories, and for Haven to look things up in the
+Simple English Wikipedia when it doesn't know about something.
 
 Where things are kept:
-  - Haven's life and its language cortex: the ".haven" folder in your home folder
+  - Haven's life, its brain and its language cortex: the ".haven" folder in your home
+    folder
   - everything else: this folder
 
 More about what Haven is and how it works: README.md
