@@ -72,6 +72,13 @@ def garbled(text: str) -> bool:
 
 
 REACTION = re.compile(r"^(?:Oh|Ooh|Aww|Mmm|Hm)\b[^!?.]*?,\s*(?:an?\s+)?([^!?.,]+)!")
+_ARTICLE = re.compile(r"\b[Aa] (?=[aeioAEIO][a-z])|\b[Aa]n (?=[b-df-gj-np-tv-zB-DF-GJ-NP-TV-Z][a-z])")
+
+
+def misworded(text: str) -> bool:
+    """Whether a draft gets "a" and "an" wrong ("A octopuses eat crabs", "an bell"), as the answers it learned never
+    do (there are exceptions, like "a unicorn" and "an hour": they're left alone)."""
+    return bool(_ARTICLE.search(text))
 
 
 def misnamed(text: str, heard: str | None) -> bool:
@@ -119,6 +126,7 @@ class Thread:
         self.own: str | None = None  # what it said of its own, for "what about you?"
         self.reason: str | None = None  # why it said what it said, for "why?"
         self.request = None  # (what it was asked, what it decided), for being asked again
+        self.feeling: tuple[str | None, str | None] = (None, None)  # its mood lately, and why, as it would say them
 
     def wonder(self, question: str) -> None:
         self.wondered = (question, time.monotonic())
@@ -535,6 +543,11 @@ class OwnThinker(Thinker):
         long = 180 if story_asked(text) == "tale" else 100  # (a story takes longer to tell)
         told = bool(just) and not learned  # (told something about them: more drafts, so one names it right)
         words, confidence = self._say(prompt_for(known), state, drafts + 2 if told else drafts, long, heard=text)
+        if long <= 100 and engage.said_before(words, [t["text"] for t in history if t["who"] != "you"]):
+            follow.append(engage.said_note(words))  # it's about to say again what it said just now: it knows it is
+            with life.lock:
+                known = notes(mind, text, (), just, extra + follow)
+            words, confidence = self._say(prompt_for(known), state, drafts, long, heard=text)
         topic = None if sum_of(text) else topic_of(text)  # (a sum isn't something to look up)
         if words.startswith(DONT_KNOW[:24]) and self.web is not None and topic and not self.library.title_for(topic):
             if self.look_up(topic, life):  # it didn't know, so it reads about it, and says what it read
@@ -548,6 +561,9 @@ class OwnThinker(Thinker):
                 mind.take_errand(req.do, req.thing, req.action, req.need)  # it chose to, so it sets off
         if question and question.rstrip("?").lower() in words.lower():
             talk.wonder(question)  # it asked what it wondered: the answer may teach it something
+        felt, why = talk.feeling
+        if felt and why and f"i feel {felt}" in words.lower():
+            talk.reason = why  # it said how it feels: asked why, it says what made it feel that way
         with self.model_lock:
             meaning = self.model.meaning([HAVEN, *self.tok.encode(words)], state).float().cpu().numpy()
         with life.lock:
@@ -563,7 +579,9 @@ class OwnThinker(Thinker):
         from .talk import statement
 
         follow, question = [], None
-        mood = engage.mood_note(mind.chemistry)
+        felt = engage.mood_words(mind.chemistry)  # how its brain's chemistry makes it feel, and why (if it knows)
+        talk.feeling = (felt, engage.mood_cause(felt, getattr(mind, "stirred", {}), mind.tick))
+        mood = engage.mood_note(mind.chemistry, talk.feeling[1])
         if mood:
             follow.append(mood)
         fact = None if learned else (statement(said) if just else None)
@@ -581,9 +599,12 @@ class OwnThinker(Thinker):
             if own:
                 follow.append(engage.own_note(own))
                 talk.mine(own)
-        elif learned and random.random() < 0.3 * mind.character.traits["curious"]:
+        elif learned:
+            related = engage.relate(learned)  # what it brings to mind from its own valley
+            if related:
+                follow.append(engage.relate_note(related))
             choices = [q for q in engage.wonders(learned) if q]
-            if choices:
+            if choices and random.random() < 0.3 * mind.character.traits["curious"]:
                 question = random.choice(choices)
                 follow.append(engage.wonder_note(question))
         if engage.ABOUT_YOU.match(text) and talk.own:
@@ -643,7 +664,7 @@ class OwnThinker(Thinker):
                 found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
         mind = self.tok.decode(prompt)  # what came to mind, and what was said
         # A draft that's babble loses, then one that goes round in circles, then one that says a number or name it
-        # can't back up.
+        # can't back up, then one that gets "a" and "an" wrong.
         times = 2 if most > 100 else 1  # (a story can say "said the fox" twice)
         found.sort(
             key=lambda d: (
@@ -651,6 +672,7 @@ class OwnThinker(Thinker):
                 not misnamed(d[0], heard),
                 not repeats(d[0], mind, times),
                 not unfounded(d[0], mind),
+                not misworded(d[0]),
                 d[1],
             )
         )

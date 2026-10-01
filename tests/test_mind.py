@@ -183,3 +183,27 @@ def test_a_brain_that_cant_keep_up_runs_every_few_moments():
     assert mind._brain_turn(SimpleNamespace(pain=0.6, touch=0.0, words=[]))  # (but always when it's hurt)
     mind.brain.timing = 40.0
     assert mind._brain_turn(quiet)
+
+
+def test_it_keeps_what_stirred_its_brains_chemistry():
+    from types import SimpleNamespace
+
+    mind = Mind(seed=1)
+    mind.world.tick = 50
+    calm = {"reward": 0.0, "surprise": 0.0, "pain": 0.0, "sick": 0.0, "content": 0.5, "social": 0.0}
+    drives = np.zeros(4)
+    nothing = SimpleNamespace(new=[])
+    mind._stirred(SimpleNamespace(touch=1.0, words=[]), calm, nothing, drives)
+    assert mind.stirred["oxytocin+"] == (50, "you stroked me")
+    mind._stirred(SimpleNamespace(touch=0.0, words=["hi"]), {**calm, "social": 1.0}, nothing, drives)
+    assert mind.stirred["oxytocin+"][1] == "you're talking with me"
+    mind._stirred(SimpleNamespace(touch=0.0, words=[]), {**calm, "pain": 0.8, "reward": -0.6}, nothing, drives)
+    assert mind.stirred["noradrenaline+"][1].endswith("me") and mind.stirred["dopamine-"][1].endswith("me")
+    mind.log = [(49, "rang the bell")]
+    mind._stirred(SimpleNamespace(touch=0.0, words=[]), {**calm, "reward": 0.8}, nothing, drives)
+    assert mind.stirred["dopamine+"][1] == "I rang the bell"
+    mind._stirred(SimpleNamespace(touch=0.0, words=[]), calm, SimpleNamespace(new=["see:frog"]), drives)
+    assert mind.stirred["noradrenaline+"][1] == "I found something new"
+    hungry = np.array([0.8, 0.0, 0.0, 0.0])
+    mind._stirred(SimpleNamespace(touch=0.0, words=[]), {**calm, "content": 0.1}, nothing, hungry)
+    assert mind.stirred["serotonin-"][1] == "I'm very hungry"

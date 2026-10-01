@@ -130,12 +130,31 @@ def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(live
                     asked = re.findall(r"[A-Z][^.!?]*\?", turn.answer)
                     assert all(f"I wonder: {q}" in thought for q in asked), (turn.answer, thought)
                     assert "You just told me that " in thought
-            if turn.kind == "learning":
-                assert turn.answer.split(".")[0].lower() in thought.lower()
+            if turn.kind == "learning":  # what it learned, and what that brings to mind from its own valley
+                learned = re.split(r"[.!]", turn.answer)[0]
+                assert f"you just told me that {learned.lower()}." in thought.lower()
+                related = re.match(r"[^.!]*! (.*?)(?: [A-Z][^.!?]*\?)?$", turn.answer)
+                if related:
+                    assert f"From my own life: {related.group(1)}" in thought, (turn.answer, thought)
+            if turn.kind == "said again":  # it knows it's saying it again
+                again = turn.answer.removeprefix("Like I said, ").removeprefix("I told you already. ")
+                assert again.lower() in thought.lower() and "I said that just now: " in thought
+            if turn.kind == "why it feels":  # how it feels, and why, is in mind (or it isn't: then it says so)
+                felt = re.search(r"I feel ([a-z ]+?)(?:, because ([^.]+))?\.", thought)
+                if turn.answer.startswith("Because "):
+                    assert felt and felt.group(2) and turn.answer == f"Because {felt.group(2)}."
+                elif turn.answer.startswith("I don't know"):
+                    assert felt and not felt.group(2)
+                else:
+                    assert turn.answer.startswith(("I'm not ", "I feel okay"))
             if turn.kind in ("why", "about you", "its brain", "pastime"):
                 assert any(
                     n in thought for n in ("Why I said that:", "They want to know", "My brain:", "Right now I'm")
                 )
+            if turn.kind == "about you" and turn.answer.startswith(("Like I said", "I told you already")):
+                assert "I said that just now: " in thought
+            if turn.kind == "feel" and ", because " in turn.answer:  # why it feels as it does is in mind
+                assert turn.answer.split("I feel ", 1)[1] in thought
             if turn.kind in ("what it read", "a fact"):
                 title = turn.answer.removeprefix("I read about ").split(". It says: ")[0]
                 assert f"I read about {title}:" in thought
@@ -147,6 +166,7 @@ def test_conversations_to_learn_from_are_answerable_from_what_comes_to_mind(live
             if turn.kind == "what it doesn't know":
                 assert turn.answer == DONT_KNOW
     assert {"request", "more", "a word", "sums", "lately", "a fact", "what they told it", "what it was taught"} <= kinds
+    assert {"said again", "why it feels", "learning"} <= kinds
     for _ in range(500):  # a conversation always has the turns asked for, even when a try comes to nothing
         assert conversation(moment, rng, turns=1)[1]
 

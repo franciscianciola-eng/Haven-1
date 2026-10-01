@@ -28,9 +28,11 @@ def test_the_answer_to_what_it_wondered_is_something_learned():
 
 
 def test_babble_and_a_favorites_reason():
-    from haven.cortex.think import Thread, garbled, misnamed
+    from haven.cortex.think import Thread, garbled, misnamed, misworded
 
     assert garbled("Tababababababababa") and not garbled("Octopuses live in the sea. Thank you for telling me!")
+    assert misworded("A octopuses eat little crabs.") and misworded("I rang an bell.")
+    assert not misworded("An octopus eats crabs. I saw a unicorn, an hour ago, and a bell.")
     told = "My favorite animal is an octopus"
     assert misnamed("Oh, actopus! Where do octopuses live?", told) and misnamed("Oh, a lion!", told)
     assert not misnamed("Ooh, an octopus! Where do octopuses live?", told) and not misnamed("Ooh, octopuses!", told)
@@ -61,6 +63,47 @@ def test_its_mood_comes_from_its_brains_chemistry():
     assert engage.mood_words({**usual, "dopamine": 2.4}) == "full of beans"
     assert engage.mood_words({**usual, "serotonin": 0.3}) == "a bit grumpy"
     assert engage.mood_note({**usual, "oxytocin": 3.0}) == "I feel cuddly."
+    assert engage.mood_note({**usual, "oxytocin": 3.0}, "you stroked me") == "I feel cuddly, because you stroked me."
+
+
+def test_it_knows_why_it_feels_as_it_does_or_that_it_doesnt():
+    stirred = {"oxytocin+": (100, "you stroked me"), "dopamine+": (10, "I ate an apple")}
+    assert engage.mood_cause("cuddly", stirred, 150) == "you stroked me"
+    assert engage.mood_cause("cuddly", stirred, 100 + engage.LATELY + 1) is None  # (too long ago to be why)
+    assert engage.mood_cause("on edge", stirred, 150) is None and engage.mood_cause(None, stirred, 150) is None
+    assert engage.feel_reply("cuddly", "cuddly", "you stroked me") == "Because you stroked me."
+    assert engage.feel_reply("that", "cuddly", "you stroked me") == "Because you stroked me."
+    assert engage.feel_reply("cuddly", "cuddly", None) == "I don't know. I just feel that way."
+    assert engage.feel_reply("a bit grumpy", "cuddly", None, "grumpy") == "I'm not grumpy. I feel cuddly."
+    assert engage.feel_reply("a bit grumpy", None, None, "cross") == "I'm not cross."
+    rng = random.Random(0)
+    assert all(engage.synthetic_cause("dreamy", rng) in (None, "I just woke up") for _ in range(20))
+
+
+def test_it_says_again_what_it_said_just_now_as_such():
+    mine = "My favorite animal is the butterfly. They fly around my valley."
+    assert engage.said_again(mine) == "Like I said, my favorite animal is the butterfly. They fly around my valley."
+    assert engage.said_again("Yes, I'm very hungry.") == "Like I said, I'm very hungry."
+    assert engage.said_again("I'm 2 days old.", "a bit grumpy") == "I told you already. I'm 2 days old."
+    earlier = [f"Ooh, an octopus! {mine} Where do octopuses live?", "Your name is Sam."]
+    assert engage.said_before(mine, earlier) and engage.said_before("your name is sam", earlier)
+    assert not engage.said_before("My favorite food is apples.", earlier)
+    assert not engage.said_before("Okay.", ["Okay."])  # (short, everyday replies don't count)
+    assert not engage.said_before(
+        "I don't know. I haven't learned about that.", ["I don't know. I haven't learned about that."]
+    )
+
+
+def test_what_it_learns_brings_its_own_valley_to_mind():
+    rng = random.Random(0)
+    sea = "I've never seen the sea. I only have my pond."
+    assert engage.relate("octopuses live in the sea") == sea and engage.relate("Rex looks small and brown") is None
+    assert (
+        engage.learned_reply("octopuses live in the sea", None, rng, None, sea) == f"Octopuses live in the sea! {sea}"
+    )
+    flat = engage.learned_reply("octopuses live in the sea", None, rng, "a bit grumpy", sea)
+    assert flat == "Octopuses live in the sea. Hm. Okay."  # (not in the mood to chat)
+    assert engage.learned_reply("Rex looks small", None, rng, "cuddly").endswith("Aww, thank you for telling me!")
 
 
 def test_it_decides_for_itself():

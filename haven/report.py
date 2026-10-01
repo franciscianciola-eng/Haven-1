@@ -317,16 +317,22 @@ def doing(mind: Mind) -> str:
 
 
 def brain(mind: Mind) -> dict | None:
-    """Its brain of spiking neurons, for the window: how big, how it's firing, its chemistry."""
+    """Its brain of spiking neurons, for the window: how big, how it's firing, its chemistry (and the mood that makes,
+    and why, as it would say it)."""
+    from .cortex.engage import mood_cause, mood_words
+
     found = mind.brain
     if found is None:
         return None
     reading = mind.reading
+    mood = mood_words(mind.chemistry)
     return {
         "size": found.size,
         "neurons": found.neurons(),
         "synapses": found.synapses(),
         "chemistry": {k: round(v, 2) for k, v in mind.chemistry.items()},
+        "mood": mood,
+        "why": mood_cause(mood, mind.stirred, mind.tick),
         "rates": {k: round(v, 2) for k, v in reading.rates.items()} if reading else {},
         "novelty": round(mind.novelty, 2),
         "fear": round(mind.fear, 2),

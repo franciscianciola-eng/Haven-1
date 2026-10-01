@@ -403,6 +403,7 @@ function render(s) {
     bar("hunger", d.hunger, "var(--accent)") + bar("too hot/cold", d.temperature, "var(--accent)") +
     bar("tiredness", d.tiredness, "var(--accent)");
   const brain = s.brain;  // its brain of spiking neurons: its chemistry, as levels against the usual (1×)
+  const plain = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
   $("brain").hidden = !brain;
   if (brain && brain.waking) $("brain").innerHTML = `<div class="small">Its brain of neurons is waking up…</div>`;
   else if (brain) {
@@ -411,7 +412,8 @@ function render(s) {
     $("brain").innerHTML = `<div class="small" title="Spiking neurons modelled on real ones, firing as you watch (${brain.ms} ms of computing each moment)">Brain: ${brain.neurons.toLocaleString()} neurons · ${(brain.synapses / 1e6).toFixed(0)} million synapses</div>` +
       chem("dopamine", c.dopamine, "#f2c14e") + chem("noradrenaline", c.noradrenaline, "#ff7a59") +
       chem("serotonin", c.serotonin, "#7bd389") + chem("acetylcholine", c.acetylcholine, "#5cb6ff") +
-      chem("oxytocin", c.oxytocin, "#ff8fb1");
+      chem("oxytocin", c.oxytocin, "#ff8fb1") +
+      (brain.mood ? `<div class="small" title="The mood its brain's chemistry makes, and what stirred it (as it would say it)">Feeling ${plain(brain.mood)}${brain.why ? ` — “${plain(brain.why)}”` : ""}</div>` : "");
   }
   const focus = $("focus"), w = s.workspace;
   focus.replaceChildren();

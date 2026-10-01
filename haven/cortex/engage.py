@@ -39,9 +39,68 @@ def mood_words(chemistry: dict[str, float]) -> str | None:
     return None
 
 
-def mood_note(chemistry: dict[str, float]) -> str:
+def mood_note(chemistry: dict[str, float], cause: str | None = None) -> str:
     found = mood_words(chemistry)
-    return f"I feel {found}." if found else ""
+    return mood_sentence(found, cause) if found else ""
+
+
+def mood_sentence(mood: str, cause: str | None = None) -> str:
+    """ "I feel cuddly, because you stroked me." (or just "I feel cuddly.", when it doesn't know why)."""
+    return f"I feel {mood}" + (f", because {cause}" if cause else "") + "."
+
+
+# --- why it feels as it does ------------------------------------------------------------------------------------
+
+STIRRED_BY = {  # each mood, and which of its brain's chemicals moved which way to make it (see MOODS)
+    "on edge": "noradrenaline+",
+    "cuddly": "oxytocin+",
+    "full of beans": "dopamine+",
+    "calm and content": "serotonin+",
+    "dreamy": "acetylcholine-",
+    "a bit grumpy": "serotonin-",
+    "a bit flat": "dopamine-",
+}
+LATELY = 960  # moments: what stirred its chemistry longer ago than this (two minutes, in real time) isn't why any more
+
+
+def mood_cause(mood: str | None, stirred: dict[str, tuple[int, str]], tick: int) -> str | None:
+    """Why it feels as it does, as it says it ("you stroked me"): what last stirred the chemical behind its mood (its
+    mind keeps that: see Mind._stirred), if that was lately. None when nothing did: then it doesn't know why."""
+    if mood is None:
+        return None
+    found = stirred.get(STIRRED_BY[mood])
+    return found[1] if found and tick - found[0] <= LATELY else None
+
+
+MOOD_ASKED = {  # the words people use for each mood, asking about it ("why are you so grumpy?")
+    "on edge": ("on edge", "nervous", "jumpy"),
+    "cuddly": ("cuddly", "snuggly"),
+    "full of beans": ("full of beans", "excited", "bouncy"),
+    "calm and content": ("calm and content", "calm", "content", "relaxed"),
+    "dreamy": ("dreamy",),
+    "a bit grumpy": ("grumpy", "cross"),
+    "a bit flat": ("flat", "down", "low"),
+}
+FEEL_ASKS = (  # asking why it feels as it does
+    "Why are you {}?",
+    "Why are you so {}?",
+    "Why do you feel {}?",
+    "Why do you feel so {}?",
+    "What made you feel {}?",
+    "How come you're {}?",
+    "What makes you feel {}?",
+    "Why are you feeling {}?",
+)
+FEEL_ASKS_THAT = ("Why do you feel that way?", "Why do you feel like that?", "What made you feel like that?")
+
+
+def feel_reply(asked: str, mood: str | None, cause: str | None, word: str | None = None) -> str:
+    """Why it feels as it does, asked: its reason, or that it doesn't know why; or that it doesn't feel that way."""
+    if asked == "that" and mood is None:
+        return "I feel okay."
+    if asked != "that" and asked != mood:
+        return f"I'm not {word or MOOD_ASKED[asked][0]}." + (f" I feel {mood}." if mood else "")
+    return why_reply(cause) if cause else "I don't know. I just feel that way."
 
 
 REACTIONS = {  # how it reacts to news, by mood: (glad news, sad news)
@@ -348,11 +407,97 @@ def learned_from(question: str, reply: str) -> str | None:
     return None
 
 
-def learned_reply(learned: str, question: str | None, rng: random.Random, mood: str | None = None) -> str:
-    """What it says when it learns the answer to what it wondered (how glad, by its mood)."""
-    thanks = "Wow, I didn't know that!" if mood == "full of beans" else "Thank you for telling me!"
-    sentence = learned[0].upper() + learned[1:] + "."
-    return f"{sentence} {thanks}" + (f" {question}" if question else "")
+THANKS = {  # how it takes being told what it wondered, by its mood
+    "full of beans": "Wow, I didn't know that!",
+    "cuddly": "Aww, thank you for telling me!",
+    "calm and content": "Ah, I see. Thank you.",
+    "on edge": "Oh! Okay.",
+    "dreamy": "Mmm. I'll remember that.",
+    "a bit grumpy": "Hm. Okay.",
+    "a bit flat": "Oh. Okay.",
+    None: "Thank you for telling me!",
+}
+RELATES = (  # what something it learned brings to mind from its own valley (true of every Haven's valley)
+    (r"\blive in the (?:sea|ocean)\b", "I've never seen the sea. I only have my pond."),
+    (r"\blive in the forest\b", "There are trees in my valley too: apple trees."),
+    (r"\blive in the jungle\b", "I've never seen a jungle."),
+    (r"\blive on farms\b", "I've never seen a farm."),
+    (r"\blive in the mountains\b", "There's a hill in my valley, but no mountains."),
+    (r"\blive under the ground\b", "I live on top of the ground, in my nest."),
+    (r"\beat fruit\b", "I eat fruit too: apples and berries!"),
+    (r"\btastes? sweet\b", "Like the apples in my valley!"),
+    (r"^it's cold in\b", "My valley gets cold in winter too."),
+    (r"^it's warm and sunny in\b", "Like summer in my valley!"),
+    (r"\blikes to sleep a lot\b", "I sleep a lot too, in my nest."),
+    (r"\blikes to run around\b", "I run around my valley too!"),
+)
+FLAT = ("a bit grumpy", "a bit flat")  # (moods it isn't up to chatting in)
+
+
+def relate(learned: str) -> str | None:
+    """What something it learned brings to mind from its own life ("octopuses live in the sea" → that it has never
+    seen the sea, only its pond), if anything."""
+    for pattern, words in RELATES:
+        if re.search(pattern, learned, re.IGNORECASE):
+            return words
+    return None
+
+
+def relate_note(related: str) -> str:
+    return f"From my own life: {related}"
+
+
+def learned_reply(
+    learned: str, question: str | None, rng: random.Random, mood: str | None = None, related: str | None = None
+) -> str:
+    """What it says when it learns the answer to what it wondered: what it makes of it from its own life, if anything
+    comes to mind (and it's in the mood); else how glad it is to know, by its mood."""
+    sentence = learned[0].upper() + learned[1:]
+    if related and mood not in FLAT:
+        said = f"{sentence}! {related}"
+    else:
+        said = f"{sentence}. {THANKS.get(mood, THANKS[None])}"
+    return said + (f" {question}" if question else "")
+
+
+# --- saying again what it said just now ---------------------------------------------------------------------
+
+_ANSWERED = re.compile(r"^(?:yes|no|sometimes|a little)[,.!]\s+(?=\S)", re.IGNORECASE)
+
+
+def said_note(reply: str) -> str:
+    return f"I said that just now: {reply}"
+
+
+def said_again(reply: str, mood: str | None = None) -> str:
+    """Asked again what it answered just now: it says it again as people do ("Like I said, ..."), not word for word
+    as if it were new (or, grumpy, that it told them already)."""
+    if mood == "a bit grumpy":
+        return f"I told you already. {reply}"
+    r = _ANSWERED.sub("", reply, count=1)
+    first = r.split(" ", 1)[0].rstrip(",.!?")
+    keep = first in ("I", "I'm", "I've", "I'd", "I'll")  # ("My favorite..." → "my favorite...", but "I'm..." stays)
+    return f"Like I said, {r if keep else r[0].lower() + r[1:]}"
+
+
+NOT_AGAIN = re.compile(  # replies that are fine to say again as they are (another sum, another thing it doesn't know)
+    r"^(?:I don't know|Okay|Ok\b|You're welcome|Hi\b|Hello|Bye|Nice to meet you|That's okay|Thank|Like I said|"
+    r"I told you already|I'm asleep|Welcome back|More about what|Good night|Night)",
+    re.IGNORECASE,
+)
+
+
+def _plain_words(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9']+", text.lower()))
+
+
+def said_before(words: str, earlier: list[str]) -> bool:
+    """Whether it's about to say again what it said just now (all of `words` is in one of its replies, `earlier`):
+    then it knows it's saying it again. Short and everyday replies don't count."""
+    plain = _plain_words(words)
+    if len(plain.split()) < 3 or NOT_AGAIN.match(words.strip()):
+        return False
+    return any(f" {plain} " in f" {_plain_words(said)} " for said in earlier)
 
 
 # --- what about you, and why --------------------------------------------------------------------------------
@@ -590,6 +735,60 @@ def synthetic_chemistry(rng: random.Random) -> dict[str, float]:
     return levels
 
 
+CAUSES = {  # what might have stirred each mood, for practice (as its mind says it: see Mind._stirred)
+    "on edge": (
+        "the thorns pricked me",
+        "the fire burned me",
+        "something hurt me",
+        "something surprised me",
+        "I found something new",
+        "I heard a new word",
+    ),
+    "cuddly": ("you stroked me", "you're talking with me", "you're here with me"),
+    "full of beans": (
+        "I ate an apple",
+        "I ate a berry",
+        "I ate a mushroom",
+        "I rang the bell",
+        "I pushed the ball and watched it roll",
+        "I smelled a flower",
+        "I shook a tree, and an apple fell",
+        "I climbed to the top of the hill",
+        "I drank from the pond",
+        "I warmed myself at the fire",
+        "you gave me food",
+        "I chased a butterfly",
+        "I sang a little song",
+        "I danced",
+        "I watched the sunset",
+        "I sat with you",
+        "I went to the meadow",
+        "I found something new",
+        "I went somewhere new",
+        "something good happened",
+    ),
+    "calm and content": ("I have everything I need", "things have been good lately"),
+    "dreamy": ("I just woke up",),
+    "a bit grumpy": (
+        "the thorns pricked me",
+        "the fire burned me",
+        "a toadstool made me sick",
+        "something hurt me",
+        "things have been hard lately",
+    ),
+    "a bit flat": ("things didn't go the way I hoped", "the thorns pricked me", "something hurt me"),
+}
+
+
+def synthetic_cause(mood: str | None, rng: random.Random, need: str | None = None) -> str | None:
+    """Why another Haven might feel as it does, for practice: mostly it knows (what stirred it), sometimes not."""
+    if mood is None or rng.random() < 0.2:
+        return None
+    if mood == "a bit grumpy" and need and rng.random() < 0.5:
+        return f"I'm {need}"  # (its needs, unmet, sour its mood)
+    return rng.choice(CAUSES[mood])
+
+
 def synthetic_decision(
     rng: random.Random,
     need: int,
@@ -650,30 +849,45 @@ def told_practice(
     if can_learn and rng.random() < 0.7:  # (practising most what it can learn from the answer to)
         questions = can_learn
     question = rng.choice(questions) if questions and rng.random() < 0.3 + 0.6 * curious else None
-    own = own_for(fact, favorites) if rng.random() < 0.6 else None
+    own = own_for(fact, favorites) if rng.random() < 0.75 else None
+    shown = own if own and rng.random() < 0.8 else None  # (what of its own it says straight away, if anything)
     notes = [n for n in (wonder_note(question) if question else "", own_note(own) if own else "") if n]
-    turns = [(said, told_reply(fact, glad, own, question, rng), "being told")]
+    turns = [(said, told_reply(fact, glad, shown, question, rng), "being told")]
     if question and rng.random() < 0.9:
         answer = wonder_answer(question, rng)
         learned = learned_from(question, answer) if answer else None
         if learned:
             notes.append(f"You just told me that {learned}.")
+            related = relate(learned) if rng.random() < 0.8 else None  # (what it brings to mind, if it comes)
+            if related:
+                notes.append(relate_note(related))
             more = None
             if rng.random() < 0.25 * curious:
                 more = rng.choice([q for q in questions if q != question] or [None])
                 if more:
                     notes.append(wonder_note(more))
-            turns.append((answer, learned_reply(learned, more, rng, mood), "learning"))
+            turns.append((answer, learned_reply(learned, more, rng, mood, related), "learning"))
+            if own and rng.random() < 0.3:  # and then they ask about it
+                about_you(own, own == shown, notes, turns, mood, rng)
     elif own and rng.random() < 0.75:
-        turns.append(
-            (rng.choice(("What about you?", "And you?", "How about you?", "what about you")), own, "about you")
-        )
-        notes.append(about_you_note(own))
-        reason = own_reason(own)
-        if reason and rng.random() < 0.5:  # and why it likes that
-            notes.append(why_note(reason))
-            turns.append((rng.choice(("Why?", "why?", "How come?", "Why's that?")), why_reply(reason), "why"))
+        about_you(own, own == shown, notes, turns, mood, rng)
     return Practice(notes, turns)
+
+
+ASKED_BACK = ("What about you?", "And you?", "How about you?", "what about you", "and yours?", "What's yours?")
+
+
+def about_you(own: str, said: bool, notes: list[str], turns: list, mood: str | None, rng: random.Random) -> None:
+    """Asked "what about you?": what it has of its own (said again as such, if it said it just now), and maybe why."""
+    asked = rng.choice(ASKED_BACK)
+    notes.append(about_you_note(own))
+    if said:
+        notes.append(said_note(own))
+    turns.append((asked, said_again(own, mood) if said else own, "about you"))
+    reason = own_reason(own)
+    if reason and rng.random() < 0.5:  # and why it likes that
+        notes.append(why_note(reason))
+        turns.append((rng.choice(("Why?", "why?", "How come?", "Why's that?")), why_reply(reason), "why"))
 
 
 def request_practice(

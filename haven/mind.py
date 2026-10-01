@@ -72,6 +72,12 @@ VERBS = {
     "right": "turning right",
 }
 EVENTS = ("ate", "drank", "rang", "pushed", "smelled", "shook", "warmed", "sick", "climbed")
+# What it did that it can say made it glad (as its log has it: "ate an apple"), and something new, by what was new.
+GOOD_DOINGS = (
+    *("ate ", "drank", "rang", "pushed", "smelled", "shook", "warmed", "climbed", "was given food"),
+    *("chased", "watched", "sang", "danced", "sat with", "went to"),  # (its pastimes: activities.bout)
+)
+NEW_WORDS = {"see": "I found something new", "word": "I heard a new word", "place": "I went somewhere new"}
 DOINGS = ("ate", "sick", "drank", "rang", "pushed", "smelled", "shook", "warmed")  # what can happen with a thing
 MOVING = ("ball", "butterfly")  # things that don't stay where it saw them
 NAP = 60  # ticks it sleeps, at least, when it goes to sleep because someone asked it to
@@ -169,6 +175,9 @@ class Mind:
         self.brain_budget: float | None = None  # ms its brain may take each moment, living in real time (None: any)
         self.reading = None  # what its brain made of the last moment
         self.chemistry = dict.fromkeys(CHEMICALS, 1.0)  # its brain's chemistry (all usual, without a brain)
+        # What lately stirred each of its brain's chemicals, up or down ("oxytocin+"), and when, as it would say it
+        # ("you stroked me"): so it can say why it feels as it does.
+        self.stirred: dict[str, tuple[int, str]] = {}
         self.novelty = 0.0  # how new what it senses is, to its brain
         self.fear = 0.0  # alarm in its amygdala
         self.rpe = 0.0  # how much better or worse the last moment turned out than it expected
@@ -1125,6 +1134,7 @@ class Mind:
             if stirred or rested:
                 b.asleep = False
                 self._note(tick, "woke up")
+                self.stirred["acetylcholine-"] = (tick, "I just woke up")  # (its brain is slow to wake, too)
             return
         self.rest_streak = self.rest_streak + 1 if action == "rest" else 0
         night = obs.light < 0.3
@@ -1245,12 +1255,71 @@ class Mind:
                 "curious": 0.5 + t["curious"],
             }
             reading = brain.moment(self._senses(obs, drives, percepts), signals, options)
+            self._stirred(obs, signals, reading, drives)
         self.reading = reading
         self.chemistry = dict(reading.chemistry)
         self.novelty, self.fear = reading.novelty, reading.fear
         if reading.fear > 0.3:
             self.arousal = float(max(self.arousal, 0.8 * reading.fear))
         return reading
+
+    def _stirred(self, obs: Observation, signals: dict[str, float], reading, drives: np.ndarray) -> None:
+        """What stirred its brain's chemistry this moment, as it would say it: each input to its nuclei that was
+        strong (see Brain._chemistry_drive), kept for the chemical it drives and which way. Its mood comes from those
+        chemicals, so this is what it can say made it feel as it does."""
+        found: dict[str, str] = {}
+        if obs.touch:
+            found["oxytocin+"] = "you stroked me"
+        elif signals["social"] > 0.4:
+            found["oxytocin+"] = "you're talking with me" if obs.words else "you're here with me"
+        hurt = self._hurt_words() if signals["pain"] > 0.2 else None
+        if hurt:
+            found["noradrenaline+"] = found["serotonin-"] = hurt
+        elif signals["sick"] > 0.2:
+            found["serotonin-"] = "a toadstool made me sick"
+        elif signals["content"] < 0.2:
+            need = int(np.argmax(drives))
+            level = float(drives[need])
+            found["serotonin-"] = (
+                f"I'm {need_words(need, level, self.body.cold())}" if level >= 0.3 else "things have been hard lately"
+            )
+        elif signals["content"] > 0.8:
+            found["serotonin+"] = (
+                "I have everything I need" if float(np.max(drives)) < 0.3 else "things have been good lately"
+            )
+        if signals["reward"] > 0.3:
+            found["dopamine+"] = self._good_words()
+        elif signals["reward"] < -0.3:
+            found["dopamine-"] = hurt or "things didn't go the way I hoped"
+        new = next((n for n in reading.new if n.startswith(("see:", "word:", "place:"))), None)
+        if new is not None:
+            words = NEW_WORDS[new.split(":")[0]]
+            found.setdefault("dopamine+", words)
+            found.setdefault("noradrenaline+", words)
+        if signals["surprise"] > 0.5:
+            found.setdefault("noradrenaline+", "something surprised me")
+        tick = self.world.tick
+        for key, words in found.items():
+            self.stirred[key] = (tick, words)
+
+    def _hurt_words(self) -> str:
+        w = self.world
+        here = int(w.grid[w.y, w.x])
+        if here == FIRE:
+            return "the fire burned me"
+        if here == THORN or w.thing(*w.ahead()) == THORN:
+            return "the thorns pricked me"
+        return "something hurt me"
+
+    def _good_words(self) -> str:
+        """What just went well, as it says it ("I ate an apple"), from what it did a moment ago."""
+        tick = self.world.tick
+        for when, text in reversed(self.log[-4:]):
+            if tick - when > 3:
+                break
+            if text.startswith(GOOD_DOINGS):
+                return "you gave me food" if text == "was given food" else "I " + text.replace("itself", "myself")
+        return "something good happened"
 
     def _senses(self, obs: Observation, drives: np.ndarray, percepts: list) -> dict[str, float]:
         """What reaches its brain this moment, by name: what it sees, hears and feels, where it is, what it's doing."""

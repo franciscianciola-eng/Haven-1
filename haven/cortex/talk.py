@@ -55,6 +55,15 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "How's your day going?",
         "How are you now?",
         "How are you feeling now?",
+        "How are you feeling today?",
+        "How's everything?",
+        "How are you holding up?",
+        "How do you feel today?",
+        "Feeling okay?",
+        "How's life?",
+        "How are you feeling right now?",
+        "Are you doing okay?",
+        "How are you, little one?",
     ),
     "hungry": (
         "Are you hungry?",
@@ -131,6 +140,9 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What's around you?",
         "What are you looking at right now?",
         "Look around, what do you see?",
+        "What do you see now?",
+        "What's near you?",
+        "What is in front of you right now?",
     ),
     "smell": (
         "What do you smell?",
@@ -151,6 +163,9 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What are you doing right now?",
         "What's going on?",
         "What are you trying to do?",
+        "What are you busy with?",
+        "What's happening?",
+        "What are you up to now?",
     ),
     "thinking": (
         "What are you thinking about?",
@@ -159,6 +174,8 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What's on your mind right now?",
         "What are you thinking about right now?",
         "Penny for your thoughts?",
+        "What's going through your head?",
+        "What are you thinking about now?",
     ),
     "time": (
         "What time is it?",
@@ -193,6 +210,11 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What should I call you?",
         "What are you called?",
         "Tell me your name.",
+        "What name do you have?",
+        "What's your name again?",
+        "Who are you, little one?",
+        "Tell me who you are.",
+        "Do you have a name, little one?",
     ),
     "age": (
         "How old are you?",
@@ -202,6 +224,12 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "When were you born?",
         "How long have you lived?",
         "How old are you now?",
+        "How many days have you lived?",
+        "How long have you been around?",
+        "How old are you, Haven?",
+        "How young are you?",
+        "Are you very old?",
+        "How long ago were you born?",
     ),
     "place": (
         "Where are you?",
@@ -211,6 +239,8 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Where are you standing?",
         "Where are you at?",
         "Where in the valley are you?",
+        "Where are you now in the valley?",
+        "Where are you right this minute?",
     ),
     "home": (
         "Where do you live?",
@@ -286,6 +316,11 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What was the best day you ever had?",
         "Tell me about your best day.",
         "What was your happiest day?",
+        "What was your favorite day?",
+        "Which was the best day of your life?",
+        "Tell me about your happiest day.",
+        "What's the best thing that ever happened to you?",
+        "When were you happiest?",
     ),
     "worst day": (
         "What was your worst day?",
@@ -295,6 +330,10 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What was the worst day you ever had?",
         "Tell me about your worst day.",
         "What was your saddest day?",
+        "What was the saddest day of your life?",
+        "Tell me about your saddest day.",
+        "What's the worst thing that happened to you?",
+        "When were you saddest?",
     ),
     "personality": (
         "What are you like?",
@@ -308,6 +347,12 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What kind of personality do you have?",
         "Tell me what you're like.",
         "What's your character like?",
+        "What kind of creature are you?",
+        "How would you describe your character?",
+        "What's your temperament like?",
+        "How would your friends describe you?",
+        "Describe your character.",
+        "What's your personality?",
     ),
     "changed": (
         "Have you changed?",
@@ -319,6 +364,10 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "How have you changed over the years?",
         "Did you change?",
         "Are you different from before?",
+        "Have you changed since you were born?",
+        "How have you grown?",
+        "Have you changed at all?",
+        "Has your personality changed?",
     ),
     "favorite place": (
         "What's your favorite place?",
@@ -330,6 +379,11 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Where do you like to go most?",
         "What's your favorite spot in the valley?",
         "Where do you like being most?",
+        "Where's your favorite place to be?",
+        "What place do you like most?",
+        "Where do you love to go?",
+        "Which place do you like most?",
+        "Where are you happiest?",
     ),
     "season": (
         "What season is it?",
@@ -343,6 +397,12 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Is it autumn?",
         "Is it fall?",
         "What season is it in your valley?",
+        "What season is it right now?",
+        "Is it summer or winter?",
+        "What season is it there?",
+        "What season are we in now?",
+        "Tell me what season it is.",
+        "Do you know what season it is?",
     ),
     "weather": (
         "What's the weather like?",
@@ -362,6 +422,12 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Which season is your favorite?",
         "What's your favourite season?",
         "Which season do you like the most?",
+        "What season do you love?",
+        "Which season is the best?",
+        "What's your best season?",
+        "Do you have a season you like best?",
+        "Which season do you enjoy most?",
+        "What season is your favorite?",
     ),
     "afraid": (
         "What are you afraid of?",
@@ -373,6 +439,12 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "Are you afraid of anything?",
         "What do you fear?",
         "Is there anything that scares you?",
+        "Are you afraid of something?",
+        "What makes you scared?",
+        "What do you fear most?",
+        "Does anything scare you?",
+        "What are you most afraid of?",
+        "Is there something you're scared of?",
     ),
     "story": (
         "Tell me your story.",
@@ -406,6 +478,11 @@ QUESTIONS: dict[str, tuple[str, ...]] = {
         "What's your favorite thing to do?",
         "What do you love?",
         "What do you hate?",
+        "What do you enjoy doing?",
+        "What do you like best?",
+        "What's fun for you?",
+        "What things do you like?",
+        "What do you love doing?",
     ),
     "play": (
         "Do you want to play?",
@@ -2958,9 +3035,10 @@ def a(word: str) -> str:
     return ("an " if word[0] in "aeiou" else "a ") + word
 
 
-def a_fact(rng: random.Random) -> tuple[str, tuple[str, ...]]:
-    """Something a person might tell it about themselves, and ways they might ask about it later."""
-    roll = rng.randrange(9)
+def a_fact(rng: random.Random, roll: int | None = None) -> tuple[str, tuple[str, ...]]:
+    """Something a person might tell it about themselves (of kind `roll`, if given), and ways they might ask about it
+    later."""
+    roll = rng.randrange(9) if roll is None else roll
     if roll == 0:
         x = rng.choice(LIKED)
         return rng.choice((f"I like {x}.", f"I love {x}.", f"I really like {x}.")), (
@@ -3377,6 +3455,12 @@ def speaking_up(
 
 
 NEW_TURNS = 0.07  # how often a turn asks about its brain, or what it's doing
+MOOD_TURNS = 0.04  # how often a turn asks why it feels as it does
+AGAIN_TURNS = 0.15  # how often they ask again what it answered just now
+AGAIN_KINDS = frozenset(  # what it can be asked again (not greetings, or what it's fine to say again as it is)
+    {*QUESTIONS, "their name", "what they told it", "trait", "its brain", "pastime", "what it was taught", "sums"}
+    - {"hello", "thanks", "bye", "play", "joke"}
+)
 
 
 def own_favorites(known: dict) -> dict[str, str]:
@@ -3429,8 +3513,11 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     said: list[Turn] = []
     chemistry = engage.synthetic_chemistry(rng)  # (its brain's chemistry: how it feels, beyond its needs)
     mood = engage.mood_words(chemistry)
+    need = int(np.argmax(body["drives"]))
+    level = float(body["drives"][need])
+    cause = engage.synthetic_cause(mood, rng, need_words(need, level, bool(body["cold"])) if level >= 0.3 else None)
     if mood:
-        extra.append(engage.mood_note(chemistry))
+        extra.append(engage.mood_note(chemistry, cause))  # (and why it feels that way, when it knows)
     curious = float(known.get("traits", {}).get("curious", 0.5)) if isinstance(known.get("traits"), dict) else 0.5
     favorites = own_favorites(known)
 
@@ -3484,6 +3571,16 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
             extra.append(note)
             said.append(turn)
             continue
+        if rng.random() < MOOD_TURNS:  # why it feels as it does (or whether it does)
+            told_mood = mood is not None and any(f"I feel {mood}" in t.answer for t in said)
+            if told_mood and rng.random() < 0.4:
+                text, asked, word = rng.choice(engage.FEEL_ASKS_THAT), "that", None
+            else:
+                asked = mood if mood and rng.random() < 0.7 else rng.choice(list(engage.MOOD_ASKED))
+                word = rng.choice(engage.MOOD_ASKED[asked])
+                text = rng.choice(engage.FEEL_ASKS).format(word)
+            said.append(Turn(casual(text, rng), engage.feel_reply(asked, mood, cause, word), "why it feels"))
+            continue
         roll = rng.random()
         if roll < 0.26 and known.get("traits") and rng.random() < 0.1:  # whether it's brave, shy, playful...
             trait = rng.choice(TRAITS)
@@ -3493,11 +3590,15 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         elif roll < 0.26:
             intent = rng.choice(RECALLED if rng.random() < EMPHASIS else list(QUESTIONS))
             reply = answer[intent]
-            if intent == "feel" and mood and rng.random() < 0.6:
-                reply = f"{reply} I feel {mood}."  # (its brain's chemistry, as well as its needs)
+            if intent == "feel" and mood and not reply.startswith("I'm asleep"):  # (its brain's chemistry too)
+                felt = engage.mood_sentence(mood, cause)
+                reply = felt if reply.startswith("I feel ") else f"{reply} {felt}"
             if person and intent in ("hello", "bye"):
                 reply = reply.replace("Hi!", f"Hi, {person}!").replace("Bye!", f"Bye, {person}!")
             said.append(Turn(casual(rng.choice(QUESTIONS[intent]), rng), reply, intent))
+            if intent == "feel" and f"because {cause}" in reply and rng.random() < 0.15:  # and they ask why
+                extra.append(engage.why_note(cause))
+                said.append(Turn(rng.choice(("Why?", "why?", "How come?")), engage.why_reply(cause), "why"))
         elif roll < 0.42:
             turn = _thing_turn(moment, rng)
             turn.said = casual(turn.said, rng)
@@ -3628,9 +3729,21 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
         else:
             forms, reply = SMALL_TALK[rng.choice(list(SMALL_TALK))]
             said.append(Turn(plain(rng.choice(forms), rng), reply, "small talk"))
+    if rng.random() < AGAIN_TURNS:  # they ask again what it answered just now: it knows it's saying it again
+        recent = [
+            t
+            for t in said[-2:]
+            if t.said and t.kind in AGAIN_KINDS and len(t.answer.split()) >= 3 and not engage.NOT_AGAIN.match(t.answer)
+        ]
+        if recent:
+            turn = rng.choice(recent)
+            text = turn.said if turn.kind not in QUESTIONS or rng.random() < 0.5 else rng.choice(QUESTIONS[turn.kind])
+            extra.append(engage.said_note(turn.answer))
+            said.append(Turn(casual(text, rng), engage.said_again(turn.answer, mood), "said again"))
     if just is None and rng.random() < 0.3:  # and they tell it something about themselves, or teach it something
         teaching = rng.random() < 0.35
-        fact_said = a_lesson(rng)[0] if teaching else a_fact(rng)[0]
+        named = rng.random() < 0.35  # (a pet's name, or someone's: it learns to say any name back)
+        fact_said = a_lesson(rng)[0] if teaching else a_fact(rng, rng.choice((5, 6)) if named else None)[0]
         if rng.random() < 0.25:
             first = fact_said.split()[0]
             fact_said = rng.choice(("No, ", "Actually, ", "No no, ", "Sorry, ")) + (
