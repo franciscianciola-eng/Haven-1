@@ -79,6 +79,7 @@ RELAYS = 8  # thalamic relay cells for each thing it senses
 HOME_COLUMNS, HOME_CELLS = 8, 20  # a thing excites 20 pyramidal cells in each of 8 columns
 LA_E, LA_I, CEA = 400, 80, 80  # amygdala: lateral (pyramidal-like and interneurons) and central
 LA_HOME = 40  # lateral amygdala cells each thing it senses reaches
+LA_FF = 8  # and lateral amygdala interneurons (feedforward inhibition)
 MSNS = 24  # medium spiny neurons of each pathway, per channel
 PALLIDUM, MOTOR = 6, 8  # globus pallidus (external, internal) cells and motor thalamus cells, per channel
 STN = 40  # subthalamic nucleus cells
@@ -88,8 +89,9 @@ UNIT = {  # nS of the largest synapse of each projection
     "cortex inhibition": 20.0,
     "thalamus": 2.5,
     "amygdala": 6.0,
-    "fear": 8.0,
-    "alarm": 1.5,
+    "fear": 3.0,
+    "feedforward": 4.0,
+    "alarm": 0.2,
     "striatum": 3.0,
     "pathways": 20.0,
     "pallidum": 5.0,
@@ -103,8 +105,9 @@ EPISODES = 240  # important moments of a day kept for replay in its sleep
 REST_MSN = 260.0  # pA: the cortex's steady input to spiny cells (urges come on top of it)
 LOOP = 0.25  # how much more urge the action being done gets, from its own loop back through cortex and thalamus
 USUAL_RATE = 4.0  # Hz: how fast the nuclei's pacemaker cells fire at their usual level
-FEAR_STEP = 10.0  # sizes a synapse onto the lateral amygdala grows in a moment of hurt (fear can take one lesson)
-EXTINCTION = 0.6  # and shrinks, at most, in a moment of meeting it unharmed (fear fades, more slowly)
+NOVELTY_USUAL = 0.4  # how new an ordinary waking moment feels (the nuclei answer what's newer than that)
+FEAR_STEP = 20.0  # sizes a synapse onto the lateral amygdala grows in a moment of hurt (fear can take one lesson)
+EXTINCTION = 0.03  # the chance it shrinks a size in a moment of meeting it unharmed, close (fear fades, slowly)
 CUES = ("see:", "word:", "event:", "place:")  # what fear can be learned for (not what it does, or how it feels)
 STDP_WINDOW, STDP_STEP = 30, 3.0  # ms within which two spikes count as a pair; most sizes one pair moves a synapse
 PACEMAKER = 58.0  # pA: the steady current that keeps them at it
@@ -276,6 +279,19 @@ class Brain:
                 UNIT["amygdala"],
                 torch.full((self.nrelays,), 3, dtype=torch.long),
                 targets=torch.full((self.nrelays, LA_HOME), self.la.start, dtype=torch.int32),
+            )
+        )
+        # ...and a few of its interneurons, strongly: they hold the lateral amygdala back in proportion to all it
+        # senses (feedforward inhibition), so only what has come to be frightening gets through.
+        self.feedforward = net.connect(
+            Projection(
+                "amygdala feedforward",
+                self.thalamus,
+                torch.zeros((self.nrelays, LA_FF), dtype=torch.uint8),
+                UNIT["feedforward"],
+                torch.full((self.nrelays,), 2, dtype=torch.long),
+                targets=torch.full((self.nrelays, LA_FF), self.la.start + LA_E, dtype=torch.int32),
+                plastic=False,
             )
         )
         net.connect(  # lateral to central amygdala
@@ -476,8 +492,12 @@ class Brain:
         la = self.la.start + torch.randperm(LA_E, generator=rng)[:LA_HOME]
         self.fearful.targets[local] = la.int().unsqueeze(0)
         self.fearful.sizes[local] = torch.randint(1, 5, (RELAYS, LA_HOME), dtype=torch.uint8, generator=rng)
+        inter = self.la.start + LA_E + torch.randperm(LA_I, generator=rng)[:LA_FF]
+        self.feedforward.targets[local] = inter.int().unsqueeze(0)
+        self.feedforward.sizes[local] = torch.randint(16, 21, (RELAYS, LA_FF), dtype=torch.uint8, generator=rng)
         self.net.sync(self.relay, local, targets=True)
         self.net.sync(self.fearful, local, targets=True)
+        self.net.sync(self.feedforward, local, targets=True)
         sense = Sense(name, relays, home)
         self.senses[name] = sense
         return sense
@@ -531,9 +551,11 @@ class Brain:
         if present:
             local = torch.cat([s.relays for s, _ in present]) - self.thalamus.start
         net.release[self.thalamus.slice] = (self.quick * self.slow).clamp(min=0.02)
-        # The body's hurt reaches the lateral amygdala directly (the unconditioned stimulus).
+        # The body's hurt reaches the lateral amygdala directly (the unconditioned stimulus), and silences its
+        # interneurons for the moment (VIP cells' disinhibitory gating: Krabbe et al. 2019), so it gets through.
         hurt = max(signals.get("pain", 0.0), signals.get("sick", 0.0), signals.get("fright", 0.0))
-        drive[self.la.start : self.la.start + LA_E] = 400.0 * hurt
+        drive[self.la.start : self.la.start + LA_E] = 600.0 * hurt
+        drive[self.la.start + LA_E : self.la.stop] = -400.0 * hurt
         self._chemistry_drive(signals, asleep)
         self._channels(urges or {})
         net.prepare()
@@ -557,16 +579,13 @@ class Brain:
     def _chemistry_drive(self, signals: dict[str, float], asleep: bool) -> None:
         """Input to the five nuclei from what the mind reports (their pacemaker bias keeps them ticking over)."""
         g = signals.get
-        novelty = getattr(self, "_novelty", 0.0)
+        new = max(0.0, getattr(self, "_novelty", 0.0) - NOVELTY_USUAL) / (1.0 - NOVELTY_USUAL)  # (beyond the usual)
         inputs = {
-            "dopamine": 60.0 * g("reward", 0.0) + 30.0 * novelty * g("curious", 1.0),
-            "noradrenaline": 20.0 * g("surprise", 0.0)
-            + 40.0 * g("pain", 0.0)
-            + 10.0 * novelty
-            - (30.0 if asleep else 0.0),
-            "serotonin": 40.0 * g("content", 0.0) - 50.0 * g("pain", 0.0) - 30.0 * g("sick", 0.0),
-            "acetylcholine": (-40.0 if asleep else 0.0) + 25.0 * novelty,
-            "oxytocin": 40.0 * g("social", 0.0) + 60.0 * g("touch", 0.0),
+            "dopamine": 40.0 * g("reward", 0.0) + 30.0 * new * g("curious", 1.0),
+            "noradrenaline": 25.0 * g("surprise", 0.0) + 40.0 * g("pain", 0.0) + 10.0 * new - (30.0 if asleep else 0.0),
+            "serotonin": 36.0 * (g("content", 0.5) - 0.5) - 50.0 * g("pain", 0.0) - 30.0 * g("sick", 0.0),
+            "acetylcholine": (-40.0 if asleep else 0.0) + 25.0 * new,
+            "oxytocin": 15.0 * g("social", 0.0) + 60.0 * g("touch", 0.0),
         }
         for chem, pop in self.nuclei.items():
             self.net.drive[pop.slice] = inputs[chem]
@@ -664,10 +683,15 @@ class Brain:
         if cued.numel():
             post = net.last[self.fearful.targets[cued].long()] >= net.t - STDP_WINDOW
             sizes = self.fearful.sizes[cued].float()
-            if hurt > 0.1:
-                sizes += post.float() * (FEAR_STEP * hurt) + torch.rand(sizes.shape, generator=self.gen) * 0.5
-            else:
-                sizes -= post.float() * EXTINCTION * torch.rand(sizes.shape, generator=self.gen)
+            felt = torch.zeros(self.nrelays)  # (how strongly each thing is sensed now: what's near, most)
+            for sense, intensity in present:
+                felt[sense.relays - self.thalamus.start] = intensity
+            if hurt > 0.1:  # (what stood out most, and what it didn't already know well: latent inhibition)
+                step = FEAR_STEP * hurt * felt[cued] * (0.15 + 0.85 * self.slow[cued])
+                sizes += post.float() * step.unsqueeze(1) + torch.rand(sizes.shape, generator=self.gen) * 0.5
+            else:  # (met unharmed, close up, a synapse of what it fears now and then loses a size step)
+                chance = EXTINCTION * felt[cued].unsqueeze(1)
+                sizes -= post.float() * (torch.rand(sizes.shape, generator=self.gen) < chance).float()
             self.fearful.sizes[cued] = sizes.round().clamp(1, LEVELS - 1).to(torch.uint8)
             net.sync(self.fearful, cued)
         # Striatum: an eligibility trace for every synapse whose relay and spiny cell fired together; dopamine
@@ -859,6 +883,7 @@ class Brain:
             "bias": net.bias,
             "relay": (self.relay.targets, self.relay.sizes),
             "fearful": (self.fearful.targets, self.fearful.sizes),
+            "feedforward": (self.feedforward.targets, self.feedforward.sizes),
             "striatal": self.striatal.sizes,
             "quick": self.quick,
             "slow": self.slow,
@@ -897,8 +922,10 @@ class Brain:
         brain.relay.sizes.copy_(state["relay"][1])
         brain.fearful.targets.copy_(state["fearful"][0])
         brain.fearful.sizes.copy_(state["fearful"][1])
+        brain.feedforward.targets.copy_(state["feedforward"][0])
+        brain.feedforward.sizes.copy_(state["feedforward"][1])
         brain.striatal.sizes.copy_(state["striatal"])
-        for projection in (brain.relay, brain.fearful, brain.striatal):
+        for projection in (brain.relay, brain.fearful, brain.feedforward, brain.striatal):
             net.sync(projection, targets=True)
         brain.quick.copy_(state["quick"])
         brain.slow.copy_(state["slow"])

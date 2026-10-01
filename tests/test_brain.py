@@ -1,5 +1,7 @@
 """Haven's spiking brain: its regions do what their real counterparts do."""
 
+import random
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -108,3 +110,21 @@ def test_it_keeps_its_brain(tmp_path):
     assert set(again.senses) == set(b.senses)
     assert again.fear_of({"see:thorns": 1.0}) > 0.5
     assert again.neurons() == b.neurons() and again.synapses() == b.synapses()
+
+
+def test_an_ordinary_moment_is_calm():
+    """With plenty to sense and nothing frightening, its amygdala stays quiet (feedforward inhibition holds the
+    lateral amygdala back) and its chemistry stays near usual: no false alarms, no mood out of nothing."""
+    b = Brain(seed=5, size="tiny")
+    rng = random.Random(0)
+    things = ["see:pond", "see:bush", "see:tree", "see:flower", "see:stone", "place:the meadow", "dark"]
+    fears, levels = [], []
+    for t in range(80):
+        r = b.moment({n: rng.uniform(0.3, 1.0) for n in rng.sample(things, 5)}, {"content": 0.5}, {"explore": 0.5})
+        if t >= 20:
+            fears.append(r.fear)
+            levels.append(r.chemistry)
+    assert sum(fears) / len(fears) < 0.05
+    for chemical in CHEMICALS:
+        mean = sum(level[chemical] for level in levels) / len(levels)
+        assert 0.5 < mean < 1.8, chemical

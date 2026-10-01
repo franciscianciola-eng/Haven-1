@@ -1182,11 +1182,11 @@ class Mind:
             t = self.character.traits
             outcome = self.last.outcome if self.last is not None else None
             signals = {
-                "reward": float(np.clip(self.rpe * 4.0, -1.0, 1.0)),
-                "surprise": float(min(1.0, self.surprise * 5.0)),
+                "reward": float(np.clip(self.rpe * 2.5, -1.0, 1.0)),
+                "surprise": float(np.clip((self.surprise - 0.05) * 4.0, 0.0, 1.0)),  # (beyond the usual)
                 "pain": float(max(obs.pain, outcome.pain if outcome else 0.0)),
                 "sick": float(min(1.0, (outcome.sick if outcome else 0.0) * 5.0)),
-                "content": float(np.clip(self.mood * 20.0 + 0.5 * (1.0 - np.max(drives)), 0.0, 1.0)),
+                "content": float(np.clip(0.5 + self.mood * 5.0 + 0.4 * (0.3 - np.max(drives)), 0.0, 1.0)),
                 "social": float(self.company or bool(obs.words)) * (0.5 + t["friendly"]),
                 "touch": float(obs.touch),
                 "curious": 0.5 + t["curious"],
@@ -1211,6 +1211,9 @@ class Mind:
             word = word.lower().strip(".,!?;:'\"")
             if len(word) > 2 and word not in QUIET_WORDS:
                 senses[f"word:{word}"] = 1.0
+        under = name_of(w, w.x, w.y)
+        if under and under != "hill":  # what it's standing in (the thorns, the fire), it feels at its feet
+            senses[f"see:{under}"] = 1.0
         senses[f"place:{w.area(w.x, w.y)}"] = 0.6
         for i, need in enumerate(("hungry", "cold" if self.body.cold() else "hot", "hurt", "tired")):
             if drives[i] > 0.3:

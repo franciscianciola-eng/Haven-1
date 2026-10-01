@@ -19,7 +19,6 @@ from .activities import ACTIVITIES, SIGHTS, freshness, urges
 from .cortex.engage import BUSY, RATHER, Decision, decide, pastime_words
 from .mind import Mind, need_words
 
-SEEN_AS = {"pond": "water"}  # (what its brain senses a thing as, when people call it something else)
 DONE = {  # what doing it is, as it says it has done it lately
     "use": {
         "bell": "rung the bell",
@@ -41,7 +40,7 @@ def fear_of(mind: Mind, thing: str) -> tuple[float, str]:
     hurt = float(stats.get("hurt", 0.0)) + 2.0 * float(stats.get("sick", 0.0))
     why = "the fire burned me" if thing == "fire" else f"the {thing} hurt me" if hurt else f"I'm scared of the {thing}"
     if mind.brain is not None:
-        afraid = mind.brain.fear_of({f"see:{SEEN_AS.get(thing, thing)}": 1.0})
+        afraid = mind.brain.fear_of({f"see:{thing}": 1.0})
     else:
         afraid = min(1.0, hurt / 4.0)
     return afraid, why

@@ -23,14 +23,14 @@ from .world import BUTTERFLY, DAY
 ACTIVITIES = ("watch", "sing", "dance", "chase", "visit", "company")
 BASE = {"watch": "explore", "visit": "explore", "sing": "play", "dance": "play", "chase": "play", "company": "play"}
 WATCHABLE = {  # what's lovely to watch, by what people call it: how lovely
-    "water": 0.7,
+    "pond": 0.7,
     "fire": 0.9,
     "butterfly": 1.0,
     "flower": 0.6,
     "ball": 0.3,
     "bell": 0.2,
 }
-SIGHTS = {"water": "the pond", "fire": "the fire", "butterfly": "a butterfly", "flower": "the flowers"}
+SIGHTS = {"pond": "the pond", "fire": "the fire", "butterfly": "a butterfly", "flower": "the flowers"}
 SKY = {"dusk": ("sunset", "the sunset"), "night": ("stars", "the stars")}  # from the top of the hill
 TIRING, RESTING = 0.06, 0.004  # without a brain: how fast an activity wears thin, and comes back
 
