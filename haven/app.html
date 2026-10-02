@@ -749,7 +749,7 @@ function showHistory(conversation) {
     hello.id = "hello";
     hello.innerHTML = `<h2>Talk with ${plain(name)}</h2>` +
       `<p>${plain(name)} answers in words of its own, from what it feels and what it has read. Ask it anything: it looks it up on its shelf ` +
-      `(it reads the whole Simple English Wikipedia, and anything you give it). It also has a life of its own, in a valley you can open with 🌄. ` +
+      `(it reads a dictionary and the whole Simple English Wikipedia, and anything you give it). It also has a life of its own, in a valley you can open with 🌄. ` +
       `Press 🎙 Talk to talk out loud. Type <b>/</b> for things you can do.</p>`;
     const tries = el("div", "tries");
     for (const q of ["Hi! What's your name?", "How are you feeling?", "What is a black hole?", "Who was Cleopatra?", "Tell me about volcanoes.", "What's the capital of Japan?"]) {
@@ -895,7 +895,7 @@ function renderLibrary(s) {
   $("reading").hidden = !reading;
   if (reading) {
     const e = (s.encyclopedias || []).find((x) => x.name === reading.name) || {articles: 1};
-    $("readingText").innerHTML = `${plain(name)} is reading <b>${plain(reading.title)}</b>: ${number(reading.articles)} of about ${number(e.articles)} articles so far`;
+    $("readingText").innerHTML = `${plain(name)} is reading <b>${plain(reading.title)}</b>: ${number(reading.articles)} of about ${number(e.articles)} ${reading.name === "dictionary" ? "words" : "articles"} so far`;
     $("readingBar").style.width = Math.min(100, Math.round(100 * reading.articles / Math.max(e.articles, 1))) + "%";
   }
   const shelves = $("shelves");

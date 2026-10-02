@@ -256,7 +256,7 @@ def feed(args: argparse.Namespace, store, term) -> int:
         if what in ENCYCLOPEDIAS:
             which = ENCYCLOPEDIAS[what]
             term.say(
-                f"Haven is reading {which.title}: {which.articles:,} articles, {which.size / 1e6:,.0f} MB to download."
+                f"Haven is reading {which.title}: {which.articles:,} {which.unit}, {which.size / 1e6:,.0f} MB to download."
             )
             term.dim("(Ctrl+C stops it; run this again to carry on where it was.)")
             feeding.read(what)
@@ -265,7 +265,7 @@ def feed(args: argparse.Namespace, store, term) -> int:
                 while feeding.reading is not None:
                     read = feeding.status()["by source"].get(what, 0)
                     if read != shown:
-                        term.dim(f"  {read:,} articles read…")
+                        term.dim(f"  {read:,} {which.unit} read…")
                         shown = read
                     time.sleep(10)
             except KeyboardInterrupt:

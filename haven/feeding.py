@@ -185,12 +185,12 @@ class Feeding:
         read = self.shelf.counts()["by source"].get(which.name, 0)
         self.last = {"name": which.name, "title": which.title, "finished": finished, "articles": read, "error": error}
         if finished:
-            self.emit(f"finished reading {which.title}: {read:,} articles")
-            self.log(f"Haven has read {which.title}: {read:,} articles.")
+            self.emit(f"finished reading {which.title}: {read:,} {which.unit}")
+            self.log(f"Haven has read {which.title}: {read:,} {which.unit}.")
         elif self._stop.is_set():
-            self.emit(f"stopped reading {which.title} for now, {read:,} articles in")
+            self.emit(f"stopped reading {which.title} for now, {read:,} {which.unit} in")
         else:
-            self.emit(f"couldn't go on reading {which.title} ({error}); it read {read - began:,} more articles")
+            self.emit(f"couldn't go on reading {which.title} ({error}); it read {read - began:,} more {which.unit}")
             self.log(f"Haven couldn't go on reading {which.title}: {error}")
 
     # --- texts, files and web pages ---------------------------------------------------------------------------------

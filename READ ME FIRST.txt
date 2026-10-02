@@ -23,11 +23,12 @@ on (1 to 3 GB) and to get its language cortex (about 50 MB). Haven also grows it
 the first time, sized for your computer (it lives on meanwhile, and its brain joins in
 when it's ready). After that it starts in a moment.
 
-It also starts reading the Simple English Wikipedia the first time, in the background
-(284 MB to download, a few minutes; about 300 MB on disk). You can talk with it meanwhile:
-whatever it has read so far, it can already answer from. You can give it more to read in its
-Library (things you paste in, text files, web pages, or the whole English Wikipedia: 21 GB
-to download and about 10 GB on disk). To stop it reading, press Pause in its Library.
+It also starts reading, the first time, in the background: a dictionary of English and the
+Simple English Wikipedia (about 300 MB to download, a few minutes; about 400 MB on disk).
+You can talk with it meanwhile: whatever it has read so far, it can already answer from.
+You can give it more to read in its Library (things you paste in, text files, web pages, or
+the whole English Wikipedia: 21 GB to download and about 10 GB on disk). To stop it
+reading, press Pause in its Library.
 
 Haven has a brain of spiking neurons, modelled on real ones, which chooses what it does,
 learns what to fear and gives it a mood; while Haven is running it keeps about half of

@@ -39,6 +39,10 @@ class Encyclopedia:
     about: str = ""  # how long it takes, and how much room it needs
     url: str = ""  # (a dictionary: one file, WordNet's)
 
+    @property
+    def unit(self) -> str:
+        return "words" if self.url else "articles"  # (a dictionary's entries are words)
+
     def urls(self) -> list[str]:
         if self.url:
             return [self.url]
