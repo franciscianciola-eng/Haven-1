@@ -49,3 +49,4 @@ Where things are kept:
   - everything else: this folder
 
 More about what Haven is and how it works: README.md
+Haven's home on GitHub, with the newest version to download: https://github.com/franciscianciola-eng/Haven-1

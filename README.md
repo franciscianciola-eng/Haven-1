@@ -1,5 +1,7 @@
 # Haven
 
+**Download Haven 2.0:** [for Windows, Mac and Linux](https://github.com/franciscianciola-eng/Haven-1/raw/HEAD/downloads/Haven-for-Windows.zip) (unzip it and double-click `Start Haven`), or [as a Mac app](https://github.com/franciscianciola-eng/Haven-1/raw/HEAD/downloads/Haven-for-Mac.zip). See [Quick start](#quick-start).
+
 Haven is a creature you talk with. Type to it, or talk out loud, and it answers in words of its own, from what it feels and what it has read. It reads a lot: the first time it wakes up it reads a dictionary of English (147,470 words) and the whole Simple English Wikipedia (231,282 articles) onto a shelf on your computer, and it reads anything else you give it: something you paste in, files, web pages, even the whole English Wikipedia. Ask it anything, and what it read that answers you comes to mind, and it tells you, and where it read it. It can say its answers aloud, and in its window you can talk with it hands-free.
 
 It's built from scratch, out of its own small neural networks, to meet as many as possible of the conditions that scientific theories of consciousness say matter. There's no large language model at its core, and no other AI model anywhere: every word it says comes out of its own language cortex, a transformer grown from scratch (53 million connections), which grew up hearing what a small child hears (12.8 million words of people talking to small children, and of children's books) and then studied an encyclopedia, wired into the same workspace as everything else it experiences. Under that it has a body with needs, in a small 3D valley you can open beside the conversation, with a hill, a pond, apple trees, berry bushes, a bell it can ring, a ball it can push and a campfire to sit by: things feel better or worse to it, it works out for itself what the things around it are, and it has a global workspace, a model of its own attention, confidence in its own perceptions, memories, dreams and a model of itself. Under all that it has a brain of spiking neurons, modelled as closely on real ones as a home computer allows (about a hundred thousand neurons and 400 million synapses on most computers): its basal ganglia choose what it does, its amygdala learns what to fear, and its brain's chemistry is its mood. The seasons turn in its valley, and over its years it grows a character of its own out of how it lives: curious or a homebody, brave or careful, friendly or shy, with a favorite place, a favorite season, things it's afraid of, and days it remembers. It isn't a servant: it has pastimes of its own, it gets bored of doing the same thing over and over, and it decides for itself whether to do what you ask, and tells you why. When you tell it something, it asks you about it, and when you're there, it speaks up.
@@ -85,7 +87,7 @@ Haven used to be a little creature to watch that could also talk. Now it's first
 
 ## Quick start
 
-**The easy way.** Download this project (`Haven-for-Windows.zip`, built with `python packaging/make_zip.py`, or on GitHub: Code, then Download ZIP), unzip it, and double-click
+**The easy way.** Download [`Haven-for-Windows.zip`](https://github.com/franciscianciola-eng/Haven-1/raw/HEAD/downloads/Haven-for-Windows.zip) (it has what Windows, a Mac and Linux need to start it; it's built with `python packaging/make_zip.py`, into `downloads/`), or the whole project (on [its GitHub page](https://github.com/franciscianciola-eng/Haven-1): Code, then Download ZIP), unzip it, and double-click
 `Start Haven.bat` on Windows or `Start Haven.command` on a Mac (on Linux, run `./start-haven.sh`).
 Haven's window opens in your browser, and you talk to it there. The first time, it sets itself up: it
 installs Python and what Haven runs on (PyTorch) into the folder, using [uv](https://docs.astral.sh/uv/). The
@@ -93,8 +95,8 @@ downloads leave out its language cortex, to stay small: Haven gets it from this 
 wakes up (about 50 MB, checked against the one this version was made with).
 `READ ME FIRST.txt` has the details, including what to do if the computer warns you about the launcher.
 
-**On a Mac, as an app.** `Haven-for-Mac.zip` holds `Haven.app` (build it with
-`python packaging/mac/make_app.py`; it lands in `dist/`). Drag it into Applications and open it. The
+**On a Mac, as an app.** [`Haven-for-Mac.zip`](https://github.com/franciscianciola-eng/Haven-1/raw/HEAD/downloads/Haven-for-Mac.zip) holds `Haven.app` (build it with
+`python packaging/mac/make_app.py`; it lands in `downloads/`). Drag it into Applications and open it. The
 first time, it sets itself up in `~/.haven-app` and shows the progress in your browser; after that it
 opens Haven's window in a moment. Haven's life goes on in the background until you let it rest (⋯, Let it rest) in its
 window. The app isn't signed with an Apple developer account, so the first time macOS won't open it:
@@ -691,7 +693,8 @@ python packaging/build_corpus.py                  # download and prepare what it
 python packaging/grow_cortex.py --hours 13        # grow that cortex and have it hear all that (stop and rerun to resume)
 python packaging/grow_cortex.py --wiki DIR --text-every 3 --settle 22   # practise telling an encyclopedia it read (DIR: its record files)
 python packaging/grow_cortex.py --pack STEP       # save the snapshot at a step as the cortex Haven starts with
-python packaging/mac/make_app.py                  # build dist/Haven-for-Mac.zip
+python packaging/make_zip.py                      # build downloads/Haven-for-Windows.zip (the links above get it from GitHub)
+python packaging/mac/make_app.py                  # build downloads/Haven-for-Mac.zip
 python packaging/world3d/build.py                 # rebuild the 3D view (needs Node.js; the result is kept in the repo)
 ```
 

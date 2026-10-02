@@ -1,9 +1,10 @@
-"""Builds dist/Haven-for-Windows.zip: Haven's folder, to unzip and start with a double-click.
+"""Builds downloads/Haven-for-Windows.zip: Haven's folder, to unzip and start with a double-click.
 
     python packaging/make_zip.py
 
-It holds what's in the repository (not the tests or the packaging, nor its language
-cortex, which Haven downloads from GitHub the first time it runs), in a folder called
+It's kept in the repository, so it can be had from a link on GitHub (see README.md). It
+holds what's in the repository (not the tests, the packaging or the downloads, nor its
+language cortex, which Haven downloads from GitHub the first time it runs), in a folder called
 Haven, with `Start Haven.bat` (Windows), `Start Haven.command` (Mac) and `start-haven.sh`
 (Linux) at the top, and `READ ME FIRST.txt` beside them. Line endings are as the
 repository keeps them for each system (see .gitattributes).
@@ -24,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from haven.cortex.starter import source
 
-LEAVE_OUT = ("tests/", "packaging/", ".git")
+LEAVE_OUT = ("tests/", "packaging/", "downloads/", ".git")
 CORTEX = "haven/cortex/starter/cortex.pt"  # (left out, to keep the download small: Haven gets it from GitHub)
 
 
@@ -50,7 +51,7 @@ def build(root: Path, out: Path) -> Path:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=str(ROOT), help="the checkout to pack")
-    parser.add_argument("--out", help="where to write the zip (default: dist/Haven-for-Windows.zip there)")
+    parser.add_argument("--out", help="where to write the zip (default: downloads/Haven-for-Windows.zip there)")
     args = parser.parse_args()
     root = Path(args.root)
-    print("built", build(root, Path(args.out) if args.out else root / "dist" / "Haven-for-Windows.zip"))
+    print("built", build(root, Path(args.out) if args.out else root / "downloads" / "Haven-for-Windows.zip"))

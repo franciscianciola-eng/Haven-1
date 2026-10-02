@@ -1,6 +1,8 @@
-"""Builds Haven for the Mac: dist/Haven-for-Mac.zip, holding Haven.app.
+"""Builds Haven for the Mac: downloads/Haven-for-Mac.zip, holding Haven.app.
 
     python packaging/mac/make_app.py
+
+It's kept in the repository, so it can be had from a link on GitHub (see README.md).
 
 The app carries Haven's code. The first time it's opened it sets itself up in ~/.haven-app
 (see the `Haven` script next to this file), and after that it wakes Haven up and opens its
@@ -89,4 +91,4 @@ def build(out: Path) -> Path:
 
 if __name__ == "__main__":
     sys.path.insert(0, str(ROOT))
-    print("built", build(ROOT / "dist" / "Haven-for-Mac.zip"))
+    print("built", build(ROOT / "downloads" / "Haven-for-Mac.zip"))

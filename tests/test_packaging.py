@@ -45,7 +45,7 @@ def test_windows_zip(tmp_path):
     z = zipfile.ZipFile(make_zip.build(ROOT, tmp_path / "Haven-for-Windows.zip"))
     names = set(z.namelist())
     assert {"Haven/Start Haven.bat", "Haven/READ ME FIRST.txt", "Haven/pyproject.toml", "Haven/haven/app.html"} <= names
-    assert not any(n.startswith(("Haven/tests/", "Haven/packaging/")) for n in names)
+    assert not any(n.startswith(("Haven/tests/", "Haven/packaging/", "Haven/downloads/")) for n in names)
     assert b"\r\n" in z.read("Haven/Start Haven.bat")  # (as Windows likes its batch files)
     assert "Haven/haven/cortex/starter/cortex.pt" not in names and "Haven/haven/cortex/starter/cortex.json" in names
     assert (z.getinfo("Haven/start-haven.sh").external_attr >> 16) & 0o111  # a Mac or Linux can run its launcher
