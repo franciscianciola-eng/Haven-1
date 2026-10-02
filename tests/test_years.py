@@ -163,10 +163,11 @@ def test_conversations_where_it_speaks_up_first():
         spoke += 1
         said = turns[0].answer
         days = {moment["memo"]["today"], *re.findall(r"Today I [^.]*\.", thought)}  # (its day, maybe with pastimes)
-        derived = {  # (friendly or shy: as its character, in what comes to mind, says)
-            talk.back_answer({"character": thought, "today": day}, person)
+        derived = {  # (friendly, shy or neither, as its character says: what comes to mind may mention either)
+            talk.back_answer({"character": character, "today": day}, person)
             for person in (None, *re.findall(r"I'm talking with (\w+)\.", thought))
             for day in days
+            for character in ("I'm friendly.", "I'm shy.", "")
         }
         derived |= {engage.later_wonder_answer(q) for q in re.findall(r"I wonder: ([^?]*\?)", thought)}
         derived |= {engage.invite_answer(r) for r in re.findall(r"I'd like you to (.+?) with me\.", thought)}

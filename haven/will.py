@@ -49,7 +49,10 @@ def fear_of(mind: Mind, thing: str) -> tuple[float, str]:
 def bond(mind: Mind) -> float:
     """How it feels about the one asking, 0 to 1: oxytocin, its friendliness, knowing who they are, their kindness."""
     oxytocin = mind.chemistry.get("oxytocin", 1.0)
-    kind = min(1.0, (mind.counts.get("touched", 0) + mind.counts.get("fed", 0)) / 20.0)
+    counts = mind.counts
+    kindness = counts.get("touched", 0) + counts.get("fed", 0) + 2 * counts.get("healed", 0)
+    kindness -= 5 * counts.get("hurt by you", 0)  # (being hurt by them weighs more, and it remembers)
+    kind = float(np.clip(kindness / 20.0, -1.0, 1.0))
     known = 0.15 if mind.person else 0.0
     return float(
         np.clip(0.3 + 0.25 * (oxytocin - 1.0) + 0.3 * mind.character.traits["friendly"] + known + 0.2 * kind, 0, 1)

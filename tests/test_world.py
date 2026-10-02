@@ -6,12 +6,14 @@ from haven.world import (
     APPLE,
     BELL,
     BUSH,
+    BUTTERFLY,
     DAY,
     FIRE,
     FLOWER,
     MAX_BERRIES,
     NEST,
     REGROW,
+    SEASON_DAYS,
     THORN,
     TOADSTOOL,
     TREE,
@@ -166,3 +168,59 @@ def test_body_needs_and_fainting():
     assert b.collapsed()
     b.faint()
     assert b.asleep and b.energy >= 0.35 and not b.collapsed()
+
+
+def test_the_person_can_bring_weather():
+    w = World(seed=0)
+    w.tick = DAY // 2  # (midday)
+    light, warmth = w.light, w.ambient()
+    assert w.bring("storm") and w.light < light and w.ambient() < warmth  # dark clouds, cold rain
+    booms = 0
+    for _ in range(610):
+        w.act("rest")
+        booms += w.sense().boom > 0  # thunder
+    assert booms and w.weather is None  # (and then it passes)
+    usual = w.ambient()
+    assert w.bring("heat") and w.ambient() > usual and w.bring("snow") and w.ambient() < usual
+    w.tick = 3 * DAY  # (midnight)
+    assert not w.bring("sun")  # at night, the sun can't come out
+
+
+def test_fire_spreads_from_the_campfire_and_burns_out():
+    w = World(seed=0)
+    assert w.bring("fire")
+    for _ in range(80):
+        w.act("rest")
+    burning = [c for c in w.changed if w.grid[c[1], c[0]] == FIRE]
+    assert 3 <= len(burning) <= 14 and w._nearest(*w.nest, FIRE, 1) is None  # (never by its nest)
+    for _ in range(700):  # (it spreads for a while, then burns out)
+        w.act("rest")
+    assert not w.changed and (w.grid == FIRE).sum() == 1  # all burned out: only the campfire is left
+
+
+def test_thorns_grow_and_wither_and_the_world_keeps_what_was_brought():
+    w = World(seed=0)
+    assert w.bring("thorns") and w.bring("butterflies") and w.bring("blight")
+    grown = [c for c in w.changed if w.grid[c[1], c[0]] == THORN]
+    assert len(grown) == 8 and sum(w.berries.values()) == 0 and not w.apples
+    again = World(seed=1)
+    again.load(w.state())
+    assert again.changed == w.changed and (again.grid == THORN).sum() == (w.grid == THORN).sum()
+    assert len(again.butterflies) == len(w.butterflies) == len(again.homes)
+    for _ in range(100):
+        w.act("rest")
+    assert sum(w.berries.values()) == 0  # (nothing grows back while it's blighted)
+    assert w.bring("food") and sum(w.berries.values()) == 3 * len(w.berries) and w.apples
+    w.tick += 3 * DAY
+    w.act("rest")
+    assert not w.changed  # the thorns withered
+
+
+def test_a_quake_shakes_apples_down_and_butterflies_come_even_in_winter():
+    w = World(seed=0)
+    assert w.bring("quake") and w.apples and w.sense().boom == 1.0
+    winter = World(seed=0)
+    winter.tick = 3 * SEASON_DAYS * DAY + DAY // 2
+    assert winter.season == "winter" and not winter.fluttering
+    assert winter.bring("butterflies") and winter.fluttering
+    assert any(winter.thing(*b) == BUTTERFLY for b in winter.butterflies)

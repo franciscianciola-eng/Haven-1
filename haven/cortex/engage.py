@@ -743,6 +743,9 @@ CAUSES = {  # what might have stirred each mood, for practice (as its mind says 
         "something surprised me",
         "I found something new",
         "I heard a new word",
+        "the thunder scared me",
+        "the ground shook",
+        "you hurt me",
     ),
     "cuddly": ("you stroked me", "you're talking with me", "you're here with me"),
     "full of beans": (
@@ -766,6 +769,10 @@ CAUSES = {  # what might have stirred each mood, for practice (as its mind says 
         "I found something new",
         "I went somewhere new",
         "something good happened",
+        "food grew everywhere",
+        "the sun came out",
+        "butterflies came",
+        "you healed me",
     ),
     "calm and content": ("I have everything I need", "things have been good lately"),
     "dreamy": ("I just woke up",),
@@ -775,8 +782,14 @@ CAUSES = {  # what might have stirred each mood, for practice (as its mind says 
         "a toadstool made me sick",
         "something hurt me",
         "things have been hard lately",
+        "you hurt me",
     ),
-    "a bit flat": ("things didn't go the way I hoped", "the thorns pricked me", "something hurt me"),
+    "a bit flat": (
+        "things didn't go the way I hoped",
+        "the thorns pricked me",
+        "something hurt me",
+        "the food withered",
+    ),
 }
 
 

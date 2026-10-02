@@ -13,6 +13,7 @@ from importlib import resources
 
 from .check import indicators, probe
 from .life import Life
+from .mind import POWERS
 from .report import world
 
 MAX_BODY = 16_000
@@ -94,6 +95,12 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/feed":
             life.feed()
             self._json({"ok": True})
+        elif self.path == "/api/bring":  # make something happen in its valley (see Mind.bring)
+            what = str(body.get("what", ""))
+            if what not in POWERS:
+                self._json({"error": f"what: one of {', '.join(POWERS)}"}, HTTPStatus.BAD_REQUEST)
+            else:
+                self._json({"ok": life.bring(what), "what": what})
         elif self.path == "/api/pause":
             life.paused = bool(body.get("paused", not life.paused))
             self._json({"paused": life.paused})

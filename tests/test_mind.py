@@ -191,17 +191,17 @@ def test_it_keeps_what_stirred_its_brains_chemistry():
     mind = Mind(seed=1)
     calm = {"reward": 0.0, "surprise": 0.0, "pain": 0.0, "sick": 0.0, "content": 0.5, "social": 0.0, "touch": 0.0}
     drives = np.zeros(4)
-    quiet, nothing = SimpleNamespace(touch=0.0, words=[]), SimpleNamespace(new=[], novelty=0.0)
+    quiet, nothing = SimpleNamespace(touch=0.0, words=[], boom=0.0), SimpleNamespace(new=[], novelty=0.0)
 
     def moment(tick, signals, obs=quiet, reading=nothing, needs=drives):
         mind.world.tick = tick
         mind._stirred(obs, {**calm, **signals}, reading, needs)
 
-    moment(50, {"touch": 1.0, "social": 1.0}, SimpleNamespace(touch=1.0, words=[]))
+    moment(50, {"touch": 1.0, "social": 1.0}, SimpleNamespace(touch=1.0, words=[], boom=0.0))
     assert mind.stirred["oxytocin+"][:2] == (50, "you stroked me")
     moment(52, {"touch": 0.49, "social": 1.0})  # (its afterglow still counts for more than someone being there)
     assert mind.stirred["oxytocin+"][1] == "you stroked me"
-    moment(400, {"social": 1.0}, SimpleNamespace(touch=0.0, words=["hi"]))
+    moment(400, {"social": 1.0}, SimpleNamespace(touch=0.0, words=["hi"], boom=0.0))
     assert mind.stirred["oxytocin+"][1] == "you're talking with me"
     moment(401, {"pain": 0.8, "reward": -0.6})
     assert mind.stirred["noradrenaline+"][1].endswith("me") and mind.stirred["dopamine-"][1].endswith("me")
@@ -224,8 +224,34 @@ def test_a_touch_glows_on_for_a_while():
     felt = []  # (how much touch reaches its brain, each moment)
     mind.brain = SimpleNamespace(moment=lambda senses, signals, options: felt.append(signals["touch"]) or reading)
     mind._senses = lambda *a: {}
-    touched = SimpleNamespace(touch=1.0, words=[], pain=0.0, light=1.0)
+    touched = SimpleNamespace(touch=1.0, words=[], pain=0.0, light=1.0, boom=0.0)
     mind._brain_moment(touched, np.zeros(4), [], {})
     mind.world.tick += AFTERGLOW
     mind._brain_moment(SimpleNamespace(**{**vars(touched), "touch": 0.0}), np.zeros(4), [], {})
     assert felt[0] == 1.0 and abs(felt[1] - 0.15) < 1e-6  # (some of it glows on, halving as time goes by)
+
+
+def test_the_person_can_heal_it_or_hurt_it_and_it_remembers_who_did():
+    from haven.will import bond
+
+    mind = Mind(seed=1)
+    trusting = bond(mind)
+    assert mind.bring("hurt")
+    for _ in range(4):
+        mind.step()
+    hurt = [text for _, text in mind.log if text == "was hurt by you"]
+    assert len(hurt) == 1 and mind.body.integrity < 1.0  # (it notes it once, however long it hurts)
+    assert mind.counts["hurt by you"] == 1 and bond(mind) < trusting  # it trusts them less
+    assert mind.bring("heal") and mind.body.integrity == 1.0 and mind.log[-1][1] == "was healed"
+    assert not mind.bring("nothing")
+
+
+def test_what_the_person_brings_it_notes_as_it_happens_or_once_it_sees_it():
+    mind = Mind(seed=1)
+    assert mind.bring("storm") and mind.log[-1][1] == "was caught in a storm" and mind.counts["storm"] == 1
+    assert mind.bring("thorns") and "thorns" in mind.unseen  # (out of its sight, until it sees them)
+    for _ in range(2000):
+        mind.step()
+        if "thorns" not in mind.unseen:
+            break
+    assert "thorns" not in mind.unseen and any(text == "saw thorns grow" for _, text in mind.log)

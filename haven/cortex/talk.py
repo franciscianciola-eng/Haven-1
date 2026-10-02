@@ -1528,6 +1528,12 @@ DONE = {  # what it did, as it says it: (once, more than once)
     "warmed itself at the fire": ("warmed myself at the fire", "warmed myself at the fire"),
     "felt sick after eating a toadstool": ("felt sick", "felt sick"),
     "climbed to the top of the hill": ("climbed to the top of the hill", "climbed to the top of the hill"),
+    "was caught in a storm": ("was caught in a storm", "was caught in storms"),
+    "was caught in a snowstorm": ("was caught in a snowstorm", "was caught in snowstorms"),
+    "felt the ground shake": ("felt the ground shake", "felt the ground shake"),
+    "found food everywhere": ("found food everywhere", "found food everywhere"),
+    "was healed": ("was healed", "was healed"),
+    "was hurt by you": ("was hurt by you", "was hurt by you"),
 }
 
 
@@ -2596,6 +2602,19 @@ HAPPENED = {  # something that just happened (as its log has it), and what it sa
     "pushed the ball and watched it roll": "I pushed the ball, and it rolled!",
     "warmed itself at the fire": "I'm warming myself by the fire. It's nice.",
     "was given food": "Thank you for the food!",
+    # (what the person can make happen in its valley: see Mind.bring)
+    "found food everywhere": "Wow, there's food everywhere! The bushes and the trees are full.",
+    "felt the sun come out": "The sun came out! It's lovely and warm.",
+    "saw butterflies come": "Look, butterflies! So many of them!",
+    "was healed": "I feel better! It doesn't hurt any more.",
+    "was caught in a storm": "A storm! It's dark and cold, and the thunder scares me.",
+    "felt a heat wave come": "It's so hot! I need some water.",
+    "was caught in a snowstorm": "It's snowing! I'm so cold.",
+    "saw a fire spread": "The fire is spreading! I'm scared.",
+    "felt the ground shake": "The ground shook! I fell over.",
+    "saw the food wither": "All the food is gone! I'm worried.",
+    "saw thorns grow": "Thorns are growing everywhere! I have to be careful.",
+    "was hurt by you": "Ow! Why did you hurt me?",
 }
 DID = {  # what it was asked to do, done: as it tells it
     "ring the bell": "rang the bell",

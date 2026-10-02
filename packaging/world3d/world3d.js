@@ -24,6 +24,8 @@ import {
   HemisphereLight,
   IcosahedronGeometry,
   LatheGeometry,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
   MeshLambertMaterial,
   MeshStandardMaterial,
@@ -53,6 +55,11 @@ const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -
 const SKY_DAY = new Color("#9fd4f5");
 const SKY_DUSK = new Color("#f2b38a");
 const SKY_NIGHT = new Color("#0c1230");
+// The weather the person can bring (see World.bring): the sky it gives, and how much; and how near the fog comes.
+const WEATHER_SKY = { storm: ["#454c57", 0.7], snow: ["#c9d2dc", 0.5], heat: ["#ffa25c", 0.35], sun: ["#ffe2a0", 0.18] };
+const WEATHER_FOG = { storm: [10, 42], snow: [7, 34], heat: [18, 58] };
+const BUTTERFLY_COLORS = ["#ffffff", "#ffd54a", "#ff9b54", "#b9a7ff"];
+const DROPS = 1400;  // raindrops or snowflakes, falling over the valley
 // How the valley looks in each season (Haven feels the seasons, and sees the leaves turn and the flowers go).
 const SEASONS = {
   spring: { leaves: ["#5aae52", "#6fbd5f"], ground: "#ffffff", frost: "#000000", water: "#3d8fd1", sky: "#9fd4f5", bush: "#2f7b3c" },
@@ -344,6 +351,19 @@ function fire() {
   return label(g, "the campfire");
 }
 
+function wildfire(x, y) {  // grass the person set alight: flames, no logs, no light of its own (it burns out)
+  const g = new Group();
+  g.userData.flames = [["#ff7a1f", 0.2, 0.62], ["#ffb02e", 0.14, 0.46], ["#ffe07a", 0.08, 0.32]].map(([c, r, h], i) => {
+    const flame = new Mesh(new ConeGeometry(r, h, 7), new MeshStandardMaterial({
+      color: c, emissive: c, emissiveIntensity: 1.5, transparent: true, opacity: 0.85,
+    }));
+    flame.position.set((hash(x, y, i) - 0.5) * 0.3, h / 2, (hash(x, y, i + 3) - 0.5) * 0.3);
+    g.add(flame);
+    return flame;
+  });
+  return label(g, "a fire, spreading");
+}
+
 function ball() {
   const g = new Group();
   const b = mesh(new SphereGeometry(0.22, 18, 14), mat("#1bc6c6"));
@@ -585,11 +605,40 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
   const stars = new Points(starGeometry, new PointsMaterial({ color: "#ffffff", size: 0.5, transparent: true, opacity: 0, fog: false }));
   scene.add(stars);
 
+  // Rain in a storm (falling streaks), snow in a snowstorm (soft flakes).
+  const rainGeometry = new BufferGeometry();
+  const streaks = new Float32Array(DROPS * 6);
+  for (let i = 0; i < DROPS; i++) {
+    const [x, y, z] = [Math.random() * 24, Math.random() * 14, Math.random() * 24];
+    streaks.set([x, y, z, x + 0.06, y - 0.38, z], i * 6);
+  }
+  rainGeometry.setAttribute("position", new Float32BufferAttribute(streaks, 3));
+  const rain = new LineSegments(rainGeometry, new LineBasicMaterial({ color: "#c9d6ea", transparent: true, opacity: 0.55, depthWrite: false }));
+  rain.visible = false;
+  const flake = document.createElement("canvas");
+  flake.width = flake.height = 32;
+  const fc = flake.getContext("2d"), glow = fc.createRadialGradient(16, 16, 0, 16, 16, 16);
+  glow.addColorStop(0, "rgba(255,255,255,1)");
+  glow.addColorStop(0.5, "rgba(255,255,255,0.8)");
+  glow.addColorStop(1, "rgba(255,255,255,0)");
+  fc.fillStyle = glow;
+  fc.fillRect(0, 0, 32, 32);
+  const snowGeometry = new BufferGeometry();
+  const flakes = new Float32Array(DROPS * 3);
+  for (let i = 0; i < DROPS; i++) flakes.set([Math.random() * 24, Math.random() * 14, Math.random() * 24], i * 3);
+  snowGeometry.setAttribute("position", new Float32BufferAttribute(flakes, 3));
+  const snow = new Points(snowGeometry, new PointsMaterial({
+    map: new CanvasTexture(flake), size: 0.22, transparent: true, depthWrite: false, color: "#ffffff",
+  }));
+  snow.visible = false;
+  scene.add(rain, snow);
+
   const view = {
     built: false, world: null, cells: new Map(), apples: [], butterflies: [], ball: null, haven: null,
     water: null, bell: null, fire: null, light: 1, phase: 0.3, speed: 8, follow: true, asleep: false,
     target: new Vector3(12, 0, 12), heading: 0, shownHeading: 0, lastTick: -1, ringAt: -1e9, voice: null,
     effects: [], moving: 0, touchedAt: -1e9, rungAt: null,
+    made: new Map(), weather: null, flashAt: -1e9, struck: null, shaking: false, fluttering: true,
   };
   const textures = Object.fromEntries(Object.entries(ICONS).map(([k, draw]) => [k, iconTexture(draw)]));
   view.marker = new Sprite(new SpriteMaterial({ map: textures.pin, transparent: true, depthWrite: false }));
@@ -646,15 +695,57 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     view.haven = creature();
     view.haven.scale.setScalar(1.3);
     scene.add(view.haven);
-    const colors = ["#ffffff", "#ffd54a", "#ff9b54", "#b9a7ff"];
-    view.butterflies = (world.butterflies || []).map((_, i) => {
-      const b = butterfly(colors[i % colors.length]);
-      b.userData.phase = i * 1.7;
-      scene.add(b);
-      return b;
-    });
+    view.butterflies = [];
+    moreButterflies((world.butterflies || []).length);
     view.ballAt = null;
     view.built = true;
+  }
+
+  function moreButterflies(n) {  // (as many as there are: the person can bring more)
+    while (view.butterflies.length < n) {
+      const i = view.butterflies.length;
+      const b = butterfly(BUTTERFLY_COLORS[i % BUTTERFLY_COLORS.length]);
+      b.userData.phase = i * 1.7;
+      scene.add(b);
+      view.butterflies.push(b);
+    }
+  }
+
+  function brought(world, now) {  // what the person made happen: the weather, fires and thorns, the ground shaking
+    view.weather = world.weather || null;
+    if (world.flash !== undefined && world.flash < 6 && view.struck !== world.tick - world.flash) {
+      view.struck = world.tick - world.flash;  // lightning
+      view.flashAt = now;
+    }
+    if (world.shaking && !view.shaking) for (const thing of view.cells.values()) thing.userData.wobbleAt = now;
+    view.shaking = !!world.shaking;
+    view.fluttering = world.fluttering !== false;
+    const made = new Set();
+    for (const [x, y, what] of world.changed || []) {
+      const key = `${x},${y}`;
+      let thing = view.made.get(key);
+      if (thing && thing.userData.what !== what) { scene.remove(thing); thing = null; }
+      if (!thing) {
+        thing = what === "fire" ? wildfire(x, y) : what === "thorns" ? thorns(x, y) : null;
+        if (!thing) continue;
+        thing.userData.what = what;
+        thing.userData.popAt = view.lastTick >= 0 ? now : -1e9;
+        place(thing, x, y);
+        scene.add(thing);
+        view.made.set(key, thing);
+      }
+      made.add(key);
+      const under = view.cells.get(key);
+      if (under) under.visible = false;  // (a flower that caught fire)
+    }
+    for (const [key, thing] of view.made) {
+      if (made.has(key)) continue;
+      scene.remove(thing);  // it burned out, or withered
+      view.made.delete(key);
+    }
+    for (const [key, thing] of view.cells) {  // flowers sleep in winter, unless the person brings them out
+      if (thing.userData.label === "flowers" && !made.has(key)) thing.visible = view.season !== "winter" || view.fluttering;
+    }
   }
 
   function effect(kind, at) {
@@ -733,6 +824,8 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
     }
     for (const a of view.apples) if (!kept.has(a)) a.visible = false;
     view.ballAt = spot(...world.ball);
+    brought(world, now);
+    moreButterflies(world.butterflies.length);
     view.butterflies.forEach((b, i) => { b.visible = i < world.butterflies.length; }); // (in winter they're gone)
     world.butterflies.forEach(([x, y], i) => {
       const b = view.butterflies[i];
@@ -855,9 +948,16 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       skyDay.lerp(tint.set(view.look.sky), turn);
     }
     skyNow.copy(SKY_NIGHT).lerp(skyDay, Math.min(1, light * 1.1)).lerp(SKY_DUSK, dusk * 0.5);
+    const weatherSky = WEATHER_SKY[view.weather];
+    if (weatherSky) skyNow.lerp(tint.set(weatherSky[0]), weatherSky[1] * Math.min(1, 0.4 + light));
+    const flash = Math.max(0, 1 - (now - view.flashAt) / 220);  // lightning
     scene.background.lerp(skyNow, 0.08);
+    if (flash) scene.background.lerp(tint.set("#f4f6ff"), 0.85 * flash);
     scene.fog.color.copy(scene.background);
-    hemi.intensity = 0.25 + 0.85 * light;
+    const [near, far] = WEATHER_FOG[view.weather] || [30, 70];
+    scene.fog.near += (near - scene.fog.near) * (1 - Math.exp(-dt * 0.8));
+    scene.fog.far += (far - scene.fog.far) * (1 - Math.exp(-dt * 0.8));
+    hemi.intensity = 0.25 + 0.85 * light + 2.5 * flash;
     sun.intensity = 0.15 + 2.1 * light;
     sun.color.set(light < 0.35 ? "#9fb4ff" : "#fff1d6");
     const angle = (view.phase - 0.25) * Math.PI * 2;
@@ -969,6 +1069,40 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       view.fire.userData.light.intensity = (0.5 + 2.4 * (1 - light)) * (0.9 + 0.12 * Math.sin(t * 13) * Math.sin(t * 7.7));
     }
 
+    // Fires the person started flicker; rain or snow falls.
+    for (const thing of view.made.values()) {
+      for (const [i, f] of (thing.userData.flames || []).entries()) {
+        f.scale.set(1, 0.8 + 0.3 * Math.sin(t * (10 + i * 3) + i + thing.position.x) * Math.sin(t * 6.1 + i), 1);
+        f.rotation.y = t * (0.7 + i * 0.3);
+      }
+      const pop = (now - (thing.userData.popAt ?? -1e9)) / 400;
+      thing.scale.setScalar(pop < 1 ? Math.max(0.05, Math.sin(pop * Math.PI * 0.5)) : 1);
+    }
+    rain.visible = view.weather === "storm";
+    snow.visible = view.weather === "snow";
+    if (rain.visible) {
+      const arr = rain.geometry.attributes.position.array;
+      for (let i = 0; i < DROPS; i++) {
+        const fall = 13 * dt * (0.8 + 0.4 * ((i * 7919) % 13) / 13);
+        arr[i * 6 + 1] -= fall;
+        arr[i * 6 + 4] -= fall;
+        if (arr[i * 6 + 4] < 0) {
+          const [x, y, z] = [Math.random() * 24, 13 + Math.random(), Math.random() * 24];
+          arr.set([x, y, z, x + 0.06, y - 0.38, z], i * 6);
+        }
+      }
+      rain.geometry.attributes.position.needsUpdate = true;
+    }
+    if (snow.visible) {
+      const arr = snow.geometry.attributes.position.array;
+      for (let i = 0; i < DROPS; i++) {
+        arr[i * 3 + 1] -= 1.4 * dt * (0.8 + 0.4 * ((i * 7919) % 13) / 13);
+        arr[i * 3] += Math.sin(t * 0.8 + i) * 0.004;  // (snow drifts)
+        if (arr[i * 3 + 1] < 0) arr.set([Math.random() * 24, 13 + Math.random(), Math.random() * 24], i * 3);
+      }
+      snow.geometry.attributes.position.needsUpdate = true;
+    }
+
     // The pond ripples.
     if (view.water) {
       const p = view.water.geometry.attributes.position, rest = view.water.userData.rest;
@@ -1002,7 +1136,10 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       camera.position.add(shift);
     }
     controls.update();
+    const shake = view.shaking ? new Vector3((Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 0.1, 0) : null;
+    if (shake) camera.position.add(shake);  // (the ground shaking)
     renderer.render(scene, camera);
+    if (shake) camera.position.sub(shake);
 
     // What it says appears over its head.
     if (view.voice) {

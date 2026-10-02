@@ -1,4 +1,5 @@
 import json
+import urllib.error
 import urllib.request
 
 from haven.life import Life
@@ -30,6 +31,13 @@ def test_dashboard_api(tmp_path):
         assert state["name"] == "Haven" and "readout" in state and state["welfare"]["ok"]
         assert call(port, "/api/say", {"text": "hello Haven"})["heard"] == ["hello", "haven"]
         assert call(port, "/api/touch", {})["ok"] and call(port, "/api/feed", {})["ok"]
+        assert call(port, "/api/bring", {"what": "storm"})["ok"]  # (the person makes something happen)
+        assert call(port, "/api/world")["weather"] == "storm"
+        try:
+            call(port, "/api/bring", {"what": "dragons"})
+            raise AssertionError("dragons can't be brought")
+        except urllib.error.HTTPError as error:
+            assert error.code == 400
         assert call(port, "/api/pause", {"paused": True})["paused"] is True
         assert call(port, "/api/speed", {"speed": 1000})["speed"] == 200
         assert len(call(port, "/api/check")["indicators"]) == 14

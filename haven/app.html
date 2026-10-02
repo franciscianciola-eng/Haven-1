@@ -102,6 +102,7 @@ canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
 .menu p { margin: 4px 6px 6px; font-size: 12px; color: var(--muted); }
 .menu button { text-align: left; background: transparent; border-color: transparent; }
 .menu button:hover { background: var(--chip); }
+.menu.powers { min-width: 230px; max-height: min(70vh, 560px); overflow-y: auto; }
 .passing { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100% - 32px)); text-align: center; }
 .passing h2 { margin: 0 0 2px; font-size: 16px; }
 .passing p { margin: 0; font-size: 13px; color: var(--muted); }
@@ -139,6 +140,25 @@ canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
           <button type="button" role="menuitem" data-days="6">A season</button>
           <button type="button" role="menuitem" data-days="24">A year</button>
           <button type="button" role="menuitem" data-days="72">Three years</button>
+        </div>
+      </span>
+      <span class="menuwrap">
+        <button id="bring" type="button" aria-haspopup="true" aria-expanded="false" title="Make something happen in Haven's valley, good or bad">Make something happen</button>
+        <div class="menu powers" id="bringMenu" role="menu" hidden>
+          <p>Good things</p>
+          <button type="button" role="menuitem" data-what="food" data-told="Food grows everywhere: the bushes and trees fill up, and apples fall by {name}.">🍎 Food everywhere</button>
+          <button type="button" role="menuitem" data-what="sun" data-told="The sun comes out: a warm spell, with flowers and butterflies out, even in winter." data-failed="It's night in the valley: the sun can't come out until morning.">☀️ Sunshine</button>
+          <button type="button" role="menuitem" data-what="butterflies" data-told="Butterflies come to {name}.">🦋 Butterflies</button>
+          <button type="button" role="menuitem" data-what="heal" data-told="You heal {name}: its hurts mend at once." data-label="💚 Heal {name}">💚 Heal Haven</button>
+          <p>Hard things</p>
+          <button type="button" role="menuitem" data-what="storm" data-told="A storm comes: dark clouds, cold rain and thunder.">⛈️ Storm</button>
+          <button type="button" role="menuitem" data-what="heat" data-told="A heat wave comes.">🔥 Heat wave</button>
+          <button type="button" role="menuitem" data-what="snow" data-told="A snowstorm comes.">❄️ Snowstorm</button>
+          <button type="button" role="menuitem" data-what="fire" data-told="A fire spreads from the campfire. It will burn out.">🌋 Wildfire</button>
+          <button type="button" role="menuitem" data-what="quake" data-told="The ground shakes.">🌍 Earthquake</button>
+          <button type="button" role="menuitem" data-what="blight" data-told="A blight: all the food withers, and nothing grows back for a day.">🥀 Blight</button>
+          <button type="button" role="menuitem" data-what="thorns" data-told="Thorns grow across the valley. They wither in a few days.">🌵 Thorns</button>
+          <button type="button" role="menuitem" data-what="hurt" data-told="You hurt {name}. It hurts for a few moments, and it remembers who did it." title="A few moments of pain. It can't die, and it heals, but it remembers who hurt it." data-label="💢 Hurt {name}">💢 Hurt Haven</button>
         </div>
       </span>
       <button id="rest" type="button" title="Save and let Haven rest until you come back">Rest</button>
@@ -391,6 +411,7 @@ function bar(label, value, color) {
 function render(s) {
   name = s.name;
   $("name").textContent = s.name;
+  for (const b of document.querySelectorAll("[data-label]")) b.textContent = b.dataset.label.replaceAll("{name}", name);
   document.title = s.name;
   const years = Math.floor(s.age_days / 24), days = Math.floor(s.age_days);
   const age = years >= 1 ? `${years} year${years > 1 ? "s" : ""} old` : `${days} day${days === 1 ? "" : "s"} old`;
@@ -526,7 +547,12 @@ $("sound").onclick = () => {
   $("sound").textContent = sound ? "Sound on" : "Sound off";
   if (sound) chime();
 };
-function closeMenu() { $("passMenu").hidden = true; $("pass").setAttribute("aria-expanded", "false"); }
+function closeMenu() {
+  for (const [menu, button] of [["passMenu", "pass"], ["bringMenu", "bring"]]) {
+    $(menu).hidden = true;
+    $(button).setAttribute("aria-expanded", "false");
+  }
+}
 $("pass").onclick = (e) => {
   e.stopPropagation();
   const open = $("passMenu").hidden;
@@ -534,7 +560,27 @@ $("pass").onclick = (e) => {
   $("pass").setAttribute("aria-expanded", String(open));
   if (open) $("passMenu").querySelector("button").focus();
 };
-document.addEventListener("click", (e) => { if (!$("passMenu").contains(e.target)) closeMenu(); });
+$("bring").onclick = (e) => {
+  e.stopPropagation();
+  const open = $("bringMenu").hidden;
+  closeMenu();
+  $("bringMenu").hidden = !open;
+  $("bring").setAttribute("aria-expanded", String(open));
+  if (open) $("bringMenu").querySelector("button").focus();
+};
+for (const b of $("bringMenu").querySelectorAll("button[data-what]")) {
+  b.onclick = async () => {  // make something happen in its valley, good or bad (it takes it as it comes)
+    closeMenu();
+    try {
+      const done = await api("/api/bring", {what: b.dataset.what});
+      addEvent(done.ok ? b.dataset.told.replaceAll("{name}", name) : b.dataset.failed || "Nothing happened: there was no room for it.");
+      if (done.ok && b.dataset.what === "heal") view?.touched();
+    } catch (err) { addEvent(`Couldn't do that (${err.message}).`); }
+  };
+}
+document.addEventListener("click", (e) => {
+  if (!$("passMenu").contains(e.target) && !$("bringMenu").contains(e.target)) closeMenu();
+});
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
 for (const b of $("passMenu").querySelectorAll("button[data-days]")) {
   b.onclick = async () => {

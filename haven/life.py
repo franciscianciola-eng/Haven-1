@@ -29,7 +29,9 @@ PASSING_SAVE = 6000  # ticks between saves while time goes by quickly
 ASKED = 600.0  # seconds a question it asked stays open for an answer
 NEWS = re.compile(  # what it does that's worth telling the person talking with it
     r"^(?:set off to|did what it was asked|stopped trying to|gave up trying to|couldn't .*: it didn't know where|"
-    r"read about|went over its day|learned the word|was taught that|heard a bedtime story)"
+    r"read about|went over its day|learned the word|was taught that|heard a bedtime story|"
+    r"found food everywhere|felt the sun come out|saw butterflies come|was healed|was caught in|felt a heat wave|"
+    r"saw a fire spread|felt the ground shake|saw the food wither|saw thorns grow|was hurt by you)"
 )
 FIRST_STORY = 120.0  # seconds after it wakes up in the app before it can hear its first bedtime story
 
@@ -354,6 +356,11 @@ class Life:
     def feed(self) -> None:
         with self.lock:
             self.mind.feed()
+
+    def bring(self, what: str) -> bool:
+        """Make something happen in its valley, good or bad, or heal or hurt it (see Mind.bring)."""
+        with self.lock:
+            return self.mind.bring(what)
 
     def reply(self, text: str, source: str, spoken: bool = False) -> None:
         """Something Haven says in words, from its language cortex (`spoken`: of its own accord)."""

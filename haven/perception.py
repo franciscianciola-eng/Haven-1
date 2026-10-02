@@ -41,6 +41,7 @@ class Observation:
     fed: float
     sound: float = 0.0
     words: list[str] = field(default_factory=list)
+    boom: float = 0.0  # a thunderclap, or the ground rumbling (felt, not one of its body's features)
 
     @classmethod
     def of(cls, senses: Senses) -> Observation:
@@ -58,6 +59,7 @@ class Observation:
             fed=senses.fed,
             sound=senses.sound,
             words=list(senses.words),
+            boom=getattr(senses, "boom", 0.0),
         )
 
     def looks(self) -> np.ndarray:

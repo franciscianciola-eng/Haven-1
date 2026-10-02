@@ -78,6 +78,27 @@ GOOD_DOINGS = (
     *("chased", "watched", "sang", "danced", "sat with", "went to"),  # (its pastimes: activities.bout)
 )
 NEW_WORDS = {"see": "I found something new", "word": "I heard a new word", "place": "I went somewhere new"}
+BLESSED = {  # good things the person made happen (as its log has them), as it says they made it glad
+    "found food everywhere": "food grew everywhere",
+    "felt the sun come out": "the sun came out",
+    "saw butterflies come": "butterflies came",
+    "was healed": "you healed me",
+}
+POWERS = {  # what the person can make happen in its valley (see Mind.bring): what it counts, and what it notes
+    "food": ("bounty", "found food everywhere"),
+    "sun": ("sun", "felt the sun come out"),
+    "butterflies": ("butterflies", "saw butterflies come"),
+    "heal": ("healed", "was healed"),
+    "storm": ("storm", "was caught in a storm"),
+    "heat": ("heat wave", "felt a heat wave come"),
+    "snow": ("snowstorm", "was caught in a snowstorm"),
+    "fire": ("wildfire", "saw a fire spread"),
+    "quake": ("quake", "felt the ground shake"),
+    "blight": ("blight", "saw the food wither"),
+    "thorns": ("thorns grew", "saw thorns grow"),
+    "hurt": ("hurt by you", "was hurt by you"),
+}
+UNSEEN = {"fire": FIRE, "thorns": THORN}  # (what it notices only once it sees it)
 STIRS = 6.0  # how strong an input to its nuclei has to be to count as what stirred its chemistry
 FORGETS = 10  # moments for what stirred it to count half as much, against what stirs it now (as its chemistry fades)
 AFTERGLOW = 120  # moments for the afterglow of a touch to halve (15 seconds, living in real time)
@@ -182,6 +203,8 @@ class Mind:
         # ("you stroked me"): so it can say why it feels as it does.
         self.stirred: dict[str, tuple[int, str, float]] = {}  # (and how strongly)
         self.touched_at = -(10**9)  # when someone last touched it
+        self.unseen: set[str] = set()  # what the person made happen that it hasn't seen yet (a fire, thorns)
+        self.struck_now = False  # (whether the person is hurting it)
         self.novelty = 0.0  # how new what it senses is, to its brain
         self.fear = 0.0  # alarm in its amygdala
         self.rpe = 0.0  # how much better or worse the last moment turned out than it expected
@@ -211,6 +234,39 @@ class Mind:
 
     def feed(self) -> None:
         self.world.feed()
+
+    def bring(self, what: str) -> bool:
+        """Something the person makes happen in its valley (see World.bring), or to it: "heal" (its hurts mend at
+        once) or "hurt" (a few moments of pain). It notes what happens as it happens to it, or a fire or thorns
+        once it sees them. Returns whether it happened."""
+        if what not in POWERS:
+            return False
+        if what == "heal":
+            self.body.integrity, self.world.pain = 1.0, 0.0
+            self._did(*POWERS[what])
+            return True
+        if what == "hurt":
+            self.world.strike()  # (it notes it when it feels it)
+            return True
+        if not self.world.bring(what):
+            return False
+        if what in UNSEEN:
+            self.unseen.add(what)
+        else:
+            self._did(*POWERS[what])
+        return True
+
+    def _notice(self, percepts: list) -> None:
+        """A fire spreading or thorns growing that the person brought: it notes it when it first sees it."""
+        w = self.world
+        for what in list(self.unseen):
+            kind = UNSEEN[what]
+            made = {c for c in w.changed if w.grid[c[1], c[0]] == kind}
+            if not made:
+                self.unseen.discard(what)  # (gone before it ever saw it)
+            elif any(p.cell in made for p in percepts if p.cell is not None):
+                self.unseen.discard(what)
+                self._did(*POWERS[what])
 
     def think(self, text: str, meaning: np.ndarray | None, confidence: float) -> None:
         """Inner speech from the language cortex, on its way into the workspace.
@@ -291,6 +347,8 @@ class Mind:
             self.surprise = float(np.mean([p.error for p in percepts])) if predicted is not None else 0.0
         if self.last is not None:
             self._learn_from(self.last, obs, drives, pose)
+        if self.unseen:
+            self._notice(percepts)
 
         # The modules offer what they have; one content ignites and is broadcast to all.
         candidates = self._candidates(obs, drives, percepts, predicted, contexts[2], tick)
@@ -1093,9 +1151,17 @@ class Mind:
         if outcome.climbed and w.level(w.x, w.y) >= 3:
             self._did("climbed", "climbed to the top of the hill")
             self.me.milestone("hilltop", tick, "climbed to the top of the hill for the first time")
-        if outcome.pain:
+        if outcome.pain and w.struck:  # the person hurt it (it notes that once, however long it hurts)
+            self.counts["hurt"] += 1
+            if not self.struck_now:
+                self._did(*POWERS["hurt"])
+            self.struck_now = True
+        elif outcome.pain:
             self.counts["hurt"] += 1
             self._note(tick, "got burned" if w.grid[w.y, w.x] == FIRE else "got hurt")
+        if not w.struck:
+            self.struck_now = False
+        if outcome.pain:
             self.me.milestone("first pain", tick, "felt pain for the first time")
             if content is not None:
                 self._remember(content, tick, pose, "hurt")
@@ -1132,7 +1198,7 @@ class Mind:
             if b.fainted:
                 b.fainted -= 1
                 return
-            stirred = obs.pain > 0 or obs.touch > 0 or bool(obs.words) or drives[0] > 0.75 or drives[1] > 0.75
+            stirred = obs.pain > 0 or obs.touch > 0 or bool(obs.words) or obs.boom > 0.5 or max(drives[:2]) > 0.75
             rested = obs.light > 0.35 and drives[3] < 0.1 and self.nap <= 0
             self.nap -= 1
             if stirred or rested:
@@ -1252,13 +1318,14 @@ class Mind:
             outcome = self.last.outcome if self.last is not None else None
             signals = {
                 "reward": float(np.clip(self.rpe * 2.5, -1.0, 1.0)),
-                "surprise": float(np.clip((self.surprise - 0.05) * 4.0, 0.0, 1.0)),  # (beyond the usual)
+                "surprise": float(max(np.clip((self.surprise - 0.05) * 4.0, 0.0, 1.0), obs.boom)),  # (or a boom)
                 "pain": float(max(obs.pain, outcome.pain if outcome else 0.0)),
                 "sick": float(min(1.0, (outcome.sick if outcome else 0.0) * 5.0)),
                 "content": float(np.clip(0.5 + self.mood * 5.0 + 0.4 * (0.3 - np.max(drives)), 0.0, 1.0)),
                 "social": float(self.company or bool(obs.words)) * (0.5 + t["friendly"]),
                 "touch": max(float(obs.touch), 0.3 * 0.5 ** ((self.world.tick - self.touched_at) / AFTERGLOW)),
                 "curious": 0.5 + t["curious"],
+                "fright": 0.5 * obs.boom,  # (a thunderclap, the ground shaking: its amygdala takes note of where)
             }
             reading = brain.moment(self._senses(obs, drives, percepts), signals, options)
             self._stirred(obs, signals, reading, drives)
@@ -1276,6 +1343,7 @@ class Mind:
         chemicals, so this is what it can say made it feel as it does."""
         g = signals.get
         hurt = self._hurt_words() if g("pain", 0.0) > 0.0 else "something hurt me"
+        boom = "the thunder scared me" if self.world.weather == "storm" else "the ground shook"
         new = max(0.0, reading.novelty - 0.4) / 0.6  # (beyond the usual, as its brain takes it: NOVELTY_USUAL)
         found = next((n for n in reading.new if n.startswith(("see:", "word:", "place:"))), None)
         news = NEW_WORDS[found.split(":")[0]] if found else "I found something new"
@@ -1290,7 +1358,8 @@ class Mind:
         inputs = {
             "oxytocin+": ((("you stroked me", 60.0 * g("touch", 0.0)),), ((talking, 15.0 * g("social", 0.0)),)),
             "noradrenaline+": (
-                ((hurt, 40.0 * pain), ("something surprised me", 25.0 * g("surprise", 0.0)), (news, 10.0 * new)),
+                ((hurt, 40.0 * pain), (boom, 25.0 * obs.boom), ("something surprised me", 25.0 * g("surprise", 0.0) - 0.1),
+                 (news, 10.0 * new)),
                 (),
             ),
             "dopamine+": (((self._good_words(), 40.0 * max(reward, 0.0)), (news, 30.0 * new * g("curious", 1.0))), ()),
@@ -1314,6 +1383,8 @@ class Mind:
 
     def _hurt_words(self) -> str:
         w = self.world
+        if w.struck:
+            return "you hurt me"
         here = int(w.grid[w.y, w.x])
         if here == FIRE:
             return "the fire burned me"
@@ -1327,6 +1398,8 @@ class Mind:
         for when, text in reversed(self.log[-4:]):
             if tick - when > 3:
                 break
+            if text in BLESSED:
+                return BLESSED[text]
             if text.startswith(GOOD_DOINGS):
                 return "you gave me food" if text == "was given food" else "I " + text.replace("itself", "myself")
         return "something good happened"

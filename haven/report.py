@@ -14,7 +14,7 @@ from .attention import NOTHING
 from .body import DRIVES
 from .mind import Mind, need_words
 from .workspace import SOURCES
-from .world import ACTIONS, BUSH, DAY, FLOWER, HEIGHTS, LAYOUT, YEAR
+from .world import ACTIONS, BUSH, DAY, FLOWER, HEIGHTS, LAYOUT, NAMES, YEAR
 
 GOALS = {
     "food": "find food",
@@ -241,7 +241,13 @@ def world(mind: Mind) -> dict:
         "apples": [list(a) for a in w.apples],
         "mushrooms": [[x, y, int(wait == 0)] for (x, y), wait in w.mushrooms.items()],
         "ball": list(w.ball),
-        "butterflies": [] if w.season == "winter" else [list(b) for b in w.butterflies],
+        "butterflies": [list(b) for b in w.butterflies] if w.fluttering else [],
+        "fluttering": w.fluttering,  # (butterflies and flowers out: all but winter, or when the person brings them)
+        # What the person made happen, going on: the weather, fires and thorns where they are, the ground shaking.
+        "weather": w.weather,
+        "changed": [[x, y, NAMES[int(w.grid[y, x])]] for (x, y) in w.changed],
+        "shaking": w.tick < w.shaking_until,
+        "flash": w.tick - w.flash,
         "rang": w.tick - w.rang,
         "flowers": [
             [int(x), int(y), _hex(w._color(int(x), int(y), FLOWER))] for y, x in zip(*np.nonzero(w.grid == FLOWER))

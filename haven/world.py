@@ -182,6 +182,22 @@ SUNNY = (range(3, 13), range(7, 14))  # the meadow: warm in the sun
 BALL_START = (13, 13)
 BUTTERFLIES_START = ((5, 2), (12, 11), (21, 15))
 ACTIONS = ("forward", "left", "right", "eat", "use", "rest", "speak")
+# What the person can make happen in the valley (see World.bring): weather for a while (ticks), and how it changes how
+# warm it is and how light; and how long the rest lasts.
+WEATHER = {  # kind: (how long, warmer or colder, how much light gets through)
+    "storm": (600, -0.15, 0.55),
+    "heat": (900, 0.3, 1.0),
+    "snow": (600, -0.35, 0.8),
+    "sun": (900, 0.15, 1.0),
+}
+BURNS = (250, 450)  # ticks a fire the person started burns before it burns out
+SPREADS = 300  # ticks a fire the person started goes on spreading (then it only burns out)
+MOST_FIRE = 14  # cells burning at once, at most
+THORNS_LAST = 3 * DAY
+BLIGHT = DAY  # nothing grows back for this long after a blight
+CHARMED = 900  # butterflies and flowers stay out this long (even in winter) after the person brings them
+MOST_BUTTERFLIES = 9
+STRUCK = 3  # moments of pain when the person hurts it
 
 
 @dataclass
@@ -200,6 +216,7 @@ class Senses:
     fed: float  # the person gave it food
     sound: float = 0.0  # a ringing sound
     words: list[str] = field(default_factory=list)
+    boom: float = 0.0  # a thunderclap, or the ground rumbling
 
 
 @dataclass
@@ -249,6 +266,18 @@ class World:
         self._touched = False
         self._fed = False
         self.voice: tuple[int, str] | None = None  # the last word Haven said, and when
+        # What the person has made happen (see bring), and until when.
+        self.weather: str | None = None  # "storm", "heat", "snow" or "sun"
+        self.weather_until = 0
+        self.changed: dict[tuple[int, int], tuple[int, int]] = {}  # cells made fire or thorns: (what was there, until)
+        self.blight_until = 0  # nothing grows back until then
+        self.shaking_until = 0  # the ground shakes until then
+        self.charmed_until = 0  # butterflies and flowers are out until then, even in winter
+        self.spreading_until = 0  # a fire the person started spreads until then
+        self.flash = -(10**9)  # when lightning last struck
+        self._boom = 0.0
+        self._struck = 0  # moments of pain from the person still to come
+        self.struck = False  # (whether its pain this moment came from the person)
         self.areas = [[self._area(x, y) for x in range(self.width)] for y in range(self.height)]
 
     # --- time and weather -------------------------------------------------
@@ -256,7 +285,10 @@ class World:
     @property
     def light(self) -> float:
         phase = 2 * math.pi * (self.tick % DAY) / DAY
-        return float(np.clip(0.5 + 0.08 * self.summer - 0.55 * math.cos(phase), 0.06, 1.0))  # long summer days
+        light = 0.5 + 0.08 * self.summer - 0.55 * math.cos(phase)  # long summer days
+        if self.weather is not None:
+            light *= WEATHER[self.weather][2]  # (dark clouds)
+        return float(np.clip(light, 0.06, 1.0))
 
     @property
     def day(self) -> int:
@@ -307,6 +339,8 @@ class World:
         warmth += {0: 0.3, 1: 0.24, 2: 0.1}.get(fire, 0.0)
         if self.grid[y, x] == NEST:
             warmth += 0.25
+        if self.weather is not None:
+            warmth += WEATHER[self.weather][1] * (0.5 if self.grid[y, x] == NEST else 1.0)  # (its nest shelters it)
         return float(np.clip(warmth, 0.0, 1.0))
 
     def area(self, x: int, y: int) -> str:
@@ -361,13 +395,137 @@ class World:
     def feed(self) -> None:
         self._fed = True
 
+    # --- what the person can make happen in the valley ------------------------------------------------------
+
+    def bring(self, what: str) -> bool:
+        """Make something happen in the valley, good or bad: weather ("storm", "heat", "snow", "sun"), "fire" (it
+        spreads from the campfire, and burns out), "thorns" (they grow, and wither in a few days), "quake", "blight"
+        (all the food withers, and nothing grows back for a day), "food" (food everywhere), "butterflies". Returns
+        whether it happened (there was room for it)."""
+        if what == "sun" and self.light < 0.3:
+            return False  # (at night the sun can't come out)
+        if what in WEATHER:
+            self.weather, self.weather_until = what, self.tick + WEATHER[what][0]
+            if what == "sun":
+                self.charmed_until = max(self.charmed_until, self.weather_until)  # (in winter too)
+            return True
+        if what == "fire":
+            self.spreading_until = self.tick + SPREADS
+            return self._kindle(3) > 0
+        if what == "thorns":
+            return self._sow_thorns(8) > 0
+        if what == "quake":
+            self.shaking_until, self._boom, self.bumped = self.tick + 30, 1.0, True
+            for spot, count in self.fruit.items():  # apples shake down
+                if count and self.rng.random() < 0.6 and self._drop_apple(spot):
+                    self.fruit[spot] -= 1
+            dx, dy = DIRECTIONS[int(self.rng.integers(8))]
+            self._roll(dx, dy, 2)
+            for i in range(len(self.butterflies)):
+                self._flutter(i, away=True)
+            return True
+        if what == "blight":
+            self.berries = dict.fromkeys(self.berries, 0)
+            self.fruit = dict.fromkeys(self.fruit, 0)
+            self.apples = []
+            self.mushrooms = dict.fromkeys(self.mushrooms, MUSHROOMS_REGROW)
+            self.blight_until = self.tick + BLIGHT
+            return True
+        if what == "food":
+            self.berries = dict.fromkeys(self.berries, MAX_BERRIES)
+            self.fruit = dict.fromkeys(self.fruit, MAX_FRUIT)
+            self.mushrooms = {spot: 0 for spot in self.mushrooms}
+            self.blight_until = 0
+            near = [(self.x + dx, self.y + dy) for dx in range(-2, 3) for dy in range(-2, 3)]
+            for spot in [c for c in near if self.free(*c)][:3]:  # and a few apples right by it
+                if len(self.apples) < FALLEN + 3:
+                    self.apples.append(spot)
+            return True
+        if what == "butterflies":
+            room = MOST_BUTTERFLIES - len(self.butterflies)
+            near = [(self.x + dx, self.y + dy) for dx in range(-3, 4) for dy in range(-3, 4) if abs(dx) + abs(dy) > 1]
+            near = [c for c in near if self.inside(*c) and self.grid[c[1], c[0]] not in (WALL, TREE, BELL, WATER)]
+            for i in self.rng.permutation(len(near))[: max(0, min(3, room))]:
+                self.butterflies.append(near[int(i)])
+                self.homes.append(near[int(i)])
+            self.charmed_until = max(self.charmed_until, self.tick + CHARMED)
+            return True
+        return False
+
+    def strike(self) -> None:
+        """The person hurts it: a few moments of pain."""
+        self._struck = STRUCK
+
+    def _kindle(self, n: int) -> int:
+        """Set grass by the campfire alight (or by the fires already burning): how many caught."""
+        burning = [c for c, (was, _) in self.changed.items() if self.grid[c[1], c[0]] == FIRE]
+        sources = burning or [(int(x), int(y)) for y, x in zip(*np.nonzero(self.grid == FIRE))]
+        caught = 0
+        for _ in range(n):
+            if len(burning) + caught >= MOST_FIRE or not sources:
+                break
+            sx, sy = sources[int(self.rng.integers(len(sources)))]
+            options = [(sx + dx, sy + dy) for dx, dy in DIRECTIONS if self._flammable(sx + dx, sy + dy)]
+            if not options:
+                continue
+            spot = options[int(self.rng.integers(len(options)))]
+            self.changed[spot] = (int(self.grid[spot[1], spot[0]]), self.tick + int(self.rng.integers(*BURNS)))
+            self.grid[spot[1], spot[0]] = FIRE
+            sources.append(spot)
+            caught += 1
+        return caught
+
+    def _flammable(self, x: int, y: int) -> bool:
+        return (
+            self.inside(x, y)
+            and self.grid[y, x] in (FLOOR, FLOWER)
+            and (x, y) not in self.changed
+            and (x, y) != self.ball
+            and (x, y) not in self.apples
+            and self._nearest(x, y, NEST, 1) is None  # (its nest stays safe)
+        )
+
+    def _sow_thorns(self, n: int) -> int:
+        """Thorns grow on open grass around the valley (not by its nest): how many."""
+        open_grass = [
+            (int(x), int(y))
+            for y, x in zip(*np.nonzero(self.grid == FLOOR))
+            if self.level(int(x), int(y)) == 0
+            and self._nearest(int(x), int(y), NEST, 2) is None
+            and (int(x), int(y)) not in self.changed
+            and (int(x), int(y)) != (self.x, self.y)
+            and self.free(int(x), int(y))
+        ]
+        chosen = [open_grass[int(i)] for i in self.rng.permutation(len(open_grass))[:n]]
+        for x, y in chosen:
+            self.changed[(x, y)] = (int(self.grid[y, x]), self.tick + THORNS_LAST)
+            self.grid[y, x] = THORN
+        return len(chosen)
+
+    def _goings_on(self) -> None:
+        """What the person brought, going on: the weather (thunder in a storm), fire spreading and burning out,
+        thorns withering."""
+        if self.weather is not None and self.tick >= self.weather_until:
+            self.weather = None
+        if self.weather == "storm" and self.rng.random() < 1 / 60:
+            self._boom, self.flash = 1.0, self.tick  # thunder and lightning
+        if self.tick < self.shaking_until and self.tick % 6 == 0:
+            self._boom = max(self._boom, 0.5)  # (the ground goes on rumbling a while)
+        for spot, (was, until) in list(self.changed.items()):
+            if self.tick >= until:
+                self.grid[spot[1], spot[0]] = was  # it burns out, or withers
+                del self.changed[spot]
+        burning = sum(1 for c in self.changed if self.grid[c[1], c[0]] == FIRE)
+        if burning and self.tick < self.spreading_until and self.rng.random() < burning / 120:
+            self._kindle(1)  # the fire spreads (for a while: then it burns out)
+
     # --- what's where ---------------------------------------------------------
 
     def thing(self, x: int, y: int) -> int:
         """What's at a place, as seen from outside it: a butterfly, the ball, an apple, or what's on the ground."""
         if not self.inside(x, y):
             return WALL
-        if (x, y) in self.butterflies and self.season != "winter":  # (in winter they're gone)
+        if (x, y) in self.butterflies and self.fluttering:  # (in winter they're gone)
             return BUTTERFLY
         if (x, y) == self.ball:
             return BALL
@@ -376,9 +534,14 @@ class World:
         cell = int(self.grid[y, x])
         if cell in (MUSHROOM, TOADSTOOL) and self.mushrooms[(x, y)]:
             return FLOOR  # eaten, and not grown back yet
-        if cell == FLOWER and self.season == "winter":
+        if cell == FLOWER and not self.fluttering:
             return FLOOR  # the flowers sleep until spring
         return cell
+
+    @property
+    def fluttering(self) -> bool:
+        """Whether the butterflies and flowers are out: all but winter (or when the person brings them)."""
+        return self.season != "winter" or self.tick < self.charmed_until
 
     def _cell(self, x: int, y: int) -> int:
         """What's on the ground at a place (not counting things that move)."""
@@ -436,9 +599,10 @@ class World:
             fed=float(self._fed),
             sound=self._sound,
             words=heard,
+            boom=self._boom,
         )
         self._touched = self._fed = False
-        self._sound = 0.0
+        self._sound = self._boom = 0.0
         return senses
 
     def _scent(self) -> float:
@@ -446,7 +610,7 @@ class World:
         here = (self.x, self.y)
         total = sum(n * math.exp(-math.dist(here, spot) / 2.5) for spot, n in self.berries.items())
         total += sum(1.5 * math.exp(-math.dist(here, spot) / 2.5) for spot in self.apples)
-        if self.season != "winter":
+        if self.fluttering:
             flowers = np.nonzero(self.grid == FLOWER)
             total += sum(0.15 * math.exp(-math.dist(here, (int(fx), int(fy))) / 2.0) for fy, fx in zip(*flowers))
         return total
@@ -482,6 +646,10 @@ class World:
             outcome.pain = max(outcome.pain, 0.8 if outcome.moved else 0.3)  # stepping on thorns hurts
         elif here == FIRE:
             outcome.pain = max(outcome.pain, 0.9 if outcome.moved else 0.6)  # and fire burns
+        self.struck = self._struck > 0
+        if self.struck:  # the person hurting it
+            outcome.pain = max(outcome.pain, 0.8)
+            self._struck -= 1
         self.bumped, self.pain = outcome.bumped, outcome.pain
         self._grow()
         self.tick += 1
@@ -574,6 +742,8 @@ class World:
     def _grow(self) -> None:
         season = self.season
         berries, apples, mushrooms = GROWING[season]
+        if self.tick < self.blight_until:
+            berries = apples = mushrooms = 0  # (blighted: nothing grows back for a while)
         for spot, count in self.berries.items():
             if count < MAX_BERRIES:
                 self.growth[spot] += berries
@@ -600,10 +770,11 @@ class World:
             lower = [(dx, dy) for dx, dy in DIRECTIONS[::2] if self.level(bx + dx, by + dy) < self.level(bx, by)]
             if lower:
                 self._roll(*lower[0], 1)
-        if season != "winter":
+        if self.fluttering:
             for i in range(len(self.butterflies)):
                 if self.rng.random() < 0.25:
                     self._flutter(i)
+        self._goings_on()
 
     def _flutter(self, i: int, away: bool = False) -> None:
         """A butterfly flits to a nearby spot, staying near its flowers."""
@@ -639,6 +810,12 @@ class World:
             "butterflies": [list(b) for b in self.butterflies],
             "rang": self.rang,
             "felt": [self.bumped, self.pain, self._sound],
+            "brought": {  # what the person made happen, while it lasts
+                "weather": [self.weather, self.weather_until],
+                "changed": [[x, y, int(self.grid[y, x]), was, until] for (x, y), (was, until) in self.changed.items()],
+                "until": [self.blight_until, self.shaking_until, self.charmed_until, self.spreading_until],
+                "homes": [list(h) for h in self.homes],
+            },
         }
 
     def load(self, state: dict) -> None:
@@ -654,3 +831,13 @@ class World:
         self.rang = int(state["rang"])
         bumped, pain, sound = state.get("felt", (False, 0.0, 0.0))
         self.bumped, self.pain, self._sound = bool(bumped), float(pain), float(sound)
+        brought = state.get("brought") or {}
+        self.weather, self.weather_until = brought.get("weather", (None, 0))
+        for x, y, cell, was, until in brought.get("changed", ()):
+            self.grid[y, x] = cell
+            self.changed[(x, y)] = (was, until)
+        until = [*brought.get("until", ()), 0, 0, 0, 0]
+        self.blight_until, self.shaking_until, self.charmed_until, self.spreading_until = until[:4]
+        self.homes = [tuple(h) for h in brought.get("homes", self.homes)]
+        while len(self.homes) < len(self.butterflies):  # (butterflies the person brought keep near where they came)
+            self.homes.append(self.butterflies[len(self.homes)])
