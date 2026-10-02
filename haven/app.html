@@ -914,6 +914,8 @@ function renderLibrary(s) {
       b.disabled = !s.online || (!!reading && !nowReading);
       b.title = !s.online ? "Haven isn't allowed on the internet here" : "";
       b.onclick = async () => {
+        if (!nowReading && e.size > 1e9 && !confirm(`Have ${name} read ${e.title}? That's ${Math.round(e.size / 1e9)} GB to download, ` +
+          `and it takes ${e.about}. You can pause it any time, and it carries on where it was.`)) return;
         try { if (nowReading) await api("/api/library/stop", {}); else await api("/api/library/read", {which: e.name}); }
         catch (err) { $("giveSaid").textContent = err.message; }
         pollLibrary(true);
