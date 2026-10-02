@@ -356,3 +356,11 @@ def test_without_a_shelf_it_lives_on_and_says_why(tmp_path, monkeypatch):
     assert feeding.status()["problem"] == feeding.problem
     with pytest.raises(FeedError):
         feeding.give("Owls can turn their heads a long way round.")
+
+
+def test_forgetting_what_it_was_given_leaves_its_encyclopedia_alone(feeding):
+    assert feeding.read("simple")
+    feeding.wait(30)
+    feeding.give("Paris is where my aunt lives. She has a cat.", "Paris")
+    assert feeding.forget("Paris") == 1
+    assert feeding.shelf.article("Paris", "simple") is not None  # (the encyclopedia's Paris is still there)

@@ -453,7 +453,7 @@ class Thinker:
             return None
         try:
             hit = shelf.find(f"Tell me about {topic}")
-            article = shelf.article(hit.title) if hit is not None else None
+            article = shelf.article(hit.title, hit.source) if hit is not None else None
         except Exception:  # noqa: BLE001  (a shelf that can't be read just now)
             return None
         if article is None:

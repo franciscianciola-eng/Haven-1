@@ -229,4 +229,6 @@ class Feeding:
         return title, kept
 
     def forget(self, title: str) -> int:
-        return self._shelf().forget(title)
+        """Take something it was given (a text, a file, a web page) off its shelf. Returns how many were taken off."""
+        shelf = self._shelf()
+        return shelf.forget(title, "given") + shelf.forget(title, "web")
