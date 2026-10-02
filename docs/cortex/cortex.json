@@ -1,0 +1,33 @@
+{
+ "config": {
+  "vocab": 4460,
+  "d": 512,
+  "layers": 16,
+  "heads": 8,
+  "context": 512,
+  "slots": 4,
+  "core": 44,
+  "dropout": 0.0
+ },
+ "starter": "20261002-100105",
+ "progress": {
+  "levels": {
+   "2": {
+    "status": "passed",
+    "steps": 29601,
+    "tests": {
+     "self-report": 0.7391304347826086,
+     "understanding": 1.0,
+     "conversation": 0.9583333333333334
+    },
+    "pieces": 1200
+   }
+  },
+  "heard": {
+   "words": 12845184,
+   "speech": 3863207,
+   "books": 289
+  }
+ },
+ "described": "its own, grown from scratch (53.0M connections); it has learned: talking about itself; it grew up hearing 12.8 million words"
+}

@@ -1,0 +1,6 @@
+What Haven's page runs on, as published on npm:
+
+ort/      ONNX Runtime Web 1.30.0, (c) Microsoft Corporation, MIT License:
+          https://github.com/microsoft/onnxruntime/blob/main/LICENSE
+pyodide/  Pyodide 314.0.7, Mozilla Public License 2.0: https://github.com/pyodide/pyodide/blob/main/LICENSE
+          (with Python's standard library, Python Software Foundation License: https://docs.python.org/3/license.html)

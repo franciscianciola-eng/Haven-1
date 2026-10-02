@@ -1,0 +1,11 @@
+{
+  "name": "haven-web-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests of Haven in the browser (docs/), run with Node: npm install, then node --test",
+  "devDependencies": {
+    "onnxruntime-web": "1.30.0",
+    "playwright": "1.56.1",
+    "pyodide": "314.0.7"
+  }
+}
