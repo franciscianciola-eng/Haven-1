@@ -56,8 +56,8 @@ def practice_loss(model, tok, moments: list[dict], rng: random.Random, rehearse:
             mark = [False] + [True] * (len(seq) - 1)
         else:
             seq, mark = conversation_ids(tok, m, rng)
-        seqs.append(seq[-limit:])
-        marks.append(mark[-limit:])
+        seqs.append(seq[:limit])  # (a long conversation loses its end, not what came to mind first)
+        marks.append(mark[:limit])
         states.append(np.asarray(m["state"], dtype=np.float32))
     device = model.embed.weight.device
     length = max(len(s) for s in seqs)

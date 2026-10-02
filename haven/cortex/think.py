@@ -176,6 +176,7 @@ class Thinker:
         self.web = web
         self.busy = threading.Lock()
         self._library = None
+        self._shelf = None  # (whole encyclopedias, and what it's given to read: see shelf.py)
         self.shown: dict[str, set[int]] = {}  # what it has told of each thing it read, in this conversation
         self.last_read: str | None = None  # what it last told them it read
         self.wondered: set[str] = set()  # what it has tried reading about out of curiosity
@@ -289,6 +290,25 @@ class Thinker:
         self._library.refresh()
         return self._library
 
+    @property
+    def shelf(self):
+        """Its shelf of encyclopedias and what it was given to read, if it has one yet (see shelf.py)."""
+        if self._shelf is None:
+            import sqlite3
+
+            from .shelf import Shelf, shelf_path
+
+            if shelf_path(self.root).exists():
+                try:
+                    self._shelf = Shelf(shelf_path(self.root))
+                except (sqlite3.Error, OSError):  # (a Python without full-text search: no shelf, then)
+                    self._shelf = False
+        return self._shelf or None
+
+    @shelf.setter
+    def shelf(self, shelf) -> None:
+        self._shelf = shelf
+
     def recollect(self, mind, text: str, req=None) -> list[str]:
         """What else comes to mind at someone's words: being asked to do something, a sum worked out, or what it read
         (that answers them, that it read lately, or that it could tell them)."""
@@ -366,7 +386,20 @@ class Thinker:
         taught = best_lesson(text, [item for _, item in mind.lessons])
         if taught:  # something someone taught it
             return [f"You told me that {taught}."]
-        found = library.find(text)
+        found = library.find(text, strict=True)  # what it has practised telling, or what something it read is
+        if found is None and self.shelf is not None:  # what it read on its shelf that answers them
+            try:
+                hit = self.shelf.find(text)
+            except Exception:  # noqa: BLE001  (a shelf that can't be read just now)
+                hit = None
+            if hit is not None:
+                if library.sources.get(hit.title) != "book":  # (its little book stays as it practised it)
+                    library.add(hit.title, hit.sentences, "shelf")  # (in mind now: it can tell more of it)
+                    self.shown[hit.title] = set(range(hit.index, hit.index + hit.count))
+                self.last_read = hit.title
+                self._tell("found", hit.title)
+                return [f"I read about {hit.title}: {hit.said}"]
+        found = found or library.find(text)
         if found is None:
             return []
         title, index = found
@@ -375,15 +408,17 @@ class Thinker:
         return [f"I read about {title}: {library.sentence(title, index)}"]
 
     def look_up(self, topic: str, life=None, why: str = "asked") -> str | None:
-        """Read about something in the Simple English Wikipedia (`why`: "asked", or "curious"). Returns the title of
-        what it read."""
-        if self.web is None:
+        """Read about something: on its shelf if it's there, or else in the Simple English Wikipedia online (`why`:
+        "asked", or "curious"). Returns the title of what it read."""
+        found = self._from_shelf(topic)
+        if found is None and self.web is None:
             return None
         self._tell("reading", topic)
-        try:
-            found = sources.article(self.web, sources.URLS["simplewiki"], topic)
-        except WebError:
-            return None
+        if found is None:
+            try:
+                found = sources.article(self.web, sources.URLS["simplewiki"], topic)
+            except WebError:
+                return None
         if found is None:
             return None
         title, text = found
@@ -398,6 +433,24 @@ class Thinker:
             )
         self._tell("read", title)
         return title
+
+    def _from_shelf(self, topic: str) -> tuple[str, str] | None:
+        """(title, text) of the article on its shelf about something, if there's one."""
+        from .shelf import plain_name, singular
+
+        shelf = self.shelf
+        if shelf is None:
+            return None
+        try:
+            hit = shelf.find(f"Tell me about {topic}")
+            article = shelf.article(hit.title) if hit is not None else None
+        except Exception:  # noqa: BLE001  (a shelf that can't be read just now)
+            return None
+        if article is None:
+            return None
+        wanted = {singular(w) for w in plain_name(topic).split()}
+        named = {singular(w) for w in plain_name(article[0]).split()}
+        return (article[0], " ".join(article[1])) if wanted & named else None  # (about that, not something else)
 
     # --- reading out of curiosity ------------------------------------------------------------------
 
@@ -425,7 +478,7 @@ class Thinker:
 
     def read_for_fun(self, life) -> str | None:
         """Read about something it's curious about. Returns what it read about, if it read anything."""
-        topic = None if self.web is None else self.wonder(life)
+        topic = None if self.web is None and self.shelf is None else self.wonder(life)
         if topic is None:
             return None
         self.wondered.add(topic.lower())
@@ -501,7 +554,7 @@ class OwnThinker(Thinker):
         wondered = talk.wondering()  # it wondered something about what they told it, and this may be the answer
         learned = engage.learned_from(wondered, text) if wondered and not meant else None
         wanted = None if meant or learned else asked_to_read(text)
-        if wanted and self.web is not None and not self.library.title_for(wanted):
+        if wanted and (self.web is not None or self.shelf is not None) and not self.library.title_for(wanted):
             self.look_up(wanted, life)  # asked to read about something: it reads it first
         decision = None
         with life.lock:  # what it's experiencing as it's asked, and what comes to mind
@@ -535,13 +588,21 @@ class OwnThinker(Thinker):
         with life.lock:
             mind.understand(text, heard)  # what it made of what was said comes to mind
 
-        def prompt_for(known: str) -> list[int]:
-            prompt = [THINK, *self.tok.encode(known)]
-            for turn in history:
-                prompt += [YOU if turn["who"] == "you" else HAVEN, *self.tok.encode(turn["text"])]
-            return prompt + [YOU, *self.tok.encode(text), HAVEN]
-
         long = 180 if story_asked(text) == "tale" else 100  # (a story takes longer to tell)
+
+        def prompt_for(known: str) -> list[int]:
+            """What came to mind, what was said lately, and what they said: if that's more than it can hold at once,
+            the oldest of what was said goes first (what came to mind just now stays, or the end of it does)."""
+            room = self.model.cfg.context - long
+            head = [THINK, *self.tok.encode(known)]
+            asked = [YOU, *self.tok.encode(text), HAVEN]
+            said = [[YOU if t["who"] == "you" else HAVEN, *self.tok.encode(t["text"])] for t in history]
+            while said and len(head) + sum(map(len, said)) + len(asked) > room:
+                said.pop(0)
+            if len(head) + len(asked) > room:
+                head = [THINK, *head[len(head) - (room - len(asked) - 1) :]]
+            return head + [token for turn in said for token in turn] + asked
+
         told = bool(just) and not learned  # (told something about them: more drafts, so one names it right)
         words, confidence = self._say(prompt_for(known), state, drafts + 2 if told else drafts, long, heard=text)
         if long <= 100 and engage.said_before(words, [t["text"] for t in history if t["who"] != "you"]):
@@ -550,7 +611,8 @@ class OwnThinker(Thinker):
                 known = notes(mind, text, (), just, extra + follow)
             words, confidence = self._say(prompt_for(known), state, drafts, long, heard=text)
         topic = None if sum_of(text) else topic_of(text)  # (a sum isn't something to look up)
-        if words.startswith(DONT_KNOW[:24]) and self.web is not None and topic and not self.library.title_for(topic):
+        can_read = self.web is not None or self.shelf is not None
+        if words.startswith(DONT_KNOW[:24]) and can_read and topic and not self.library.title_for(topic):
             if self.look_up(topic, life):  # it didn't know, so it reads about it, and says what it read
                 with life.lock:
                     extra = self.recollect(mind, text)

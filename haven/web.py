@@ -7,6 +7,7 @@ per second. No API keys are needed for anything Haven reads.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import http.client
 import ipaddress
@@ -62,6 +63,30 @@ class Web:
             raise WebError(f"couldn't reach {url} ({error.reason})") from None
         except (TimeoutError, ConnectionError, http.client.HTTPException) as error:
             raise WebError(f"couldn't read {url} ({error})") from None
+
+    @contextlib.contextmanager
+    def open(self, url: str, accept: str = "*/*"):
+        """A download to read as it comes, for files too big to hold at once (an encyclopedia)."""
+        self._check(url)
+        self._wait_turn(url)
+        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
+        handlers = [_CheckedRedirects(self), urllib.request.HTTPSHandler(context=tls())]
+        if self.allow_private:
+            handlers.append(urllib.request.ProxyHandler({}))
+        try:
+            response = urllib.request.build_opener(*handlers).open(request, timeout=self.timeout)
+        except urllib.error.HTTPError as error:
+            raise WebError(f"{url} answered with an error ({error.code} {error.reason})") from None
+        except urllib.error.URLError as error:
+            raise WebError(f"couldn't reach {url} ({error.reason})") from None
+        except (TimeoutError, ConnectionError, http.client.HTTPException) as error:
+            raise WebError(f"couldn't read {url} ({error})") from None
+        try:
+            yield response
+        except (TimeoutError, ConnectionError, http.client.HTTPException) as error:
+            raise WebError(f"the download from {url} broke off ({error})") from None
+        finally:
+            response.close()
 
     def text(self, url: str, max_bytes: int = 5_000_000) -> str:
         return self.get(url, max_bytes, "text/plain, */*;q=0.5").decode("utf-8", "replace")

@@ -60,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
-    def _body(self) -> dict | None:
+    def _body(self, most: int | None = None) -> dict | None:
         """The JSON a request brought, or None (having answered it) if it's too long or not JSON."""
         if not self._trusted():
             return None
@@ -68,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "send JSON"}, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
             return None
         length = int(self.headers.get("Content-Length") or 0)
-        if length > MAX_BODY:
+        if length > (most or MAX_BODY):
             self._json({"error": "too long"}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
             return None
         try:

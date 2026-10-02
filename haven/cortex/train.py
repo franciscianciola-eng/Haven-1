@@ -406,9 +406,9 @@ class Trainer:
                 mark = [False] + [True] * (len(seq) - 1)
             else:
                 seq, mark = conversation_ids(self.tok, m, self.rng)
-            limit = self.model.cfg.context + 1
-            seqs.append(seq[-limit:])
-            marks.append(mark[-limit:])
+            limit = self.model.cfg.context + 1  # (a long conversation loses its end, not what came to mind first)
+            seqs.append(seq[:limit])
+            marks.append(mark[:limit])
             states.append(np.asarray(m["state"], dtype=np.float32))
             understand.append(i % 6 == 0)
         length = min(-(-max(len(s) for s in seqs) // 64) * 64, self.model.cfg.context + 1)  # (a few sizes of batch)

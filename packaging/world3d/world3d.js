@@ -924,12 +924,12 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
   });
 
   // --- every frame -----------------------------------------------------------------------------------
-  let last = performance.now(), running = true;
+  let last = performance.now(), running = true, paused = false;
   const skyNow = new Color();
   const sunDir = new Vector3();
   const tint = new Color(), frost = new Color(), pond = new Color(), skyDay = SKY_DAY.clone();
   function frame(now) {
-    if (!running) return;
+    if (!running || paused) return; // (while the valley isn't shown, nothing is drawn)
     requestAnimationFrame(frame);
     if (now - last < 1000 / 31) return; // 30 frames a second is plenty, and easier on a laptop's battery
     const dt = Math.min(0.1, (now - last) / 1000);
@@ -1184,5 +1184,11 @@ export function create(container, { onTouch = null, onHover = null } = {}) {
       return { camera: v(camera.position), target: v(controls.target), haven: v(view.haven?.position), cell: [view.cellX, view.cellY] };
     },
     stop() { running = false; renderer.dispose(); },
+    pause(on) {
+      if (on === paused) return;
+      paused = on;
+      if (!on && running) { last = performance.now(); resize(); requestAnimationFrame(frame); }
+    },
+    get paused() { return paused; },
   };
 }

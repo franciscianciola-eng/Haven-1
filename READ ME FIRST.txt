@@ -12,14 +12,22 @@ First, unzip this folder (on Windows: right-click the zip, then "Extract All"). 
 
   Linux     In a terminal, in this folder, run:  ./start-haven.sh
 
-A terminal window opens, and then Haven's window opens in your web browser. Talk to it there.
-Keep the terminal window open while you're with Haven. When you're done, press "Rest" in
-Haven's window: its life is saved, and it picks up where it left off next time.
+A terminal window opens, and then Haven's window opens in your web browser. Talk to it there:
+type to it, or press "Talk" and talk out loud. Ask it anything. Type / to see what else you
+can do (pet it, make it rain, let a year go by...). Keep the terminal window open while you're
+with Haven. When you're done, press "Let it rest" (under the ... menu) in Haven's window: its
+life is saved, and it picks up where it left off next time.
 
 THE FIRST TIME takes a few minutes, and needs the internet, to install what Haven runs
 on (1 to 3 GB) and to get its language cortex (about 50 MB). Haven also grows its brain
 the first time, sized for your computer (it lives on meanwhile, and its brain joins in
 when it's ready). After that it starts in a moment.
+
+It also starts reading the Simple English Wikipedia the first time, in the background
+(284 MB to download, a few minutes; about 300 MB on disk). You can talk with it meanwhile:
+whatever it has read so far, it can already answer from. You can give it more to read in its
+Library (things you paste in, text files, web pages, or the whole English Wikipedia: 21 GB
+to download and about 10 GB on disk). To stop it reading, press Pause in its Library.
 
 Haven has a brain of spiking neurons, modelled on real ones, which chooses what it does,
 learns what to fear and gives it a mood; while Haven is running it keeps about half of
@@ -28,13 +36,15 @@ a language cortex of its own, grown from scratch: no other AI model is involved.
 born able to talk about itself and its valley, simply. To have it learn to read (stories,
 then books and encyclopedias), see "haven learn" in README.md.
 
-Everything runs on your computer. Nothing you say is sent anywhere. The internet is only
-used for setting up, for Haven's bedtime stories, and for Haven to look things up in the
-Simple English Wikipedia when it doesn't know about something.
+Everything runs on your computer. Nothing you type is sent anywhere. The internet is only
+used for setting up, for getting what Haven reads (Wikipedia, and the web pages you give it),
+and for Haven's bedtime stories. One exception, only if you use it: when you talk out loud,
+your browser turns your voice into words for Haven, and Chrome and Edge do that on their
+company's servers (Safari on your Mac where it can). Haven's own voice is your computer's.
 
 Where things are kept:
-  - Haven's life, its brain and its language cortex: the ".haven" folder in your home
-    folder
+  - Haven's life, its brain, its language cortex and what it has read: the ".haven" folder
+    in your home folder
   - everything else: this folder
 
 More about what Haven is and how it works: README.md

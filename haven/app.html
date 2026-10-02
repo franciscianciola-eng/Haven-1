@@ -9,203 +9,341 @@
 :root {
   --bg: #f6f4ef; --panel: #ffffff; --ink: #23221f; --muted: #6d6a62; --line: #e3dfd6;
   --accent: #b5532f; --good: #3f8f5a; --bad: #b8433a; --warn: #b88a2a; --chip: #efebe3; --you: #f2e2d8;
+  --shadow: 0 8px 30px #0002;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #161614; --panel: #201f1c; --ink: #ebe7df; --muted: #9c978c; --line: #33312c;
     --accent: #e0835c; --good: #6cc08a; --bad: #e0736a; --warn: #d9b25a; --chip: #2b2925; --you: #3b2b23;
+    --shadow: 0 8px 30px #0008;
   }
 }
 :root[data-theme="dark"] {
   --bg: #161614; --panel: #201f1c; --ink: #ebe7df; --muted: #9c978c; --line: #33312c;
   --accent: #e0835c; --good: #6cc08a; --bad: #e0736a; --warn: #d9b25a; --chip: #2b2925; --you: #3b2b23;
+  --shadow: 0 8px 30px #0008;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-button { font: inherit; color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 8px; padding: 7px 13px; cursor: pointer; }
-button:hover:not(:disabled) { border-color: var(--accent); }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, .button { font: inherit; font-size: 14px; color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button:hover:not(:disabled), .button:hover { border-color: var(--accent); }
 button:disabled { opacity: .5; cursor: default; }
-button:focus-visible, textarea:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, textarea:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 a { color: var(--accent); }
+input, textarea, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; }
 .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
-header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
-header h1 { margin: 0; font-size: 20px; letter-spacing: .2px; }
-header .meta { color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-header nav { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-header nav a { font-size: 14px; text-decoration: none; padding: 7px 4px; }
-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 400px; }
-.stage { position: relative; min-height: 0; overflow: hidden; background: #0c1230; border-right: 1px solid var(--line); }
-.stage canvas.world3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; border-radius: 0; image-rendering: auto; }
-.stage canvas.flat { position: absolute; inset: 0; margin: auto; width: min(100%, 100vh - 120px); max-width: 100%; max-height: 100%; aspect-ratio: 1; height: auto; }
-.overlay { position: absolute; background: color-mix(in srgb, var(--panel) 86%, transparent); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-.hud { top: 12px; left: 12px; width: 230px; }
-.hud h2, .now h2 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
-.now { left: 12px; bottom: 12px; max-width: min(520px, calc(100% - 24px)); font-size: 13px; }
-.controls { position: absolute; top: 12px; right: 12px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: calc(100% - 270px); }
-.controls button { background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 6px 11px; font-size: 14px; }
-.controls button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.hint { position: absolute; left: 50%; transform: translateX(-50%); top: 56px; font-size: 12px; text-align: center; color: #e9e4da; text-shadow: 0 1px 2px #0008; transition: opacity 1s; pointer-events: none; }
-.speech { position: absolute; transform: translate(-50%, -100%); max-width: 240px; background: #fffdf8; color: #23221f; border-radius: 12px; padding: 5px 10px; font-size: 14px; box-shadow: 0 2px 8px #0003; pointer-events: none; white-space: pre-wrap; }
-.speech::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-top-color: #fffdf8; border-bottom: 0; }
-.tip { position: absolute; background: #1b1a18e6; color: #f4efe6; font-size: 12px; padding: 3px 8px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
-.stage .welfare { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: 60%; }
-.chat { display: flex; flex-direction: column; min-height: 0; }
-.setup { margin: 14px 16px 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
-.setup h2 { margin: 0 0 4px; font-size: 15px; }
-.setup p { margin: 0; color: var(--muted); font-size: 14px; }
-.setup.error { border-color: var(--bad); }
-.setup.error h2 { color: var(--bad); }
-.progress { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; margin: 10px 0 6px; }
-.progress > div { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .4s; }
+
+/* --- the top bar --- */
+.top { display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--bg); position: relative; z-index: 5; }
+.top h1 { margin: 0; font-size: 19px; letter-spacing: .2px; }
+.top .state { color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top .state b { color: var(--ink); font-weight: 600; }
+.top nav { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.menuwrap { position: relative; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 230px; max-height: min(78vh, 640px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+.menu p { margin: 8px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
+.menu button, .menu a { text-align: left; background: transparent; border-color: transparent; width: 100%; justify-content: flex-start; text-decoration: none; color: var(--ink); font-size: 14px; padding: 7px 10px; border-radius: 8px; }
+.menu button:hover, .menu a:hover { background: var(--chip); }
+.menu .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+
+/* --- the conversation, front and center --- */
+.body { flex: 1; min-height: 0; display: flex; position: relative; }
+.chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.column { width: 100%; max-width: 820px; margin: 0 auto; padding: 0 20px; }
+.notice { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); font-size: 14px; }
+.notice h2 { margin: 0 0 4px; font-size: 15px; }
+.notice p { margin: 0; color: var(--muted); }
+.notice.error { border-color: var(--bad); } .notice.error h2 { color: var(--bad); }
+.reading { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 8px 12px; border-radius: 12px; background: var(--chip); font-size: 13px; color: var(--muted); }
+.reading .grow { flex: 1; min-width: 0; }
+.reading b { color: var(--ink); font-weight: 600; }
+.reading button { padding: 4px 10px; font-size: 13px; }
+.progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+.progress > div { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .6s; }
 .progress.unknown > div { width: 30%; animation: slide 1.4s ease-in-out infinite; }
 @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-.log { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.hello { margin: auto 0 0; color: var(--muted); text-align: center; font-size: 14px; }
-.msg { max-width: min(680px, 88%); display: flex; flex-direction: column; }
+.log { flex: 1; min-height: 0; overflow-y: auto; }
+.thread { display: flex; flex-direction: column; gap: 16px; padding: 22px 0 26px; min-height: 100%; }
+.hello { margin: auto 0 0; color: var(--muted); font-size: 15px; text-align: center; max-width: 620px; align-self: center; }
+.hello h2 { color: var(--ink); font-size: 22px; margin: 0 0 8px; font-weight: 600; }
+.hello .tries { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+.hello .tries button { font-size: 13px; border-radius: 999px; }
+.msg { max-width: min(680px, 90%); display: flex; flex-direction: column; }
 .msg.you { align-self: flex-end; align-items: flex-end; }
 .msg.haven { align-self: flex-start; }
-.bubble { padding: 9px 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.msg.you .bubble { background: var(--you); border-radius: 16px 16px 4px 16px; }
-.msg.haven .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 16px 16px 16px 4px; }
+.bubble { padding: 10px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; }
+.msg.you .bubble { background: var(--you); border-radius: 18px 18px 5px 18px; }
+.msg.haven .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 18px 18px 18px 5px; }
 .msg.haven .bubble.pending { color: var(--muted); }
-.who { font-size: 12px; font-weight: 600; color: var(--accent); margin: 0 0 3px 4px; }
-.note { font-size: 12px; color: var(--muted); margin: 3px 4px 0; }
-.thoughts { font-size: 13px; color: var(--muted); margin: 0 0 6px 4px; }
+.who { font-size: 12px; font-weight: 600; color: var(--accent); margin: 0 0 3px 6px; display: flex; gap: 8px; align-items: center; }
+.who button { padding: 0 6px; font-size: 12px; border: none; background: none; color: var(--muted); }
+.who button:hover { color: var(--accent); }
+.note { font-size: 12px; color: var(--muted); margin: 4px 6px 0; }
+.thoughts { font-size: 13px; color: var(--muted); margin: 0 0 6px 6px; }
 .thoughts ol { list-style: none; margin: 0; padding: 2px 0 2px 10px; border-left: 2px solid var(--line); }
 .thoughts li { margin: 2px 0; font-style: italic; }
 .thoughts li.read { font-style: normal; }
 .thoughts summary { cursor: pointer; width: fit-content; }
-.event { align-self: center; font-size: 12px; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 2px 10px; }
+.event { align-self: center; font-size: 12px; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 3px 12px; text-align: center; max-width: 92%; }
+.event.help { border-radius: 14px; padding: 10px 14px; text-align: left; font-size: 13px; display: grid; gap: 6px; }
+.event.help b { color: var(--ink); font-weight: 600; }
+.event.help div { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.event.help .group { min-width: 190px; }
+.event.help button { padding: 1px 8px; font-size: 13px; border-radius: 999px; background: var(--panel); }
 .dots { display: inline-flex; gap: 4px; vertical-align: middle; }
 .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
 .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
-.composer { display: flex; gap: 8px; align-items: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); }
-.composer textarea { flex: 1; min-width: 0; resize: none; max-height: 160px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; }
-.composer .send { background: var(--accent); border-color: var(--accent); color: #fff; padding: 9px 16px; border-radius: 12px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
-canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
-.where { margin-top: 4px; font-size: 13px; color: var(--muted); }
-.bar { display: grid; grid-template-columns: 92px 1fr 36px; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
-.bar .track { height: 7px; background: var(--chip); border-radius: 4px; overflow: hidden; }
+.composer { padding: 10px 0 6px; position: relative; }
+.composer form { display: flex; gap: 8px; align-items: flex-end; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 6px; box-shadow: 0 1px 2px #0001; }
+.composer form:focus-within { border-color: var(--accent); }
+.composer textarea { flex: 1; min-width: 0; resize: none; max-height: 200px; padding: 8px 10px; border: 0; background: transparent; font-size: 16px; }
+.composer textarea:focus-visible { outline: none; }
+.composer button { border-radius: 12px; padding: 8px 12px; }
+.composer .send { background: var(--accent); border-color: var(--accent); color: #fff; }
+.composer .mic.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+.tip { font-size: 12px; color: var(--muted); padding: 2px 6px 10px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.slash { position: absolute; left: 0; right: 0; bottom: calc(100% - 4px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; max-height: 300px; overflow-y: auto; z-index: 20; }
+.slash div { display: flex; gap: 10px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.slash div b { min-width: 120px; font-weight: 600; }
+.slash div span { color: var(--muted); }
+.slash div[aria-selected="true"] { background: var(--chip); }
+
+/* --- panels at the side: the valley, the library --- */
+.side { width: min(46vw, 760px); border-left: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg); min-height: 0; }
+.side.library { width: min(420px, 100vw); }
+.side header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.side header h2 { margin: 0; font-size: 15px; }
+.side header button { margin-left: auto; }
+.side .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; }
+.stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #0c1230; }
+.stage canvas.world3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.stage canvas.flat { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; aspect-ratio: 1; width: auto; height: 100%; image-rendering: pixelated; }
+.overlay { position: absolute; background: color-mix(in srgb, var(--panel) 86%, transparent); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-size: 13px; }
+.hud { top: 10px; left: 10px; width: 220px; }
+.overlay h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
+.now { left: 10px; bottom: 10px; max-width: calc(100% - 20px); }
+.controls { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.controls button { background: color-mix(in srgb, var(--panel) 88%, transparent); padding: 5px 10px; font-size: 13px; }
+.speech { position: absolute; transform: translate(-50%, -100%); max-width: 240px; background: #fffdf8; color: #23221f; border-radius: 12px; padding: 5px 10px; font-size: 14px; box-shadow: 0 2px 8px #0003; pointer-events: none; white-space: pre-wrap; }
+.speech::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-top-color: #fffdf8; border-bottom: 0; }
+.stage .tip3d { position: absolute; background: #1b1a18e6; color: #f4efe6; font-size: 12px; padding: 3px 8px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+.passing { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, calc(100% - 32px)); text-align: center; }
+.welfare { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); max-width: 60%; border-color: var(--warn); color: var(--warn); font-weight: 600; }
+.bar { display: grid; grid-template-columns: 86px 1fr 34px; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
+.bar .track { height: 6px; background: var(--chip); border-radius: 4px; overflow: hidden; }
 .bar .fill { height: 100%; border-radius: 4px; transition: width .4s; }
 .bar .num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-.brain { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
-.brain .small { margin-bottom: 2px; }
+.brain { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 .source { display: inline-block; padding: 0 8px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: 12px; margin-right: 6px; }
 .small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-.cortex { padding: 0 16px 10px; }
-.welfare { border-color: var(--warn); color: var(--warn); font-weight: 600; }
-.menuwrap { position: relative; }
-.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 6px 24px #0003; display: flex; flex-direction: column; gap: 4px; }
-.menu p { margin: 4px 6px 6px; font-size: 12px; color: var(--muted); }
-.menu button { text-align: left; background: transparent; border-color: transparent; }
-.menu button:hover { background: var(--chip); }
-.menu.powers { min-width: 230px; max-height: min(70vh, 560px); overflow-y: auto; }
-.passing { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100% - 32px)); text-align: center; }
-.passing h2 { margin: 0 0 2px; font-size: 16px; }
-.passing p { margin: 0; font-size: 13px; color: var(--muted); }
-.gone { position: fixed; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 88%, transparent); padding: 16px; }
+.library h3 { font-size: 13px; margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.library h3:first-child { margin-top: 0; }
+.count { font-size: 15px; margin: 0 0 4px; }
+.shelfitem { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--panel); }
+.shelfitem .row { display: flex; gap: 10px; align-items: center; }
+.shelfitem .row > div { flex: 1; min-width: 0; }
+.shelfitem b { font-weight: 600; }
+.give textarea { width: 100%; min-height: 110px; resize: vertical; }
+.give input { width: 100%; margin-bottom: 6px; }
+.give .row { display: flex; gap: 8px; margin-top: 6px; align-items: center; flex-wrap: wrap; }
+.given { list-style: none; padding: 0; margin: 0; }
+.given li { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.given li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.given li button { padding: 2px 8px; font-size: 12px; }
+.drop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 80%, transparent); border: 3px dashed var(--accent); font-size: 20px; pointer-events: none; }
+
+/* --- voice --- */
+.voicebar { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 40; width: min(520px, calc(100vw - 24px)); background: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); padding: 14px 16px; display: flex; gap: 14px; align-items: center; }
+.orb { width: 54px; height: 54px; border-radius: 50%; flex-shrink: 0; border: 0; padding: 0; background: radial-gradient(circle at 35% 30%, #ffd2b8, var(--accent) 60%, #6e2a12); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent); }
+.orb.listening { animation: pulse 1.4s ease-out infinite; }
+.orb.speaking { animation: talk .5s ease-in-out infinite alternate; }
+.orb.thinking { animation: think 1.6s linear infinite; filter: saturate(.6); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 18px transparent; } }
+@keyframes talk { from { transform: scale(1); } to { transform: scale(1.09); } }
+@keyframes think { 50% { opacity: .55; } }
+.voicebar .what { flex: 1; min-width: 0; }
+.voicebar .what b { display: block; font-size: 14px; }
+.voicebar .what span { display: block; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.voiceset { display: grid; gap: 8px; padding: 8px; font-size: 13px; min-width: 260px; }
+.voiceset label { display: grid; gap: 3px; color: var(--muted); }
+.voiceset label.check { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: 14px; }
+.voiceset select, .voiceset input { width: 100%; }
+.gone { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 88%, transparent); padding: 16px; }
 .gone div { max-width: 420px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
 .gone h2 { margin: 0 0 6px; font-size: 18px; }
 .gone p { margin: 0; color: var(--muted); }
 [hidden] { display: none !important; }
-@media (max-width: 820px) {
-  main { display: flex; flex-direction: column; }
-  .stage { flex: 0 0 46%; border-right: 0; border-bottom: 1px solid var(--line); }
-  .chat { flex: 1; }
+.wide { display: inline; }
+@media (max-width: 900px) {
+  .side { position: absolute; inset: 0; width: 100%; z-index: 20; border-left: 0; }
+  .side.library { width: 100%; }
+  .top { padding: 8px 10px; gap: 8px; }
+  .top .state { display: none; }
+  .wide { display: none; }
+  .column { padding: 0 12px; }
   .hud { display: none; }
-  .controls { max-width: calc(100% - 24px); }
-  .controls button { padding: 5px 9px; font-size: 13px; }
-  .now { font-size: 12px; padding: 7px 10px; }
-  .hint { display: none; }
-  header .meta { display: none; }
+  .voicebar { bottom: 84px; }
+  .tip span:first-child { display: none; }
+  .event.help .group { min-width: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 <div class="app">
-  <header>
+  <header class="top">
     <h1 id="name">Haven</h1>
-    <span class="meta" id="age"></span>
+    <span class="state" id="state"></span>
     <nav>
-      <a href="/dashboard" target="_blank" rel="noopener">Inside its mind</a>
+      <button id="talk" type="button" title="Talk out loud with Haven: it listens, answers, and speaks (hands-free)">🎙<span class="wide"> Talk</span></button>
       <span class="menuwrap">
-        <button id="pass" type="button" aria-haspopup="true" aria-expanded="false" title="Let Haven live through a stretch of time, as fast as it can">Let time pass</button>
-        <div class="menu" id="passMenu" role="menu" hidden>
-          <p>Haven lives through it as fast as it can: exploring, playing, getting through the seasons. Then it tells you what happened.</p>
-          <button type="button" role="menuitem" data-days="1">A day</button>
-          <button type="button" role="menuitem" data-days="6">A season</button>
-          <button type="button" role="menuitem" data-days="24">A year</button>
-          <button type="button" role="menuitem" data-days="72">Three years</button>
+        <button id="voiceBtn" type="button" aria-haspopup="true" aria-expanded="false" title="Haven's voice: it reads its replies aloud">🔈<span class="wide"> Voice</span></button>
+        <div class="menu" id="voiceMenu" hidden>
+          <div class="voiceset">
+            <label class="check"><input type="checkbox" id="speakOn"> Speak its replies aloud</label>
+            <label>Its voice <select id="voicePick"></select></label>
+            <label>How fast <input type="range" id="rate" min="0.6" max="1.6" step="0.05" value="1"></label>
+            <label>How high <input type="range" id="pitch" min="0.5" max="2" step="0.05" value="1.15"></label>
+            <button type="button" id="voiceTry">Hear it</button>
+            <span class="small" id="voiceAbout"></span>
+          </div>
         </div>
       </span>
+      <button id="libraryBtn" type="button" aria-pressed="false" title="What Haven has read, and giving it more to read">📚<span class="wide"> Library</span></button>
+      <button id="valleyBtn" type="button" aria-pressed="false" title="Haven's valley, where it lives, in 3D">🌄<span class="wide"> Valley</span></button>
       <span class="menuwrap">
-        <button id="bring" type="button" aria-haspopup="true" aria-expanded="false" title="Make something happen in Haven's valley, good or bad">Make something happen</button>
-        <div class="menu powers" id="bringMenu" role="menu" hidden>
-          <p>Good things</p>
-          <button type="button" role="menuitem" data-what="food" data-told="Food grows everywhere: the bushes and trees fill up, and apples fall by {name}.">🍎 Food everywhere</button>
-          <button type="button" role="menuitem" data-what="sun" data-told="The sun comes out: a warm spell, with flowers and butterflies out, even in winter." data-failed="It's night in the valley: the sun can't come out until morning.">☀️ Sunshine</button>
-          <button type="button" role="menuitem" data-what="butterflies" data-told="Butterflies come to {name}.">🦋 Butterflies</button>
-          <button type="button" role="menuitem" data-what="heal" data-told="You heal {name}: its hurts mend at once." data-label="💚 Heal {name}">💚 Heal Haven</button>
-          <p>Hard things</p>
-          <button type="button" role="menuitem" data-what="storm" data-told="A storm comes: dark clouds, cold rain and thunder.">⛈️ Storm</button>
-          <button type="button" role="menuitem" data-what="heat" data-told="A heat wave comes.">🔥 Heat wave</button>
-          <button type="button" role="menuitem" data-what="snow" data-told="A snowstorm comes.">❄️ Snowstorm</button>
-          <button type="button" role="menuitem" data-what="fire" data-told="A fire spreads from the campfire. It will burn out.">🌋 Wildfire</button>
-          <button type="button" role="menuitem" data-what="quake" data-told="The ground shakes.">🌍 Earthquake</button>
-          <button type="button" role="menuitem" data-what="blight" data-told="A blight: all the food withers, and nothing grows back for a day.">🥀 Blight</button>
-          <button type="button" role="menuitem" data-what="thorns" data-told="Thorns grow across the valley. They wither in a few days.">🌵 Thorns</button>
-          <button type="button" role="menuitem" data-what="hurt" data-told="You hurt {name}. It hurts for a few moments, and it remembers who did it." title="A few moments of pain. It can't die, and it heals, but it remembers who hurt it." data-label="💢 Hurt {name}">💢 Hurt Haven</button>
+        <button id="more" type="button" aria-haspopup="true" aria-expanded="false" title="More: make something happen, let time pass, rest">⋯</button>
+        <div class="menu" id="moreMenu" role="menu" hidden>
+          <p>Be with it</p>
+          <div class="grid">
+            <button type="button" role="menuitem" data-cmd="pet">🤲 Pet it</button>
+            <button type="button" role="menuitem" data-cmd="feed">🫐 Give a berry</button>
+          </div>
+          <p>Make something good happen</p>
+          <div class="grid">
+            <button type="button" role="menuitem" data-cmd="food">🍎 Food</button>
+            <button type="button" role="menuitem" data-cmd="sun">☀️ Sunshine</button>
+            <button type="button" role="menuitem" data-cmd="butterflies">🦋 Butterflies</button>
+            <button type="button" role="menuitem" data-cmd="heal">💚 Heal it</button>
+          </div>
+          <p>Make something hard happen</p>
+          <div class="grid">
+            <button type="button" role="menuitem" data-cmd="storm">⛈️ Storm</button>
+            <button type="button" role="menuitem" data-cmd="heat">🔥 Heat wave</button>
+            <button type="button" role="menuitem" data-cmd="snow">❄️ Snowstorm</button>
+            <button type="button" role="menuitem" data-cmd="fire">🌋 Wildfire</button>
+            <button type="button" role="menuitem" data-cmd="quake">🌍 Earthquake</button>
+            <button type="button" role="menuitem" data-cmd="blight">🥀 Blight</button>
+            <button type="button" role="menuitem" data-cmd="thorns">🌵 Thorns</button>
+            <button type="button" role="menuitem" data-cmd="hurt">💢 Hurt it</button>
+          </div>
+          <p>Let time pass</p>
+          <div class="grid">
+            <button type="button" role="menuitem" data-cmd="pass day">A day</button>
+            <button type="button" role="menuitem" data-cmd="pass season">A season</button>
+            <button type="button" role="menuitem" data-cmd="pass year">A year</button>
+            <button type="button" role="menuitem" data-cmd="pass 3 years">Three years</button>
+          </div>
+          <p>And</p>
+          <a href="/dashboard" target="_blank" rel="noopener" role="menuitem">🧠 Inside its mind</a>
+          <button type="button" role="menuitem" data-cmd="help">⌨️ What you can type</button>
+          <button type="button" role="menuitem" data-cmd="rest">🌙 Let it rest</button>
         </div>
       </span>
-      <button id="rest" type="button" title="Save and let Haven rest until you come back">Rest</button>
     </nav>
   </header>
-  <main>
-    <section class="stage" id="stage" aria-label="Haven's valley">
-      <canvas id="world" class="flat" width="480" height="480" aria-label="Haven's valley, from above" hidden></canvas>
-      <div class="overlay hud" id="hud">
-        <h2>How it is</h2>
-        <div id="bars"></div>
-        <div id="brain" class="brain" hidden></div>
+  <div class="body">
+    <main class="chat" aria-label="Conversation">
+      <div class="column">
+        <div class="notice" id="setup" aria-live="polite">
+          <h2 id="setupTitle">Waking up…</h2>
+          <div class="progress unknown" id="setupBar"><div></div></div>
+          <p id="setupText"></p>
+        </div>
+        <div class="reading" id="reading" hidden>
+          <span>📖</span>
+          <div class="grow"><div id="readingText"></div><div class="progress"><div id="readingBar"></div></div></div>
+          <button type="button" id="readingStop">Pause</button>
+        </div>
       </div>
-      <div class="controls">
-        <button id="follow" type="button" aria-pressed="true" title="Keep the camera on Haven">Follow Haven</button>
-        <button id="touch" type="button" title="Pet Haven (you can also click on it)">Touch</button>
-        <button id="feed" type="button" title="Give Haven a berry">Give a berry</button>
-        <button id="sound" type="button" aria-pressed="false" title="Hear the bell when Haven rings it">Sound off</button>
+      <div class="log" id="log" aria-live="polite"><div class="column thread" id="thread"></div></div>
+      <div class="column composer">
+        <div class="slash" id="slash" role="listbox" hidden></div>
+        <form id="form">
+          <textarea id="text" rows="1" placeholder="Haven's language area is getting ready…" aria-label="Message to Haven" disabled></textarea>
+          <button class="mic" id="mic" type="button" title="Say it out loud instead of typing">🎙</button>
+          <button class="send" id="send" type="submit" disabled>Send</button>
+        </form>
+        <div class="tip"><span>Enter to send · Shift+Enter for a new line · type <b>/</b> for things you can do</span><span id="cortex"></span></div>
       </div>
-      <div class="card welfare" id="welfare" hidden></div>
-      <div class="overlay passing" id="passing" hidden aria-live="polite">
-        <h2>Time is going by</h2>
-        <div class="progress"><div id="passingBar"></div></div>
-        <p id="passingText"></p>
+    </main>
+
+    <aside class="side library" id="library" hidden aria-label="Haven's library">
+      <header><h2>📚 Haven's library</h2><button type="button" id="libraryClose">Close</button></header>
+      <div class="scroll">
+        <h3>On its shelf</h3>
+        <p class="count" id="shelfCount">…</p>
+        <p class="small">It keeps what it reads on this computer, in its home folder, and answers from it: what it read comes to mind when you ask, and it tells you in its own words, and where it read it. Its cortex is small, so it doesn't know all of it by heart; it looks things up, the way you would in a book.</p>
+        <h3>Encyclopedias</h3>
+        <div id="shelves"></div>
+        <h3>Give it something to read</h3>
+        <div class="give">
+          <input id="giveTitle" type="text" placeholder="A title (if you like)" maxlength="120">
+          <textarea id="giveText" placeholder="Paste anything here: notes, an article, a story, a chapter of a book…"></textarea>
+          <div class="row">
+            <button type="button" id="giveBtn">Give it this to read</button>
+            <label class="button" title="Text files: .txt, .md, .html, .csv, .json…">Choose files…<input type="file" id="giveFiles" multiple accept=".txt,.md,.markdown,.html,.htm,.csv,.tsv,.json,.xml,.srt,.vtt,.rst,.tex,.log,text/*" hidden></label>
+          </div>
+          <div class="row">
+            <input id="pageUrl" type="url" placeholder="Or a web page: https://…" style="flex:1; margin:0">
+            <button type="button" id="pageBtn">Read this page</button>
+          </div>
+          <p class="small" id="giveSaid" aria-live="polite"></p>
+          <p class="small">You can also drop text files anywhere on this window.</p>
+        </div>
+        <h3>What you gave it</h3>
+        <ul class="given" id="given"></ul>
       </div>
-      <div class="overlay now">
-        <h2>In its mind now</h2>
-        <div id="focus"></div>
-        <div class="where" id="where"></div>
-      </div>
-      <div class="hint" id="hint">Drag to look around · scroll to zoom · point at things to see what they are · click Haven to pet it</div>
-    </section>
-    <section class="chat" aria-label="Conversation">
-      <div class="setup" id="setup" aria-live="polite">
-        <h2 id="setupTitle">Waking up…</h2>
-        <div class="progress unknown" id="setupBar"><div></div></div>
-        <p id="setupText"></p>
-      </div>
-      <div class="log" id="log" aria-live="polite"></div>
-      <form class="composer" id="form">
-        <textarea id="text" rows="1" placeholder="Haven's language area is getting ready…" aria-label="Message to Haven" disabled></textarea>
-        <button class="send" id="send" type="submit" disabled>Send</button>
-      </form>
-      <div class="small cortex" id="cortex"></div>
-    </section>
-  </main>
+    </aside>
+
+    <aside class="side" id="valley" hidden aria-label="Haven's valley">
+      <header><h2>🌄 Haven's valley</h2><span class="small" id="valleyWhere"></span><button type="button" id="valleyClose">Close</button></header>
+      <section class="stage" id="stage">
+        <canvas id="world" class="flat" width="480" height="480" aria-label="Haven's valley, from above" hidden></canvas>
+        <div class="overlay hud" id="hud">
+          <h3>How it is</h3>
+          <div id="bars"></div>
+          <div id="brain" class="brain" hidden></div>
+        </div>
+        <div class="controls">
+          <button id="follow" type="button" aria-pressed="true" title="Keep the camera on Haven">Follow Haven</button>
+          <button id="sound" type="button" aria-pressed="false" title="Hear the bell when Haven rings it">Bell sound off</button>
+        </div>
+        <div class="overlay welfare" id="welfare" hidden></div>
+        <div class="overlay passing" id="passing" hidden aria-live="polite">
+          <h3>Time is going by</h3>
+          <div class="progress"><div id="passingBar"></div></div>
+          <p class="small" id="passingText"></p>
+        </div>
+        <div class="overlay now">
+          <h3>In its mind now</h3>
+          <div id="focus"></div>
+          <div class="small" id="where"></div>
+        </div>
+      </section>
+    </aside>
+  </div>
 </div>
+
+<div class="voicebar" id="voicebar" hidden aria-live="polite">
+  <button class="orb" id="orb" type="button" title="Tap to talk now, or to stop it speaking"></button>
+  <div class="what"><b id="voiceState">Listening…</b><span id="voiceHeard"></span></div>
+  <button type="button" id="voiceStop">Stop</button>
+</div>
+<div class="drop" id="drop" hidden>Drop to give Haven these to read</div>
 <div class="gone" id="gone" hidden>
   <div><h2 id="goneTitle">Haven is resting</h2><p id="goneText"></p></div>
 </div>
@@ -213,8 +351,10 @@ canvas.flat { display: block; border-radius: 8px; image-rendering: pixelated; }
 <script>
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const TILE = {".": "#5a9e54", "#": "#4a4852", "T": "#9e38c7", "S": "#9e9e99", "N": "#dbbd4c", "B": "#1f6630",
-  "A": "#2f6f34", "W": "#3f86d0", ":": "#dcc990", "f": "#e889b8", "m": "#8e5b32", "t": "#d8344f", "b": "#d6a531", "F": "#ff7a2a"};
+const store = {  // little things the page remembers (its voice, whether it speaks), if the browser lets it
+  get(key, fallback) { try { const v = localStorage.getItem("haven." + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
+  set(key, value) { try { localStorage.setItem("haven." + key, JSON.stringify(value)); } catch (e) { /* not kept */ } },
+};
 let name = "Haven", ready = false, busy = null, failures = 0, gone = false, lastNews = -1, lastSpoken = -1, version = "", passing = null;
 
 async function api(path, body) {
@@ -233,63 +373,72 @@ function el(tag, cls, text) {
 }
 
 function dots() { const d = el("span", "dots"); d.append(el("i"), el("i"), el("i")); return d; }
-
+const plain = (t) => String(t).replace(/[&<>"]/g, (ch) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[ch]);
+const number = (n) => Number(n || 0).toLocaleString();
 
 // --- the conversation -------------------------------------------------------------------------
 
 function scrollDown(force) {
   const log = $("log");
-  if (force || log.scrollHeight - log.scrollTop - log.clientHeight < 160) log.scrollTop = log.scrollHeight;
+  if (force || log.scrollHeight - log.scrollTop - log.clientHeight < 200) log.scrollTop = log.scrollHeight;
 }
 
 function addYou(text) {
   $("hello")?.remove();
   const m = el("div", "msg you");
   m.append(el("div", "bubble", text));
-  $("log").append(m);
+  $("thread").append(m);
   scrollDown(true);
 }
 
 function havenMessage(text) {
   $("hello")?.remove();
   const m = el("div", "msg haven");
-  const view = {who: el("div", "who", name), thoughts: el("div", "thoughts"), list: el("ol"), bubble: el("div", "bubble"), note: el("div", "note")};
+  const who = el("div", "who", name);
+  const hear = el("button", "", "🔈");
+  hear.type = "button";
+  hear.title = "Hear it say this";
+  hear.onclick = () => { const said = view.bubble.textContent; if (said && !view.bubble.classList.contains("pending")) voice.say(said, {now: true}); };
+  who.append(hear);
+  const view = {who, thoughts: el("div", "thoughts"), list: el("ol"), bubble: el("div", "bubble"), note: el("div", "note")};
   view.thoughts.hidden = true;
   view.thoughts.append(view.list);
   if (text !== undefined) view.bubble.textContent = text;
   m.append(view.who, view.thoughts, view.bubble, view.note);
-  $("log").append(m);
+  $("thread").append(m);
   scrollDown();
   return view;
 }
 
-function addEvent(text) { $("log").append(el("div", "event", text)); scrollDown(); }
+function addEvent(text) { $("hello")?.remove(); $("thread").append(el("div", "event", text)); scrollDown(); }
 
 function thoughtLine(t) {
   if (t.kind === "draft") return el("li", "", `Words that came to it: “${t.text}”`);
-  if (t.kind === "read") return el("li", "read", `Read about ${t.text} in the encyclopedia.`);
+  if (t.kind === "read") return el("li", "read", `Read about ${t.text} in the encyclopedia, online.`);
+  if (t.kind === "found") return el("li", "read", `Found it on its shelf: ${t.text}.`);
   return el("li", "", t.text);
 }
 
 const PHASES = {listening: "listening", answering: "answering", "thinking it over": "thinking it over"};
 
-async function follow(id) {
+async function follow(id) {  // follows a reply as it takes shape; returns what it said
   busy = id;
   setComposer();
   const view = havenMessage();
   view.bubble.classList.add("pending");
   view.bubble.append(dots());
-  let shown = 0;
+  let shown = 0, reply = "";
   while (!gone) {
     let turn;
     try { turn = await api(`/api/chat/${id}`); }
     catch (e) { if (e.status === 404) break; await sleep(1000); continue; }
     for (; shown < turn.thoughts.length; shown++) { view.list.append(thoughtLine(turn.thoughts[shown])); view.thoughts.hidden = false; }
     if (turn.done) {
+      reply = turn.reply || "";
       view.bubble.classList.remove("pending");
-      view.bubble.textContent = turn.reply || "…";
-      view.note.textContent = turn.reply ? `${Math.round(turn.confidence * 100)}% sure` : "It couldn't find the words this time.";
-      if (shown) {  // tuck its thinking away once it has answered
+      view.bubble.textContent = reply || "…";
+      view.note.textContent = reply ? `${Math.round(turn.confidence * 100)}% sure` : "It couldn't find the words this time.";
+      if (shown) {  // its thinking, tucked away once it has answered
         const details = el("details");
         details.append(el("summary", "", shown === 1 ? "How it got there (1 thought)" : `How it got there (${shown} thoughts)`), view.list);
         view.thoughts.replaceChildren(details);
@@ -300,53 +449,206 @@ async function follow(id) {
     if (!turn.draft) view.bubble.append(dots());
     view.note.textContent = (PHASES[turn.phase] || turn.phase) + "…";
     scrollDown();
-    await sleep(300);
+    await sleep(250);
   }
   busy = null;
   setComposer();
   scrollDown();
-  if (ready && document.activeElement === document.body) $("text").focus();
+  return reply;
+}
+
+async function send(text) {  // says something to Haven; returns its reply (or "" if it couldn't answer)
+  addYou(text);
+  try { return await follow((await api("/api/chat", {text})).id); }
+  catch (err) {
+    addEvent(err.status === 409 ? `${name} is still answering the last thing you said.` : `Couldn't reach ${name} (${err.message}).`);
+    return "";
+  }
 }
 
 function setComposer() {
   const text = $("text");
   text.disabled = !ready || gone || !!passing;
   $("send").disabled = !ready || !!busy || gone || !!passing;
-  $("pass").disabled = !!busy || !!passing || gone;
+  $("mic").disabled = !ready || !!busy || gone || !!passing || !voice.canListen;
   text.placeholder = !ready ? "Haven's language area is getting ready…" : passing ? "Time is going by…"
-    : busy ? `${name} is answering…` : `Talk to ${name}…`;
+    : busy ? `${name} is answering…` : `Talk to ${name}, or ask it anything…`;
 }
 
-function autosize() { const t = $("text"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 160) + "px"; }
+function autosize() { const t = $("text"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 200) + "px"; }
 
-$("text").addEventListener("input", autosize);
+// --- things to type: /commands -----------------------------------------------------------------
+
+const POWERS = {
+  food: ["Food grows everywhere: the bushes and trees fill up, and apples fall by {name}."],
+  sun: ["The sun comes out: a warm spell, with flowers and butterflies out, even in winter.", "It's night in the valley: the sun can't come out until morning."],
+  butterflies: ["Butterflies come to {name}."],
+  heal: ["You heal {name}: its hurts mend at once."],
+  storm: ["A storm comes: dark clouds, cold rain and thunder."],
+  heat: ["A heat wave comes."],
+  snow: ["A snowstorm comes."],
+  fire: ["A fire spreads from the campfire. It will burn out."],
+  quake: ["The ground shakes."],
+  blight: ["A blight: all the food withers, and nothing grows back for a day."],
+  thorns: ["Thorns grow across the valley. They wither in a few days."],
+  hurt: ["You hurt {name}. It hurts for a few moments, and it remembers who did it."],
+};
+const DAYS = {day: 1, season: 6, year: 24, "3 years": 72, years: 72};
+const COMMANDS = [
+  ["pet", "pet Haven (it likes it)", () => pet()],
+  ["feed", "give Haven a berry", () => feedBerry()],
+  ["food", "make food grow everywhere"], ["sun", "make the sun come out"], ["butterflies", "bring butterflies"],
+  ["heal", "heal Haven"], ["storm", "bring a storm"], ["heat", "bring a heat wave"], ["snow", "bring a snowstorm"],
+  ["fire", "start a wildfire"], ["quake", "an earthquake"], ["blight", "make the food wither"], ["thorns", "grow thorns"],
+  ["hurt", "hurt Haven (it remembers)"],
+  ["pass", "day · season · year · 3 years: let time go by", (rest) => passTime(rest)],
+  ["read", "a web address: have Haven read a page", (rest) => readPage(rest)],
+  ["library", "what Haven has read; give it more", () => openPanel("library")],
+  ["valley", "show or hide Haven's valley in 3D", () => openPanel(panel === "valley" ? null : "valley")],
+  ["voice", "Haven speaks its replies aloud (on/off)", () => { voice.setSpeaking(!voice.speaking); addEvent(voice.speaking ? `${name} will speak its replies aloud.` : `${name} won't speak aloud.`); }],
+  ["talk", "talk out loud with Haven, hands-free", () => voice.start()],
+  ["rest", "save, and let Haven rest", () => rest()],
+  ["help", "what you can type", () => help()],
+];
+for (const what of Object.keys(POWERS)) {
+  const command = COMMANDS.find((c) => c[0] === what);
+  command[2] = () => bring(what);
+}
+
+const HELP = [
+  ["Be with it", ["pet", "feed"]],
+  ["Make something good happen", ["food", "sun", "butterflies", "heal"]],
+  ["Make something hard happen", ["storm", "heat", "snow", "fire", "quake", "blight", "thorns", "hurt"]],
+  ["Time", ["pass"]],
+  ["What it reads", ["read", "library"]],
+  ["Its voice", ["talk", "voice"]],
+  ["And", ["valley", "rest", "help"]],
+];
+function help() {  // what you can type, as a little card
+  $("hello")?.remove();
+  const card = el("div", "event help");
+  card.append(el("b", "", `Type to talk with ${name}, or ask it anything. And:`));
+  for (const [group, names] of HELP) {
+    const row = el("div");
+    row.append(el("span", "group", group));
+    for (const n of names) {
+      const c = COMMANDS.find(([x]) => x === n);
+      const b = el("button", "", "/" + n);
+      b.type = "button";
+      b.title = c[1];
+      b.onclick = () => { if (n === "pass" || n === "read") { $("text").value = "/" + n + " "; $("text").focus(); } else run("/" + n); };
+      row.append(b);
+    }
+    card.append(row);
+  }
+  $("thread").append(card);
+  scrollDown(true);
+}
+
+function run(line) {  // a /command; returns whether it was one
+  const [word, ...rest] = line.slice(1).trim().split(/\s+/);
+  const found = COMMANDS.find(([c]) => c === (word || "").toLowerCase()) || (word === "touch" && COMMANDS[0]);
+  if (!found) { addEvent(`There's no /${word}. Type /help to see what you can do.`); return; }
+  found[2](rest.join(" "));
+}
+
+let slashAt = 0;
+function slashList() {
+  const value = $("text").value;
+  const box = $("slash");
+  if (!value.startsWith("/") || value.includes(" ") || value.includes("\n")) { box.hidden = true; return []; }
+  const typed = value.slice(1).toLowerCase();
+  const found = COMMANDS.filter(([c]) => c.startsWith(typed));
+  box.replaceChildren(...found.map(([c, h], i) => {
+    const row = el("div");
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", String(i === slashAt));
+    row.append(el("b", "", "/" + c), el("span", "", h));
+    row.onmousedown = (e) => { e.preventDefault(); $("text").value = "/" + c + " "; slashList(); $("text").focus(); };
+    return row;
+  }));
+  box.hidden = !found.length;
+  return found;
+}
+
+$("text").addEventListener("input", () => { autosize(); slashAt = 0; slashList(); });
 $("text").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("form").requestSubmit(); }
+  const found = $("slash").hidden ? [] : slashList();
+  if (found.length && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    e.preventDefault();
+    slashAt = (slashAt + (e.key === "ArrowDown" ? 1 : found.length - 1)) % found.length;
+    slashList();
+    return;
+  }
+  if (found.length && e.key === "Tab") { e.preventDefault(); $("text").value = "/" + found[Math.min(slashAt, found.length - 1)][0] + " "; slashList(); return; }
+  if (e.key === "Escape") { $("slash").hidden = true; return; }
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    if (found.length && $("text").value.trim() !== "/" + found[Math.min(slashAt, found.length - 1)][0] && !COMMANDS.some(([c]) => "/" + c === $("text").value.trim())) {
+      $("text").value = "/" + found[Math.min(slashAt, found.length - 1)][0] + " ";
+      slashList();
+      return;
+    }
+    $("form").requestSubmit();
+  }
 });
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("text").value.trim();
-  if (!text || !ready || busy) return;
+  $("slash").hidden = true;
+  if (!text) return;
+  if (text.startsWith("/")) { $("text").value = ""; autosize(); run(text); return; }
+  if (!ready || busy) return;
   $("text").value = "";
   autosize();
-  addYou(text);
-  try { follow((await api("/api/chat", {text})).id); }
-  catch (err) { addEvent(err.status === 409 ? `${name} is still answering the last thing you said.` : `Couldn't reach ${name} (${err.message}).`); }
+  const reply = await send(text);
+  if (reply && voice.speaking && !voice.mode) voice.say(reply);
 });
+
+// --- doing things -----------------------------------------------------------------------------------
+
+async function pet() {
+  try { await api("/api/touch", {}); addEvent(`You petted ${name}.`); valleyView?.touched(); } catch (e) { /* gone */ }
+}
+
+async function feedBerry() {
+  try { await api("/api/feed", {}); addEvent(`You gave ${name} a berry.`); } catch (e) { /* gone */ }
+}
+
+async function bring(what) {  // make something happen in its valley, good or bad (it takes it as it comes)
+  try {
+    const done = await api("/api/bring", {what});
+    const [told, failed] = POWERS[what];
+    addEvent(done.ok ? told.replaceAll("{name}", name) : (failed || "Nothing happened: there was no room for it.").replaceAll("{name}", name));
+    if (done.ok && what === "heal") valleyView?.touched();
+  } catch (err) { addEvent(`Couldn't do that (${err.message}).`); }
+}
+
+async function passTime(rest) {
+  const days = DAYS[(rest || "").toLowerCase().trim()] || Number(rest);
+  if (!days || days < 1) { addEvent("Say how long: /pass day, /pass season, /pass year or /pass 3 years."); return; }
+  try {
+    await api("/api/pass", {days});
+    addEvent(`You let ${days === 1 ? "a day" : days === 6 ? "a season" : days === 24 ? "a year" : `${days} days`} go by for ${name}. It lives through it as fast as it can, then tells you what happened.`);
+    passing = {days, done: 0, total: days * 1200};
+    setComposer();
+  } catch (err) { addEvent(`Couldn't let time pass (${err.message}).`); }
+}
+
+async function rest() {
+  voice.stop();
+  try { await api("/api/rest", {}); } catch (e) { /* already gone */ }
+  goneNow("Haven is resting", "Its life is saved. To be with it again, start Haven the way you did before. (You can close this tab.)");
+}
 
 // --- getting its language area ready ----------------------------------------------------------
 
 function renderSetup(s) {
-  const box = $("setup"), bar = $("setupBar");
+  const box = $("setup");
   box.classList.toggle("error", s.stage === "error");
-  bar.hidden = s.stage === "error";
-  if (s.stage === "error") {
-    $("setupTitle").textContent = "Haven can't talk yet";
-    $("setupText").textContent = s.text;
-  } else {
-    $("setupTitle").textContent = s.text || "Waking up…";
-    $("setupText").textContent = "";
-  }
+  $("setupBar").hidden = s.stage === "error";
+  $("setupTitle").textContent = s.stage === "error" ? "Haven can't talk yet" : s.text || "Waking up…";
+  $("setupText").textContent = s.stage === "error" ? s.text : "";
 }
 
 async function pollSetup() {
@@ -370,94 +672,71 @@ async function pollSetup() {
   }
 }
 
-// --- how it is, in the side panel ----------------------------------------------------------------
-
-function drawCreature(ctx, x, y, heading, size) {
-  const dirs = [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
-  const cx = (x + .5) * size, cy = (y + .5) * size, [dx, dy] = dirs[heading];
-  ctx.fillStyle = "#f4efe6"; ctx.strokeStyle = "#1b1a18"; ctx.lineWidth = Math.max(1, size / 14);
-  ctx.beginPath(); ctx.arc(cx, cy, size * .32, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#1b1a18";
-  ctx.beginPath(); ctx.arc(cx + dx * size * .18, cy + dy * size * .18, size * .08, 0, Math.PI * 2); ctx.fill();
-}
-
-function dot(ctx, x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
-
-function drawWorld(w) {
-  const canvas = $("world"), ctx = canvas.getContext("2d");
-  const rows = w.layout, n = rows.length, size = canvas.width / n;
-  const berries = new Map(w.berries.map(([x, y, k]) => [x + "," + y, k]));
-  const grown = new Map(w.mushrooms.map(([x, y, g]) => [x + "," + y, g]));
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    const c = rows[y][x], k = berries.get(x + "," + y) || 0, h = Number(w.heights[y][x]);
-    ctx.fillStyle = (c === "m" || c === "t") && !grown.get(x + "," + y) ? TILE["."] : TILE[c] || TILE["."];
-    ctx.fillRect(x * size, y * size, size, size);
-    if (h > 0) { ctx.fillStyle = `rgba(255, 255, 255, ${0.07 * h})`; ctx.fillRect(x * size, y * size, size, size); }
-    if (c === "B") for (let i = 0; i < k; i++) dot(ctx, (x + .28 + i * .22) * size, (y + .5) * size, size * .1, "#e0283a");
-  }
-  for (const [x, y] of w.apples) dot(ctx, (x + .5) * size, (y + .5) * size, size * .15, "#d8261f");
-  dot(ctx, (w.ball[0] + .5) * size, (w.ball[1] + .5) * size, size * .25, "#1bc6c6");
-  for (const [x, y] of w.butterflies) dot(ctx, (x + .5) * size, (y + .5) * size, size * .12, "#ffffff");
-  drawCreature(ctx, w.x, w.y, w.heading, size);
-  ctx.fillStyle = `rgba(8, 10, 30, ${Math.max(0, .75 * (1 - w.light))})`;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
+// --- how it is ------------------------------------------------------------------------------------
 
 function bar(label, value, color) {
   const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
   return `<div class="bar"><span>${label}</span><div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div><span class="num">${pct}%</span></div>`;
 }
 
+function needs(s) {  // what it needs most, in a few words
+  const d = s.drives, found = [];
+  const word = (v) => v > 0.75 ? "very " : v > 0.5 ? "" : "a bit ";
+  if (d.hunger > 0.3) found.push(word(d.hunger) + "hungry");
+  if (d.tiredness > 0.3) found.push(word(d.tiredness) + "tired");
+  if (d.temperature > 0.3) found.push(word(d.temperature) + (s.body.cold ? "cold" : "uncomfortable"));
+  return found;
+}
+
 function render(s) {
   name = s.name;
   $("name").textContent = s.name;
-  for (const b of document.querySelectorAll("[data-label]")) b.textContent = b.dataset.label.replaceAll("{name}", name);
   document.title = s.name;
   const years = Math.floor(s.age_days / 24), days = Math.floor(s.age_days);
   const age = years >= 1 ? `${years} year${years > 1 ? "s" : ""} old` : `${days} day${days === 1 ? "" : "s"} old`;
-  $("age").textContent = `${age} · ${s.season}, day ${s.season_day + 1} · ${s.time_of_day}${s.body.asleep ? " · asleep" : ""}`;
+  const mood = s.brain && s.brain.mood ? s.brain.mood : (s.feeling.valence > 0.25 ? "content" : s.feeling.valence < -0.25 ? "unhappy" : "");
+  const parts = [s.body.asleep ? "<b>asleep</b>" : mood ? `feeling <b>${plain(mood)}</b>` : "", ...needs(s), `${age}`, `${s.season} ${s.time_of_day}`].filter(Boolean);
+  $("state").innerHTML = parts.join(" · ");
   const inNest = s.world.layout[s.world.y][s.world.x] === "N";
   $("where").textContent = s.body.asleep ? (inNest ? "Asleep in its nest." : "Asleep.") : `Trying to ${s.goal_text}${s.next ? `; next: ${s.next}` : ""}.`;
+  $("valleyWhere").textContent = `${s.season}, day ${s.season_day + 1} · ${s.time_of_day}`;
   const b = s.body, d = s.drives, f = s.feeling;
   $("bars").innerHTML = bar("feeling", (f.valence + 1) / 2, f.valence >= 0 ? "var(--good)" : "var(--bad)") +
     bar("energy", b.energy, "var(--good)") + bar("health", b.integrity, "var(--good)") +
     bar("hunger", d.hunger, "var(--accent)") + bar("too hot/cold", d.temperature, "var(--accent)") +
     bar("tiredness", d.tiredness, "var(--accent)");
   const brain = s.brain;  // its brain of spiking neurons: its chemistry, as levels against the usual (1×)
-  const plain = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
   $("brain").hidden = !brain;
   if (brain && brain.waking) $("brain").innerHTML = `<div class="small">Its brain of neurons is waking up…</div>`;
   else if (brain) {
     const c = brain.chemistry;
     const chem = (label, v, color) => `<div class="bar"><span>${label}</span><div class="track"><div class="fill" style="width:${Math.round(Math.min(1, v / 3) * 100)}%;background:${color}"></div></div><span class="num">${v.toFixed(1)}×</span></div>`;
-    $("brain").innerHTML = `<div class="small" title="Spiking neurons modelled on real ones, firing as you watch (${brain.ms} ms of computing each moment)">Brain: ${brain.neurons.toLocaleString()} neurons · ${(brain.synapses / 1e6).toFixed(0)} million synapses</div>` +
+    $("brain").innerHTML = `<div class="small" title="Spiking neurons modelled on real ones (${brain.ms} ms of computing each moment)">Brain: ${brain.neurons.toLocaleString()} neurons · ${(brain.synapses / 1e6).toFixed(0)} million synapses</div>` +
       chem("dopamine", c.dopamine, "#f2c14e") + chem("noradrenaline", c.noradrenaline, "#ff7a59") +
       chem("serotonin", c.serotonin, "#7bd389") + chem("acetylcholine", c.acetylcholine, "#5cb6ff") +
       chem("oxytocin", c.oxytocin, "#ff8fb1") +
-      (brain.mood ? `<div class="small" title="The mood its brain's chemistry makes, and what stirred it (as it would say it)">Feeling ${plain(brain.mood)}${brain.why ? ` — “${plain(brain.why)}”` : ""}</div>` : "");
+      (brain.mood ? `<div class="small">Feeling ${plain(brain.mood)}${brain.why ? ` — “${plain(brain.why)}”` : ""}</div>` : "");
   }
   const focus = $("focus"), w = s.workspace;
   focus.replaceChildren();
-  if (w) { focus.append(el("span", "source", w.source), document.createTextNode(w.label)); }
+  if (w) focus.append(el("span", "source", w.source), document.createTextNode(w.label));
   else focus.append(el("span", "small", "nothing in particular"));
   $("welfare").hidden = s.welfare.ok;
   $("welfare").textContent = s.welfare.message;
-  $("cortex").textContent = (version ? `Haven ${version}. ` : "") + (s.cortex ? `Its language area: ${s.cortex}.` : "") +
-    (s.read && s.read.length ? ` It has read about ${s.read.join(", ")}.` : "") +
-    (s.story ? ` The last bedtime story it heard: ${s.story}.` : "");
-  for (const n of s.news || []) {  // what it has done since: an errand, something it read, a night's learning
+  $("cortex").textContent = (version ? `Haven ${version}` : "") + (s.cortex ? ` · its language area: ${s.cortex}` : "");
+  $("cortex").title = s.cortex || "";
+  for (const n of s.news || []) {  // what it has done since: something it read, an errand, a night's learning
     if (n.id > lastNews && lastNews >= 0) addEvent(`${s.name} ${n.text}.`);
   }
   lastNews = Math.max(lastNews, 0, ...(s.news || []).map((n) => n.id));
   for (const m of s.spoken || []) {  // what it said of its own accord, without being asked
-    if (m.id > lastSpoken && lastSpoken >= 0) havenMessage(m.text);
+    if (m.id > lastSpoken && lastSpoken >= 0) { havenMessage(m.text); if (voice.speaking) voice.say(m.text); }
   }
   lastSpoken = Math.max(lastSpoken, 0, ...(s.spoken || []).map((m) => m.id));
   passing = s.passing;
   $("passing").hidden = !passing;
   if (passing) {
-    const pct = Math.round(100 * passing.done / Math.max(passing.total, 1));
-    $("passingBar").style.width = pct + "%";
+    $("passingBar").style.width = Math.round(100 * passing.done / Math.max(passing.total, 1)) + "%";
     const day = Math.floor(passing.done / 1200);
     $("passingText").textContent = `Day ${Math.min(day + 1, passing.days)} of ${passing.days} · it's ${s.season} in the valley · ${age}`;
   }
@@ -466,9 +745,21 @@ function render(s) {
 
 function showHistory(conversation) {
   if (!conversation.length) {
-    const hello = el("div", "hello", `Say hello. ${name} talks in words of its own, from what it's feeling and what it knows, and sometimes it speaks up first. It's new to language, so it speaks simply, mostly about itself and its valley. Tell it your name, and things about you or the world: it remembers. Ask it what it's like, what its best day was, or to ring the bell. To see who it becomes, let some time pass: it lives through the seasons and grows up.`);
+    const hello = el("div", "hello");
     hello.id = "hello";
-    $("log").append(hello);
+    hello.innerHTML = `<h2>Talk with ${plain(name)}</h2>` +
+      `<p>${plain(name)} answers in words of its own, from what it feels and what it has read. Ask it anything: it looks it up on its shelf ` +
+      `(it reads the whole Simple English Wikipedia, and anything you give it). It also has a life of its own, in a valley you can open with 🌄. ` +
+      `Press 🎙 Talk to talk out loud. Type <b>/</b> for things you can do.</p>`;
+    const tries = el("div", "tries");
+    for (const q of ["Hi! What's your name?", "How are you feeling?", "What is a black hole?", "Who was Cleopatra?", "Tell me about volcanoes.", "What's the capital of Japan?"]) {
+      const b = el("button", "", q);
+      b.type = "button";
+      b.onclick = async () => { if (!ready || busy) return; const reply = await send(q); if (reply && voice.speaking) voice.say(reply); };
+      tries.append(b);
+    }
+    hello.append(tries);
+    $("thread").append(hello);
     return;
   }
   addEvent("Earlier");
@@ -485,16 +776,64 @@ async function pollState() {
   }
 }
 
-// --- the valley, in 3D ---------------------------------------------------------------------------
+function goneNow(title, text) {
+  gone = true;
+  voice.stop();
+  $("goneTitle").textContent = title;
+  $("goneText").textContent = text;
+  $("gone").hidden = false;
+  setComposer();
+}
 
-let view = null, audio = null, sound = false;
-try { view = window.HavenWorld ? HavenWorld.create($("stage"), {onTouch: pet}) : null; } catch (e) { view = null; }
-if (!view) { $("world").hidden = false; $("follow").hidden = true; $("hint").hidden = true; }
-window.havenView = view;  // for looking into it from the browser's console
-setTimeout(() => { $("hint").style.opacity = 0; }, 12000);
+// --- panels: the valley and the library --------------------------------------------------------------
 
+let panel = null, valleyView = null, valleyTried = false;
+
+function openPanel(which) {
+  panel = which;
+  $("valley").hidden = which !== "valley";
+  $("library").hidden = which !== "library";
+  $("valleyBtn").setAttribute("aria-pressed", String(which === "valley"));
+  $("libraryBtn").setAttribute("aria-pressed", String(which === "library"));
+  if (which === "valley" && !valleyTried) {  // its valley in 3D, made the first time it's shown
+    valleyTried = true;
+    try { valleyView = window.HavenWorld ? HavenWorld.create($("stage"), {onTouch: pet}) : null; } catch (e) { valleyView = null; }
+    window.havenView = valleyView;  // (for looking into it from the browser's console)
+    if (!valleyView) { $("world").hidden = false; $("follow").hidden = true; }
+    pollWorld();
+  }
+  valleyView?.pause(which !== "valley");
+  if (which === "library") pollLibrary(true);
+}
+
+$("valleyBtn").onclick = () => openPanel(panel === "valley" ? null : "valley");
+$("libraryBtn").onclick = () => openPanel(panel === "library" ? null : "library");
+$("valleyClose").onclick = () => openPanel(null);
+$("libraryClose").onclick = () => openPanel(null);
+
+const TILE = {".": "#5a9e54", "#": "#4a4852", "T": "#9e38c7", "S": "#9e9e99", "N": "#dbbd4c", "B": "#1f6630",
+  "A": "#2f6f34", "W": "#3f86d0", ":": "#dcc990", "f": "#e889b8", "m": "#8e5b32", "t": "#d8344f", "b": "#d6a531", "F": "#ff7a2a"};
+function dot(ctx, x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+function drawWorld(w) {  // (where 3D can't be drawn: the valley from above)
+  const canvas = $("world"), ctx = canvas.getContext("2d");
+  const rows = w.layout, n = rows.length, size = canvas.width / n;
+  const berries = new Map(w.berries.map(([x, y, k]) => [x + "," + y, k]));
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const c = rows[y][x], k = berries.get(x + "," + y) || 0;
+    ctx.fillStyle = TILE[c] || TILE["."];
+    ctx.fillRect(x * size, y * size, size, size);
+    if (c === "B") for (let i = 0; i < k; i++) dot(ctx, (x + .28 + i * .22) * size, (y + .5) * size, size * .1, "#e0283a");
+  }
+  for (const [x, y] of w.apples) dot(ctx, (x + .5) * size, (y + .5) * size, size * .15, "#d8261f");
+  dot(ctx, (w.ball[0] + .5) * size, (w.ball[1] + .5) * size, size * .25, "#1bc6c6");
+  dot(ctx, (w.x + .5) * size, (w.y + .5) * size, size * .33, "#f4efe6");
+  ctx.fillStyle = `rgba(8, 10, 30, ${Math.max(0, .75 * (1 - w.light))})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+let audio = null, bellSound = false;
 function chime() {
-  if (!sound) return;
+  if (!bellSound) return;
   try {
     audio = audio || new AudioContext();
     const now = audio.currentTime;
@@ -512,92 +851,367 @@ function chime() {
 
 async function pollWorld() {
   while (!gone) {
-    try {
-      const w = await api("/api/world");
-      if (view) view.update(w, {speed: w.speed, onRing: chime});
-      else drawWorld(w);
-    } catch (e) { /* the state poll notices if it has gone */ }
-    await sleep(view ? 200 : 600);
+    if (panel === "valley") {
+      try {
+        const w = await api("/api/world");
+        if (valleyView) valleyView.update(w, {speed: w.speed, onRing: chime});
+        else drawWorld(w);
+      } catch (e) { /* the state poll notices if it has gone */ }
+    }
+    await sleep(valleyView ? 200 : 600);
   }
 }
 
-async function pet() {
-  try { await api("/api/touch", {}); addEvent(`You petted ${name}.`); } catch (e) { /* gone */ }
-}
-
-function goneNow(title, text) {
-  gone = true;
-  $("goneTitle").textContent = title;
-  $("goneText").textContent = text;
-  $("gone").hidden = false;
-  setComposer();
-}
-
-$("touch").onclick = async () => { await pet(); view?.touched(); };
-$("feed").onclick = async () => { await api("/api/feed", {}); addEvent(`You gave ${name} a berry.`); };
 $("follow").onclick = () => {
-  const on = !view.following;
-  view.follow(on);
+  const on = !valleyView.following;
+  valleyView.follow(on);
   $("follow").setAttribute("aria-pressed", String(on));
   $("follow").textContent = on ? "Follow Haven" : "Whole valley";
 };
 $("sound").onclick = () => {
-  sound = !sound;
-  $("sound").setAttribute("aria-pressed", String(sound));
-  $("sound").textContent = sound ? "Sound on" : "Sound off";
-  if (sound) chime();
+  bellSound = !bellSound;
+  $("sound").setAttribute("aria-pressed", String(bellSound));
+  $("sound").textContent = bellSound ? "Bell sound on" : "Bell sound off";
+  if (bellSound) chime();
 };
-function closeMenu() {
-  for (const [menu, button] of [["passMenu", "pass"], ["bringMenu", "bring"]]) {
+
+// --- what it reads ---------------------------------------------------------------------------------
+
+let libraryPolling = false, libraryWake = null;
+async function pollLibrary(now) {  // (always going: every few seconds, sooner when asked)
+  if (libraryPolling) { if (now) libraryWake?.(); return; }
+  libraryPolling = true;
+  while (!gone) {
+    let s = null;
+    try { s = await api("/api/library"); renderLibrary(s); } catch (e) { /* the state poll notices if it has gone */ }
+    await new Promise((r) => { libraryWake = r; setTimeout(r, s && s.reading ? 2000 : 6000); });
+  }
+}
+
+function renderLibrary(s) {
+  $("shelfCount").innerHTML = s.problem ? `It can't keep what it reads on this computer: ${plain(s.problem)}.` :
+    `<b>${number(s.articles)}</b> articles · <b>${number(s.sentences)}</b> sentences`;
+  const reading = s.reading;
+  $("reading").hidden = !reading;
+  if (reading) {
+    const e = (s.encyclopedias || []).find((x) => x.name === reading.name) || {articles: 1};
+    $("readingText").innerHTML = `${plain(name)} is reading <b>${plain(reading.title)}</b>: ${number(reading.articles)} of about ${number(e.articles)} articles so far`;
+    $("readingBar").style.width = Math.min(100, Math.round(100 * reading.articles / Math.max(e.articles, 1))) + "%";
+  }
+  const shelves = $("shelves");
+  shelves.replaceChildren();
+  for (const e of s.encyclopedias || []) {
+    const item = el("div", "shelfitem"), row = el("div", "row"), about = el("div");
+    const gb = e.size / 1e9;
+    about.innerHTML = `<b>${plain(e.title[0].toUpperCase() + e.title.slice(1))}</b><div class="small">${number(e.articles)} articles · ` +
+      `${gb >= 1 ? gb.toFixed(0) + " GB" : Math.round(e.size / 1e6) + " MB"} to download` +
+      (e.name === "english" ? " · about 10 GB on disk · takes many hours" : " · a few minutes") + `</div>`;
+    row.append(about);
+    const nowReading = reading && reading.name === e.name;
+    if (e.finished) row.append(el("span", "small", `✓ read (${number(e.read)})`));
+    else {
+      const b = el("button", "", nowReading ? "Pause" : e.read ? "Go on reading" : "Read it");
+      b.type = "button";
+      b.disabled = !s.online || (!!reading && !nowReading);
+      b.title = !s.online ? "Haven isn't allowed on the internet here" : "";
+      b.onclick = async () => {
+        try { if (nowReading) await api("/api/library/stop", {}); else await api("/api/library/read", {which: e.name}); }
+        catch (err) { $("giveSaid").textContent = err.message; }
+        pollLibrary(true);
+      };
+      row.append(b);
+    }
+    item.append(row);
+    if (e.read && !e.finished) {
+      const p = el("div", "progress"), fill = el("div");
+      fill.style.width = Math.min(100, Math.round(100 * e.read / e.articles)) + "%";
+      p.append(fill);
+      item.append(p);
+    }
+    shelves.append(item);
+  }
+  const given = $("given");
+  given.replaceChildren();
+  for (const title of s.given || []) {
+    const li = el("li"), forget = el("button", "", "Forget");
+    forget.type = "button";
+    forget.onclick = async () => { await api("/api/library/forget", {title}).catch(() => {}); pollLibrary(true); };
+    li.append(el("span", "", title), forget);
+    given.append(li);
+  }
+  if (!(s.given || []).length) given.append(el("li", "small", "Nothing yet."));
+}
+
+$("readingStop").onclick = async () => { await api("/api/library/stop", {}).catch(() => {}); pollLibrary(true); };
+
+async function give(text, title) {
+  const said = $("giveSaid");
+  said.textContent = "Reading…";
+  try {
+    const done = await api("/api/library/give", {text, title});
+    said.textContent = `It read “${done.title}” (${number(done.sentences)} sentences). Ask it about it.`;
+    pollLibrary(true);
+    return true;
+  } catch (err) { said.textContent = `It couldn't read that: ${err.message}`; return false; }
+}
+
+async function readPage(url) {
+  url = (url || "").trim();
+  if (!url) { openPanel("library"); $("pageUrl").focus(); return; }
+  addEvent(`You asked ${name} to read ${url}.`);
+  try {
+    const done = await api("/api/library/page", {url});
+    addEvent(`${name} read “${done.title}” (${number(done.sentences)} sentences). Ask it about it.`);
+    pollLibrary(true);
+  } catch (err) { addEvent(`${name} couldn't read that page: ${err.message}`); }
+}
+
+$("giveBtn").onclick = async () => {
+  const text = $("giveText").value;
+  if (!text.trim()) { $("giveText").focus(); return; }
+  if (await give(text, $("giveTitle").value.trim() || null)) { $("giveText").value = ""; $("giveTitle").value = ""; }
+};
+$("pageBtn").onclick = async () => {
+  const url = $("pageUrl").value.trim();
+  if (!url) return;
+  $("giveSaid").textContent = "Reading the page…";
+  try {
+    const done = await api("/api/library/page", {url});
+    $("giveSaid").textContent = `It read “${done.title}” (${number(done.sentences)} sentences).`;
+    $("pageUrl").value = "";
+    pollLibrary(true);
+  } catch (err) { $("giveSaid").textContent = `It couldn't read that page: ${err.message}`; }
+};
+
+const TEXTUAL = /\.(txt|md|markdown|html?|csv|tsv|json|xml|srt|vtt|rst|tex|log)$/i;
+async function giveFiles(files) {
+  for (const file of files) {
+    if (!(file.type.startsWith("text/") || TEXTUAL.test(file.name) || file.type === "application/json")) {
+      addEvent(`${name} can read text files (like .txt, .md, .html). For “${file.name}”, copy its text and paste it in the library.`);
+      continue;
+    }
+    if (file.size > 20e6) { addEvent(`“${file.name}” is too big to read at once (20 MB at most).`); continue; }
+    const text = await file.text();
+    try {
+      const done = await api("/api/library/give", {text, title: file.name.replace(/\.[^.]+$/, "")});
+      addEvent(`${name} read “${done.title}” (${number(done.sentences)} sentences). Ask it about it.`);
+    } catch (err) { addEvent(`${name} couldn't read “${file.name}”: ${err.message}`); }
+  }
+  pollLibrary(true);
+}
+$("giveFiles").onchange = (e) => { giveFiles([...e.target.files]); e.target.value = ""; };
+let dragging = 0;
+window.addEventListener("dragenter", (e) => { if ([...e.dataTransfer.types].includes("Files")) { dragging++; $("drop").hidden = false; } });
+window.addEventListener("dragleave", () => { dragging = Math.max(0, dragging - 1); if (!dragging) $("drop").hidden = true; });
+window.addEventListener("dragover", (e) => { if ([...e.dataTransfer.types].includes("Files")) e.preventDefault(); });
+window.addEventListener("drop", (e) => {
+  if (!e.dataTransfer.files.length) return;
+  e.preventDefault();
+  dragging = 0;
+  $("drop").hidden = true;
+  giveFiles([...e.dataTransfer.files]);
+});
+
+// --- its voice: speaking, and listening -------------------------------------------------------------
+// Haven's words are its own; the browser only gives them a sound (the computer's speech voices), and turns what
+// you say into words for it (in Chrome and Edge, your voice is sent to their speech service to be written down).
+
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voice = {
+  synth: window.speechSynthesis || null,
+  canListen: !!Recognition,
+  speaking: store.get("speak", false),  // whether it reads its replies aloud
+  mode: false,  // talking out loud, hands-free
+  rec: null,
+  queue: 0,
+  misses: 0,
+
+  voices() {
+    if (!this.synth) return [];
+    const all = this.synth.getVoices();
+    const lang = (navigator.language || "en").slice(0, 2);
+    const mine = all.filter((v) => v.lang && v.lang.slice(0, 2) === lang);
+    return mine.length ? mine : all;
+  },
+  chosen() {
+    const all = this.voices(), wanted = store.get("voice", "");
+    return all.find((v) => v.name === wanted) ||
+      all.find((v) => /natural|neural|premium|enhanced|siri/i.test(v.name) && v.localService) ||
+      all.find((v) => /natural|neural|premium|enhanced/i.test(v.name)) ||
+      all.find((v) => v.default) || all[0] || null;
+  },
+  setSpeaking(on) {
+    this.speaking = on;
+    store.set("speak", on);
+    $("speakOn").checked = on;
+    $("voiceBtn").textContent = on ? "🔊" : "🔈";
+    $("voiceBtn").append(el("span", "wide", " Voice"));
+    if (!on && !this.mode) this.synth?.cancel();
+  },
+  say(text, {now = false, done = null} = {}) {  // it says it, sentence by sentence (long speech gets cut off)
+    if (!this.synth) { done?.(); return; }
+    if (now) this.synth.cancel();
+    const parts = (text.match(/[^.!?…]+[.!?…]*["”’)]*\s*/g) || [text]).map((p) => p.trim()).filter(Boolean);
+    const chosen = this.chosen();
+    this.queue += parts.length;
+    parts.forEach((part, i) => {
+      const u = new SpeechSynthesisUtterance(part);
+      if (chosen) { try { u.voice = chosen; u.lang = chosen.lang; } catch (e) { /* the browser's own choice, then */ } }
+      u.rate = Number(store.get("rate", 1));
+      u.pitch = Number(store.get("pitch", 1.15));
+      const last = i === parts.length - 1;
+      u.onstart = () => this.show("speaking");
+      u.onend = u.onerror = () => {
+        this.queue = Math.max(0, this.queue - 1);
+        if (last) done?.();
+        if (!this.queue && !this.mode) this.show(null);
+      };
+      this.synth.speak(u);
+    });
+  },
+  show(state, heard) {
+    const orb = $("orb");
+    orb.className = "orb" + (state ? " " + state : "");
+    $("voiceState").textContent = {listening: "Listening…", thinking: `${name} is thinking…`, speaking: `${name} is speaking…`, paused: "Tap the circle to talk"}[state] || "";
+    if (heard !== undefined) $("voiceHeard").textContent = heard;
+  },
+  listen(onWords) {  // listens once; calls onWords(text) with what it heard ("" for nothing)
+    if (!Recognition) { onWords(""); return; }
+    const rec = new Recognition();
+    this.rec = rec;
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    let final = "", ended = false;
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      this.show("listening", (final + interim).trim() || "…");
+    };
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        addEvent("The browser isn't allowed to use the microphone. Allow it (the icon by the address), then try again.");
+        this.stop();
+      } else if (e.error === "network") {
+        addEvent("The browser couldn't reach its speech service to hear you (it needs the internet for that).");
+        this.stop();
+      }
+    };
+    rec.onend = () => { if (ended) return; ended = true; this.rec = null; onWords(final.trim()); };
+    try { rec.start(); this.show("listening", ""); } catch (e) { ended = true; onWords(""); }
+  },
+  start() {  // talking out loud: it listens, answers, speaks, and listens again
+    if (!Recognition) {
+      addEvent("This browser can't listen. Use Chrome, Edge or Safari to talk out loud; here, Haven can still speak its replies (🔈 Voice).");
+      this.setSpeaking(true);
+      return;
+    }
+    if (this.mode) return;
+    this.mode = true;
+    this.misses = 0;
+    $("voicebar").hidden = false;
+    $("talk").setAttribute("aria-pressed", "true");
+    this.next();
+  },
+  next() {
+    if (!this.mode || gone) return;
+    if (busy || !ready || passing) { this.show("thinking", ""); setTimeout(() => this.next(), 500); return; }
+    this.listen(async (text) => {
+      if (!this.mode) return;
+      if (!text) {
+        if (++this.misses >= 3) { this.show("paused", "It didn't hear anything."); return; }
+        this.next();
+        return;
+      }
+      this.misses = 0;
+      if (/^(stop|stop talking|stop listening|goodbye|bye bye)$/i.test(text)) { this.stop(); addEvent("Voice mode stopped."); return; }
+      this.show("thinking", text);
+      const reply = await send(text);
+      if (!this.mode) return;
+      if (reply) this.say(reply, {done: () => this.next()});
+      else this.next();
+    });
+  },
+  stop() {
+    this.mode = false;
+    try { this.rec?.abort(); } catch (e) { /* already stopped */ }
+    this.rec = null;
+    this.synth?.cancel();
+    this.queue = 0;
+    $("voicebar").hidden = true;
+    $("talk").setAttribute("aria-pressed", "false");
+    this.show(null, "");
+  },
+};
+
+$("talk").onclick = () => (voice.mode ? voice.stop() : voice.start());
+$("voiceStop").onclick = () => voice.stop();
+$("orb").onclick = () => {  // tap: stop it speaking and talk now; or start listening again
+  if (!voice.mode) return;
+  if (voice.rec) { try { voice.rec.stop(); } catch (e) { /* stopped */ } return; }
+  voice.synth?.cancel();
+  voice.queue = 0;
+  voice.misses = 0;
+  voice.next();
+};
+$("mic").onclick = () => {  // say one thing out loud instead of typing it
+  if (voice.rec) { try { voice.rec.stop(); } catch (e) { /* stopped */ } return; }
+  if (!ready || busy) return;
+  $("mic").classList.add("on");
+  voice.listen(async (text) => {
+    $("mic").classList.remove("on");
+    if (!voice.mode) voice.show(null, "");
+    if (!text) return;
+    const reply = await send(text);
+    if (reply) voice.say(reply);  // (asked out loud: it answers out loud)
+  });
+};
+if (!Recognition) { $("mic").title = "This browser can't listen (Chrome, Edge and Safari can)"; }
+
+function fillVoices() {
+  const pick = $("voicePick"), all = voice.voices(), chosen = voice.chosen();
+  pick.replaceChildren(...all.map((v) => { const o = el("option", "", `${v.name}${v.localService ? "" : " (online)"}`); o.value = v.name; o.selected = chosen && v.name === chosen.name; return o; }));
+  $("voiceAbout").textContent = !voice.synth ? "This browser has no speech voices." :
+    all.length ? "These are your computer's voices; the words are Haven's own." : "No voices yet…";
+}
+if (voice.synth) { voice.synth.onvoiceschanged = fillVoices; }
+fillVoices();
+$("voicePick").onchange = (e) => store.set("voice", e.target.value);
+$("rate").value = store.get("rate", 1);
+$("pitch").value = store.get("pitch", 1.15);
+$("rate").oninput = (e) => store.set("rate", Number(e.target.value));
+$("pitch").oninput = (e) => store.set("pitch", Number(e.target.value));
+$("speakOn").onchange = (e) => voice.setSpeaking(e.target.checked);
+$("voiceTry").onclick = () => voice.say(`Hello! I'm ${name}. This is how I sound.`, {now: true});
+voice.setSpeaking(voice.speaking);
+
+// --- menus --------------------------------------------------------------------------------------------
+
+const MENUS = [["moreMenu", "more"], ["voiceMenu", "voiceBtn"]];
+function closeMenus(except) {
+  for (const [menu, button] of MENUS) {
+    if (menu === except) continue;
     $(menu).hidden = true;
     $(button).setAttribute("aria-expanded", "false");
   }
 }
-$("pass").onclick = (e) => {
-  e.stopPropagation();
-  const open = $("passMenu").hidden;
-  $("passMenu").hidden = !open;
-  $("pass").setAttribute("aria-expanded", String(open));
-  if (open) $("passMenu").querySelector("button").focus();
-};
-$("bring").onclick = (e) => {
-  e.stopPropagation();
-  const open = $("bringMenu").hidden;
-  closeMenu();
-  $("bringMenu").hidden = !open;
-  $("bring").setAttribute("aria-expanded", String(open));
-  if (open) $("bringMenu").querySelector("button").focus();
-};
-for (const b of $("bringMenu").querySelectorAll("button[data-what]")) {
-  b.onclick = async () => {  // make something happen in its valley, good or bad (it takes it as it comes)
-    closeMenu();
-    try {
-      const done = await api("/api/bring", {what: b.dataset.what});
-      addEvent(done.ok ? b.dataset.told.replaceAll("{name}", name) : b.dataset.failed || "Nothing happened: there was no room for it.");
-      if (done.ok && b.dataset.what === "heal") view?.touched();
-    } catch (err) { addEvent(`Couldn't do that (${err.message}).`); }
+for (const [menu, button] of MENUS) {
+  $(button).onclick = (e) => {
+    e.stopPropagation();
+    const open = $(menu).hidden;
+    closeMenus(menu);
+    $(menu).hidden = !open;
+    $(button).setAttribute("aria-expanded", String(open));
+    if (menu === "voiceMenu") fillVoices();
   };
+  $(menu).addEventListener("click", (e) => e.stopPropagation());
 }
-document.addEventListener("click", (e) => {
-  if (!$("passMenu").contains(e.target) && !$("bringMenu").contains(e.target)) closeMenu();
-});
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
-for (const b of $("passMenu").querySelectorAll("button[data-days]")) {
-  b.onclick = async () => {
-    closeMenu();
-    const days = Number(b.dataset.days);
-    try {
-      await api("/api/pass", {days});
-      addEvent(`You let ${b.textContent.toLowerCase()} go by for ${name}.`);
-      passing = {days, done: 0, total: days * 1200};
-      setComposer();
-    } catch (err) { addEvent(`Couldn't let time pass (${err.message}).`); }
-  };
-}
-$("rest").onclick = async () => {
-  try { await api("/api/rest", {}); } catch (e) { /* already gone */ }
-  goneNow("Haven is resting", "Its life is saved. To be with it again, start Haven the way you did before. (You can close this tab.)");
-};
+for (const b of document.querySelectorAll("[data-cmd]")) b.onclick = () => { closeMenus(); run("/" + b.dataset.cmd); };
+document.addEventListener("click", () => closeMenus());
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeMenus(); if (panel) openPanel(null); } });
 
 (async () => {
   try {
@@ -607,7 +1221,7 @@ $("rest").onclick = async () => {
   } catch (e) { /* the state poll will say so */ }
   pollSetup();
   pollState();
-  pollWorld();
+  pollLibrary(true);
 })();
 </script>
 </body>

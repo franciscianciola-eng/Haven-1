@@ -69,6 +69,9 @@ def main(argv: list[str] | None = None) -> int:
     app.add_argument("--speed", type=float, default=8.0, help="moments per second (default 8)")
     app.add_argument("--no-browser", action="store_true", help="don't open its window in a browser")
     app.add_argument("--no-web", action="store_true", help="don't let it look things up")
+    app.add_argument(
+        "--no-reading", action="store_true", help="don't let it read the Simple English Wikipedia by itself"
+    )
 
     commands.add_parser("status", help="what is going on inside Haven right now")
     check = commands.add_parser("check", help="measure Haven against the 14 indicator properties of consciousness")

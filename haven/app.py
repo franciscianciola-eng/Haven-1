@@ -21,12 +21,14 @@ from http.server import ThreadingHTTPServer
 from importlib import resources
 
 from . import __version__
+from .feeding import FeedError, Feeding
 from .life import Life, open_mind
 from .server import Handler
 from .store import Store
 from .web import Web
 
 PORTS = 10  # if the usual port is taken, try the next few
+MOST_GIVEN = 25_000_000  # bytes of something pasted in or a file, given to it to read at once
 MAX_PASS = 24 * 10  # days of its life that can go by at once (ten of its years)
 
 
@@ -46,9 +48,10 @@ class Chat:
     through its workspace like anything else it is aware of.
     """
 
-    def __init__(self, life: Life, device: str = "cpu", web: Web | None = None, log=print):
+    def __init__(self, life: Life, device: str = "cpu", web: Web | None = None, log=print, feeding=None):
         self.life = life
         self.device, self.web, self.log = device, web, log
+        self.feeding = feeding  # (what it reads: see feeding.py)
         self.status: dict = {"stage": "starting", "text": "Waking up…"}
         self.thinker = None
         self.turns: dict[int, dict] = {}
@@ -70,6 +73,8 @@ class Chat:
             return
         if thinker is None:
             return
+        if self.feeding is not None and self.feeding.shelf is not None:
+            thinker.shelf = self.feeding.shelf  # (what it has read, to answer from)
         self.life.thinker = thinker  # it goes over its day while it sleeps, and reads when nobody is talking
         self.thinker = thinker
         self.status = {"stage": "ready", "text": f"Its language area: {thinker.describe()}."}
@@ -174,6 +179,8 @@ class Chat:
                     turn["phase"] = f"looking up {text}"
                 elif kind == "read":
                     turn["thoughts"].append({"kind": "read", "text": text})
+                elif kind == "found":
+                    turn["thoughts"].append({"kind": "found", "text": text})
 
         return hear
 
@@ -207,7 +214,10 @@ class AppHandler(Handler):
     def do_GET(self) -> None:
         if not self._trusted():
             return
-        if self.path in ("/", "/index.html", "/dashboard"):
+        if self.path == "/api/library":
+            feeding = self.chat.feeding
+            self._json(feeding.status() if feeding is not None else {"articles": 0, "online": False})
+        elif self.path in ("/", "/index.html", "/dashboard"):
             page = "dashboard.html" if self.path == "/dashboard" else "app.html"
             self._send(HTTPStatus.OK, resources.files("haven").joinpath(page).read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/chat":
@@ -227,6 +237,9 @@ class AppHandler(Handler):
             super().do_GET()
 
     def do_POST(self) -> None:
+        if self.path.startswith("/api/library/"):
+            self._library()
+            return
         if self.path not in ("/api/chat", "/api/rest", "/api/pass"):
             super().do_POST()
             return
@@ -258,6 +271,35 @@ class AppHandler(Handler):
             self._json({"error": "its language area isn't ready yet"}, HTTPStatus.SERVICE_UNAVAILABLE)
         except Busy:
             self._json({"error": "it's still answering"}, HTTPStatus.CONFLICT)
+
+    def _library(self) -> None:
+        """Feeding it what to read: an encyclopedia, something pasted in or a file, a web page (see feeding.py)."""
+        body = self._body(MOST_GIVEN if self.path == "/api/library/give" else None)
+        if body is None:
+            return
+        feeding = self.chat.feeding
+        if feeding is None:
+            self._json({"error": "Haven has no shelf to read onto here"}, HTTPStatus.SERVICE_UNAVAILABLE)
+            return
+        try:
+            if self.path == "/api/library/read":
+                started = feeding.read(str(body.get("which", "")))
+                self._json({"ok": started, "reading": feeding.status()["reading"]})
+            elif self.path == "/api/library/stop":
+                feeding.stop()
+                self._json({"ok": True})
+            elif self.path == "/api/library/give":
+                title, kept = feeding.give(str(body.get("text", "")), body.get("title") or None)
+                self._json({"ok": True, "title": title, "sentences": kept})
+            elif self.path == "/api/library/page":
+                title, kept = feeding.page(str(body.get("url", "")))
+                self._json({"ok": True, "title": title, "sentences": kept})
+            elif self.path == "/api/library/forget":
+                self._json({"ok": True, "forgot": feeding.forget(str(body.get("title", "")))})
+            else:
+                self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+        except FeedError as error:
+            self._json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
 
 
 def serve(life: Life, chat: Chat, port: int = 8765, host: str = "127.0.0.1") -> ThreadingHTTPServer:
@@ -320,7 +362,9 @@ def run(args: argparse.Namespace, store: Store, term) -> int:
     if new:
         term.say(f"{mind.me.name} is born, in a nest in the corner of its valley.")
         store.save(mind.to_state())
-    chat = Chat(life, device=args.device, web=None if args.no_web else Web(), log=term.dim)
+    web = None if args.no_web else Web()
+    feeding = Feeding(store.root, web, log=term.dim, emit=lambda text: life._emit("event", text))
+    chat = Chat(life, device=args.device, web=web, log=term.dim, feeding=feeding)
     chat.history()
     try:
         server = serve(life, chat, args.port)
@@ -331,6 +375,8 @@ def run(args: argparse.Namespace, store: Store, term) -> int:
     chat.start()
     life.wake_brain()
     life.start()
+    if not getattr(args, "no_reading", False):
+        feeding.start()  # (the first time, and until it's done: it reads the Simple English Wikipedia)
     term.say(f"{mind.me.name} is awake ({mind.age / 1200:.1f} days old). Its window: {url}")
     term.dim("Keep this window open while you're with it. To let it rest, press Rest on the page, or Ctrl+C here.")
     if not args.no_browser:
@@ -342,7 +388,9 @@ def run(args: argparse.Namespace, store: Store, term) -> int:
         pass
     finally:
         term.say("Saving…")
+        feeding.stop(pause=False)
         life.stop()
         server.shutdown()
+        feeding.wait(10)
         term.say(f"{mind.me.name} is resting until you come back. (Nothing is experienced while it isn't running.)")
     return 0

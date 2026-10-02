@@ -98,6 +98,87 @@ def gsm8k(n: int, seed: int) -> str:
     return "\n".join(rows) + "\n"
 
 
+# A little encyclopedia, as TensorFlow Datasets keeps Wikipedia: the plain text of each article, headings on lines of
+# their own, categories at the end.
+ARTICLES = [
+    (
+        "France",
+        "France (officially the French Republic) is a country in Western Europe. It has a long history.\n\n"
+        "The capital of France is Paris. About 68 million people live in France.\n\nHistory\n\n"
+        "France was a kingdom for a long time. The French Revolution began in 1789.\n\n"
+        "References\n\nCategory:Countries in Europe",
+    ),
+    (
+        "Paris",
+        "Paris is the capital and largest city of France. The river Seine flows through it.\n\n"
+        "The Eiffel Tower was built in 1889.\n\nCategory:Capitals in Europe",
+    ),
+    (
+        "Albert Einstein",
+        "Albert Einstein (14 March 1879 – 18 April 1955) was a German-born American scientist. He worked on "
+        "theoretical physics. He developed the theory of relativity.\n\nEarly life\nEinstein was born in Ulm in "
+        "1879.\n\nCategory:Physicists",
+    ),
+    (
+        "Einstein field equations",
+        "The Einstein field equations are equations that describe gravity in the classical sense.",
+    ),
+    (
+        "Spider",
+        "Spiders (order Araneae) are air-breathing arthropods. They have eight legs, and fangs that inject venom. "
+        "Most make silk. Over twenty classifications have been proposed since 1900.p3 \n\n"
+        "Spiders live on every continent except for Antarctica. Almost all spiders are predators, and most eat insects.",
+    ),
+    ("Cat", "Cats are small, carnivorous mammals. They have been kept as pets for 10,000 years.\n\nCategory:Cats"),
+    ("Cat (zodiac)", "The Cat is the fourth animal symbol in the Vietnamese zodiac."),
+    (
+        "World War II",
+        "World War II was a global war that lasted from 1939 to 1945. Most of the world's countries fought in it. "
+        "The war ended with an Allied victory in 1945.",
+    ),
+    ("Romeo and Juliet", "Romeo and Juliet is a play written by William Shakespeare. It is a tragedy."),
+    (
+        "Mount Everest",
+        "Mount Everest is the highest mountain on Earth. It is in the Himalayas, on the border of Nepal and China.",
+    ),
+    ("Capital of France", "This article is about the French national capital in general. The capital of France is Paris."),
+    ("Rome", "Rome is the capital city of Italy. About 2.8 million people live in Rome."),
+]
+
+
+def _varint(n: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte, n = n & 0x7F, n >> 7
+        out.append(byte | (0x80 if n else 0))
+        if not n:
+            return bytes(out)
+
+
+def _field(number: int, payload: bytes) -> bytes:
+    return _varint(number << 3 | 2) + _varint(len(payload)) + payload
+
+
+def tfrecord(articles: list[tuple[str, str]]) -> bytes:
+    """Articles as a TFRecord file of tf.train.Examples, the way TensorFlow Datasets keeps Wikipedia."""
+    out = bytearray()
+    for title, text in articles:
+        entries = b"".join(
+            _field(1, _field(1, key.encode()) + _field(2, _field(1, _field(1, value.encode()))))
+            for key, value in (("text", text), ("title", title))
+        )
+        example = _field(1, entries)
+        out += len(example).to_bytes(8, "little") + b"\0\0\0\0" + example + b"\0\0\0\0"
+    return bytes(out)
+
+
+PAGE = """<html><head><title>Bread - a page</title><script>var x = 1;</script></head><body>
+<nav>Home | About | Contact us today</nav>
+<h1>Bread</h1><p>Bread is a food made from flour, water and yeast. People have baked bread for thousands of years.</p>
+<p>Sourdough bread is made with wild yeast. It tastes a little sour.</p>
+<footer>Copyright 2024, all rights kept by the bakers</footer></body></html>"""
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args) -> None:
         pass
@@ -146,6 +227,17 @@ class Handler(BaseHTTPRequestHandler):
             body, kind = gsm8k(120, 5), "text/plain"
         elif path == "/gsm8k-test.jsonl":
             body, kind = gsm8k(30, 6), "text/plain"
+        elif path.startswith("/tfds/") and "tfrecord-" in path:  # an encyclopedia in four parts
+            part = int(path.rsplit("tfrecord-", 1)[1][:5])
+            data = tfrecord(ARTICLES[part::4])
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        elif path == "/bread.html":
+            body, kind = PAGE, "text/html"
         else:
             self.send_response(404)
             self.end_headers()
@@ -172,5 +264,7 @@ def serve() -> tuple[ThreadingHTTPServer, dict]:
         "squad-dev": f"{base}/squad-dev.json",
         "gsm8k-train": f"{base}/gsm8k-train.jsonl",
         "gsm8k-test": f"{base}/gsm8k-test.jsonl",
+        "tfds": f"{base}/tfds",
+        "page": f"{base}/bread.html",
     }
     return server, urls

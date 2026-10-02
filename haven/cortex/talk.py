@@ -29,7 +29,8 @@ from ..personality import TRAITS
 from ..selfmodel import VERDICTS
 from ..world import BELL, DAY, FIRE, NEST, SAND, SEASON_DAYS, SEASONS, THORN, TREE, TURNING, WATER, YEAR
 from . import engage
-from .book import BOOK
+from .book import BOOK, Entry
+from .encyclopedia import PERSON, PLACE
 from .stories import STORIES, Story
 
 # --- questions about how it is, what it's doing, and what it knows ------------------------
@@ -3503,6 +3504,141 @@ def speaking_up(
     return note, Turn(None, passed_answer(note), "speaking up"), None
 
 
+# --- what it read in an encyclopedia -----------------------------------------------------------------------------
+
+ENCYCLOPEDIA: list[Entry] = []  # real encyclopedia articles, to practise telling what they say (set while it grows)
+KNOWLEDGE_TURNS = 0.0  # how often, then, a turn asks about something in one
+WHAT_FORMS = ("What is {}?", "What's {}?", "Do you know what {} is?", "What is {} exactly?")
+WHO_FORMS = ("Who {} {}?", "Do you know who {} {}?", "Who {} {} exactly?")
+WHERE_FORMS = ("Where is {}?", "Where's {}?", "Do you know where {} is?")
+TELL_FORMS = (  # asking it to tell what it knows about something: what it read first, two sentences of it
+    "Tell me about {}.",
+    "What do you know about {}?",
+    "Can you tell me about {}?",
+    "Tell me something about {}.",
+    "What can you tell me about {}?",
+    "Do you know anything about {}?",
+    "Explain {}.",
+    "Teach me about {}.",
+    "I want to know about {}.",
+    "Have you heard of {}?",
+)
+_ASKS_OF = (  # a question a sentence answers, by what it says: (what it says, the questions; {} is what it's about)
+    (r"\b(?:was|were) born (?:on|in) ", ("When was {} born?", "Where was {} born?")),
+    (r"\bdied (?:on|in) ", ("When did {} die?",)),
+    (r"\bis the capital (?:city )?of ", ("What is {} the capital of?",)),
+    (
+        r"\b(?:the )?capital(?: city)? (?:of [A-Z][\w ]+ )?is [A-Z]",
+        ("What is the capital of {}?", "What's the capital of {}?"),
+    ),
+    (r"\b(?:was|were) (?:founded|established|formed|started) ", ("When was {} founded?", "When did {} start?")),
+    (r"\b(?:was|were) (?:built|constructed) ", ("When was {} built?",)),
+    (r"\b(?:was|were) (?:released|published) ", ("When did {} come out?", "When was {} released?")),
+    (r"\b(?:was|were) (?:invented|discovered) ", ("When was {} discovered?", "Who discovered {}?")),
+    (r"\bpopulation (?:was|is|of) ", ("How many people live in {}?", "What is the population of {}?")),
+    (
+        r"\b(?:is|was|are|were) (?:best |well |mostly |mainly )?known for ",
+        ("What is {} known for?", "Why is {} famous?"),
+    ),
+    (r"\bis (?:found|common) in ", ("Where is {} found?", "Where can you find {}?")),
+    (r"\bare (?:found|common) in ", ("Where are {} found?", "Where can you find {}?")),
+    (r"\bis made (?:of|from) ", ("What is {} made of?",)),
+    (r"\bare made (?:of|from) ", ("What are {} made of?",)),
+    (r"\b(?:eats|feeds on) ", ("What does {} eat?",)),
+    (r"\b(?:eat|feed on) ", ("What do {} eat?",)),
+    (r"\bwrote ", ("What did {} write?",)),
+    (
+        r"\b(?:is|was) (?:\w+ )?(?:km|kilometres|kilometers|miles|metres|meters|feet) (?:long|tall|high)\b",
+        ("How big is {}?",),
+    ),
+)
+
+
+def entry_of(title: str, text: str) -> Entry | None:
+    """An encyclopedia article as an entry of what it read: its first sentences, what people call what it's about,
+    and the questions its sentences answer."""
+    from .encyclopedia import lead
+
+    found = tuple(lead(text, 6))
+    if not found:
+        return None
+    base = re.sub(r"\s*\(.*?\)", "", title).strip() or title
+    first = found[0]
+    if base.split()[0].lower().strip("\"'") not in first.lower():
+        return None  # (it doesn't start by saying what it's about)
+    common = re.match(r"(A|An|The) (.+?) (?:is|are|was|were)\b", first)
+    if common and common.group(2).lower() == base.lower():  # "A volcanic winter is…": what it is, in lower case
+        topic = f"{common.group(1).lower()} {common.group(2)}"
+    else:
+        topic = base
+    asks = []
+    for i, sentence in enumerate(found):
+        subject = sentence.split(" ")[0]
+        if (
+            i
+            and subject not in ("It", "He", "She", "They", "Its", "His", "Her", "Their")
+            and base.split()[0] != subject
+        ):
+            continue  # (about something else)
+        for pattern, forms in _ASKS_OF:
+            if re.search(pattern, sentence):
+                asks += [(form, i) for form in forms]
+    return Entry(topic, title, found, tuple(asks))
+
+
+def what_asked(entry: Entry, rng: random.Random) -> str:
+    """Asking what (or who, or where) something in the encyclopedia is."""
+    first = entry.sentences[0]
+    person = PERSON.search(first)
+    name = entry.topic
+    if person and rng.random() < 0.85:
+        if rng.random() < 0.2 and len(name.split()) > 1:
+            name = name.split()[-1]  # ("Who was Papert?")
+        tense = "was" if re.search(r"\bwas\b", first[: person.end()]) else "is"
+        form = rng.choice(WHO_FORMS)
+        return form.format(tense, name) if form.startswith("Who") else form.format(name, tense)
+    if PLACE.search(first) and rng.random() < 0.6:
+        if ", " in name and rng.random() < 0.5:
+            name = name.split(", ")[0]  # ("Where is Hearst?")
+        return rng.choice(WHERE_FORMS).format(name)
+    return rng.choice(WHAT_FORMS).format(name)
+
+
+def knowledge_turns(rng: random.Random, shown: dict[str, set[int]]) -> tuple[list[str], list[Turn]]:
+    """A question about something in an encyclopedia, and maybe more about it: what it read comes to mind, and it
+    tells it (two sentences of it when asked to tell about something). Or it has never read about that, and says so.
+    Returns (what comes to mind, the turns)."""
+    entry = rng.choice(ENCYCLOPEDIA)
+    if rng.random() < 0.12:  # something it hasn't read
+        text = what_asked(entry, rng) if rng.random() < 0.5 else rng.choice(TELL_FORMS).format(entry.topic)
+        return [], [Turn(casual(text, rng), DONT_KNOW, "what it doesn't know")]
+    notes, turns = [], []
+    s = entry.sentences
+    roll = rng.random()
+    if roll < 0.25 and entry.questions:  # a question one of its sentences answers
+        form, index = rng.choice(entry.questions)
+        told, text = [index], form.format(entry.topic)
+    elif roll < 0.6 and len(s) > 1 and len(s[0]) + len(s[1]) <= 300:  # tell me about it: the first two sentences
+        told, text = [0, 1], rng.choice(TELL_FORMS).format(entry.topic)
+    else:
+        told, text = [0], what_asked(entry, rng)
+    said = " ".join(s[i] for i in told)
+    notes.append(f"I read about {entry.title}: {said}")
+    turns.append(Turn(casual(text, rng), f"I read about {entry.title}. It says: {said}", "encyclopedia"))
+    seen = shown.setdefault(entry.title, set())
+    seen.update(told)
+    for _ in range(rng.choice((0, 0, 0, 1, 1, 2))):  # and they ask for more
+        index = next((i for i in range(len(s)) if i not in seen), None)
+        sentence = None if index is None else s[index]
+        form = rng.choice(MORE_PLAIN) if rng.random() < 0.7 else rng.choice(MORE_FORMS).format(entry.topic)
+        notes.append(more_note(entry.title, sentence))
+        turns.append(Turn(plain(form, rng), more_answer(entry.title, sentence), "encyclopedia more"))
+        if index is None:
+            break
+        seen.add(index)
+    return notes, turns
+
+
 NEW_TURNS = 0.07  # how often a turn asks about its brain, or what it's doing
 MOOD_TURNS = 0.04  # how often a turn asks why it feels as it does
 AGAIN_TURNS = 0.15  # how often they ask again what it answered just now
@@ -3558,6 +3694,7 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     pool = BOOK + tuple(moment.get("readings", ()))  # its little book, and whatever it has read since (at night)
     book = rng.sample(pool, rng.choice((0, 0, 0, 1, 2) if rng.random() >= EMPHASIS else (1, 2)))  # what it has read
     shown: dict[str, int] = {}  # how much of each thing it read it has told them so far
+    read_shown: dict[str, set[int]] = {}  # (and of what it read in an encyclopedia)
     extra: list[str] = []  # what else comes to mind: what it read that answers them, being asked to do something
     said: list[Turn] = []
     chemistry = engage.synthetic_chemistry(rng)  # (its brain's chemistry: how it feels, beyond its needs)
@@ -3610,6 +3747,11 @@ def conversation(moment: dict, rng: random.Random, turns: int | None = None) -> 
     for _ in range(4 * wanted + 8):  # (a try can come to nothing: then it tries something else)
         if len(said) >= wanted:
             break
+        if ENCYCLOPEDIA and rng.random() < KNOWLEDGE_TURNS:  # something it read in an encyclopedia (or didn't)
+            notes_read, turns_read = knowledge_turns(rng, read_shown)
+            extra += notes_read
+            said += turns_read
+            continue
         if rng.random() < STORY_TURNS:  # a story, or what it heard
             note, turn = story_turn(moment, rng)
             extra.append(note)

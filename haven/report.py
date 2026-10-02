@@ -151,6 +151,7 @@ def snapshot(mind: Mind) -> dict:
             "fatigue": round(b.fatigue, 3),
             "asleep": b.asleep,
             "fainted": b.fainted > 0,
+            "cold": b.cold(),
         },
         "drives": {name: round(float(v), 3) for name, v in zip(DRIVES, b.drives(), strict=True)},
         "feeling": {"valence": round(mind.valence, 3), "arousal": round(mind.arousal, 3), "mood": round(mind.mood, 3)},

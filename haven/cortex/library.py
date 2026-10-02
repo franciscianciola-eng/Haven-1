@@ -146,8 +146,9 @@ class Library:
                 best, score = title, s
         return best if score >= 0.5 else None
 
-    def find(self, text: str) -> tuple[str, int] | None:
-        """The sentence it read that answers a question: (title, which sentence), or None if it read nothing that does."""
+    def find(self, text: str, strict: bool = False) -> tuple[str, int] | None:
+        """The sentence it read that answers a question: (title, which sentence), or None if it read nothing that does.
+        `strict`: only a question it has practised, or what something it read about is (not a likely sentence)."""
         question = _ADDRESS.sub("", " ".join(text.strip().split()), count=1)
         asked = words(question)
         if not asked:
@@ -159,6 +160,8 @@ class Library:
         topic = words(title) if title else set()
         if title and ASKS_WHAT.search(question) and not asked - topic:  # just what it is
             return title, 0
+        if strict:
+            return None
         best, score = None, 0.0
         for word in asked:
             for doc, i in self.postings.get(word, ()):

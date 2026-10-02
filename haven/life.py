@@ -31,7 +31,8 @@ NEWS = re.compile(  # what it does that's worth telling the person talking with 
     r"^(?:set off to|did what it was asked|stopped trying to|gave up trying to|couldn't .*: it didn't know where|"
     r"read about|went over its day|learned the word|was taught that|heard a bedtime story|"
     r"found food everywhere|felt the sun come out|saw butterflies come|was healed|was caught in|felt a heat wave|"
-    r"saw a fire spread|felt the ground shake|saw the food wither|saw thorns grow|was hurt by you)"
+    r"saw a fire spread|felt the ground shake|saw the food wither|saw thorns grow|was hurt by you|"
+    r"started reading|finished reading|stopped reading|couldn't go on reading|read what you gave it|read the page)"
 )
 FIRST_STORY = 120.0  # seconds after it wakes up in the app before it can hear its first bedtime story
 
