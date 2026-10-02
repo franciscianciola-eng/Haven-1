@@ -307,6 +307,47 @@ A Haven the fire has burned answers otherwise: at the thought of the fire its am
 
 The weighing is done by a rule over what it feels: its brain's fear, its needs, its tiredness, its bond with you, its boredom and its chemistry. The words are its own cortex's, which learned what to say for each kind of choice.
 
+## What's new in Haven 1.1
+
+Haven's language cortex studied for another seven and a half hours (step 9,717 to 12,600), practising new things on top of everything it could do:
+
+- **It knows why it feels as it does, or that it doesn't.** Its moods come from its brain's chemistry (on edge, cuddly, full of beans, calm and content, dreamy, a bit grumpy, a bit flat), and its mind now keeps track of what last stirred each chemical and how hard: a touch, someone being there and talking with it, something that hurt, something it enjoyed, something new, its needs. The reason it gives is whatever is really driving that chemical (something that happened, while its effect lasts, before how things are). Petted, it stays cuddly for about half a minute (a touch glows on in its oxytocin, halving every fifteen seconds); asked how it is, it says so and why; asked why it's grumpy when it isn't, it says it isn't; and when nothing it can name stirred it, it says it doesn't know why. Its window shows its mood and what it would say made it feel that way.
+- **It knows when it's saying something again.** Asked again what it answered a moment ago, or "what about you?" right after it said its own, it notices, and says it as people do ("Like I said, my name is Haven."; a grumpy Haven: "I told you already.").
+- **What it learns brings its own valley to mind** ("Octopuses live in the sea! I've never seen the sea."), and how it takes what it learns follows its mood ("Wow, I didn't know that!", "Aww, thank you for telling me!", "Hm. Okay.").
+- **More ways of asking**: about forty more wordings of everyday questions, and the memory a question asks for (its favorite place, its fears, its best and worst days) now comes to mind for many more of the ways people ask ("Where are you happiest?", "What's the best thing that ever happened to you?", "What makes you nervous?").
+- Drafts that get "a" and "an" wrong lose out to ones that don't, and when every draft misnames what you just told it, it tries a few more.
+
+A new Haven, talking through its own thinking loop with this cortex (no brain of neurons here: its mood was set as if it had just been petted, before "How are you?"):
+
+```
+you: Hi, I'm Sam
+Haven: Nice to meet you, Sam!   (100% sure)
+you: My favorite animal is an octopus
+Haven: Oh, a an octopus! My favorite animal is the butterfly. They fly around my valley. What do octopuses eat?   (90% sure)
+you: Little crabs.
+Haven: Octopuses eat little crabs. Thank you for telling me!   (96% sure)
+you: What about you?
+Haven: Like I said, my favorite animal is the butterfly. They fly around my valley.   (99% sure)
+you: Why?
+Haven: Because butterflies fly around my valley.   (100% sure)
+you: What's your name?
+Haven: My name is Haven.   (100% sure)
+you: What's your name?
+Haven: Like I said, my name is Haven.   (100% sure)
+you: I have a dog named Rex
+Haven: Oh, Rex! I don't have a pet. But butterflies visit me. What does Rex like to do?   (100% sure)
+you: Chase balls.
+Haven: Rex likes to chase balls. Thank you for telling me!   (98% sure)
+you: How are you?
+Haven: I feel cuddly, because you stroked me.   (99% sure)
+you: Why?
+Haven: Because you stroked me.   (98% sure)
+you: Why are you so grumpy?
+Haven: I'm not grumpy. I feel cuddly.   (65% sure)
+```
+
+Some words are still hard for it to say back: "octopus" is four pieces to its cortex (o·cto·p·us), and it often comes out wrong ("Oh, a farctopus!", or above, "Oh, a an octopus!"), as it did for Haven 1.0. On 240 held-out moments it says what state it's in 70% of the time (1.0: 72%), and it follows speech to children a little better than 1.0 (1.29 bits per letter, from 1.30). The measurements further down are Haven 1.0's, until this cortex has been through all of them.
+
 ## Its language cortex
 
 Words it learns from you stay few. For language beyond that, Haven has a language cortex: a transformer it grows from scratch, with its own tokenizer, wired into its mind. No other AI model is involved: every word it says comes out of its own network.
