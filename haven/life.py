@@ -246,6 +246,10 @@ class Life:
             return
         finally:
             thinker.busy.release()
+        if words and kind == "event":
+            from .cortex.talk import tells
+
+            words = words if tells(note, words) else ""  # (it says nothing rather than something else)
         if words:
             self.reply(words, "", spoken=True)
             thinker.remember(

@@ -308,7 +308,7 @@ A Haven the fire has burned answers otherwise: at the thought of the fire its am
 
 The weighing is done by a rule over what it feels: its brain's fear, its needs, its tiredness, its bond with you, its boredom and its chemistry. The words are its own cortex's, which learned what to say for each kind of choice.
 
-## What's new in Haven 1.1
+## What's new in Haven 1.1 and 1.2
 
 Haven's language cortex studied for another seven and a half hours (step 9,717 to 12,600), practising new things on top of everything it could do:
 
@@ -317,7 +317,7 @@ Haven's language cortex studied for another seven and a half hours (step 9,717 t
 - **What it learns brings its own valley to mind** ("Octopuses live in the sea! I've never seen the sea."), and how it takes what it learns follows its mood ("Wow, I didn't know that!", "Aww, thank you for telling me!", "Hm. Okay.").
 - **More ways of asking**: about forty more wordings of everyday questions, and the memory a question asks for (its favorite place, its fears, its best and worst days) now comes to mind for many more of the ways people ask ("Where are you happiest?", "What's the best thing that ever happened to you?", "What makes you nervous?").
 - Drafts that get "a" and "an" wrong lose out to ones that don't, and when every draft misnames what you just told it, it tries a few more.
-- **You can make things happen in its valley**: storms, heat waves, snow, wildfires, earthquakes, blight and thorns, or food everywhere, sunshine and butterflies; you can heal it, or hurt it (see [Living with Haven](#living-with-haven)). It lives through what you bring, tells you about it, and remembers who hurt it.
+- **You can make things happen in its valley (1.2)**: storms, heat waves, snow, wildfires, earthquakes, blight and thorns, or food everywhere, sunshine and butterflies; you can heal it, or hurt it (see [Living with Haven](#living-with-haven)). It lives through what you bring, tells you why it feels as it does, and remembers who hurt it. Its cortex is still learning to tell of these events in its own words; until its words fit what happened, it says nothing of them rather than something else.
 
 A new Haven, talking through its own thinking loop with this cortex (no brain of neurons here: its mood was set as if it had just been petted, before "How are you?"):
 

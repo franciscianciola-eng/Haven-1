@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..mind import Mind, need_words
+from ..mind import POWERS, Mind, need_words
 from ..personality import TRAITS
 from ..selfmodel import VERDICTS
 from ..world import BELL, DAY, FIRE, NEST, SAND, SEASON_DAYS, SEASONS, THORN, TREE, TURNING, WATER, YEAR
@@ -2629,6 +2629,25 @@ DID = {  # what it was asked to do, done: as it tells it
 }
 
 
+BROUGHT = tuple(text for _, text in POWERS.values())  # what people can make happen in its valley (Mind.bring)
+_PLAIN = frozenset((  # (words too plain to tell what something is about)
+    "just", "that", "this", "with", "have", "your", "them", "there", "what", "when", "feel", "felt", "came", "come",
+    "were", "will", "from", "into", "over", "more",
+))  # fmt: skip
+
+
+def tells(note: str, words: str) -> bool:
+    """Whether what it said of something that just happened is about that (its words name something of it, or of
+    what it learned to say of it), so a cortex that hasn't learned to tell of it yet says nothing, not something
+    else."""
+    found = re.match(r"Just now, I (.+)\.$", note)
+    text = found.group(1).replace(" my ", " its ").replace("myself", "itself") if found else None
+    if text not in HAPPENED:
+        return True
+    keys = {w for w in re.findall(r"[a-z]+", f"{text} {HAPPENED[text]}".lower()) if len(w) >= 4} - _PLAIN
+    return bool(keys & set(re.findall(r"[a-z]+", words.lower())))
+
+
 def event_note(text: str) -> str | None:
     """Something that just happened, from its log, as it comes to mind (None if it's nothing to tell)."""
     if text in HAPPENED:
@@ -3349,7 +3368,7 @@ RECALLED = (
 SPEAKING = {  # what it speaks up about, and how often, in the conversations it learns from
     "back": 0.14,
     "season": 0.08,
-    "event": 0.16,
+    "event": 0.3,
     "need": 0.1,
     "question": 0.16,
     "memory": 0.12,
@@ -3416,7 +3435,8 @@ def speaking_up(
         return note, Turn(None, words, "speaking up"), None
     if kind == "event":
         recent = [t for t in moment.get("recent", ()) if event_note(t)]
-        note = event_note(recent[-1] if recent and rng.random() < 0.5 else rng.choice(HAPPENINGS))
+        pool = BROUGHT if rng.random() < 0.6 else HAPPENINGS  # (more of what people can make happen: newer to it)
+        note = event_note(recent[-1] if recent and rng.random() < 0.5 else rng.choice(pool))
         return note, Turn(None, event_answer(note), "speaking up"), None
     if kind == "need":
         body = moment.get("body") or {"drives": [0.0] * 4, "cold": True}
