@@ -146,6 +146,25 @@ ARTICLES = [
         "This article is about the French national capital in general. The capital of France is Paris.",
     ),
     ("Rome", "Rome is the capital city of Italy. About 2.8 million people live in Rome."),
+    (
+        "Volcano",
+        "A volcano is a mountain that has lava coming out of it. Volcanoes are formed by the movement of tectonic "
+        "plates.",
+    ),
+    ("Volcanoes in Iceland", "Many volcanoes in Iceland are active volcanoes. Iceland has 30 active volcanic systems."),
+    (
+        "Koala",
+        "Koalas are marsupials that live in the eucalyptus forests of Australia. Scientists do not know why koalas have "
+        "finger prints, but their best guess is that it helps them choose leaves to eat. They eat leaves of eucalyptus "
+        "trees.",
+    ),
+    ("Giant panda", "The giant panda is a bear that lives in China. The panda's diet is mostly bamboo."),
+    ("Atal Bihari Panda", "Atal Bihari Panda was an Indian actor and songwriter."),
+    (
+        "Elvis Presley",
+        "Elvis Presley was an American singer and actor. His fame has lasted for a long time after his death. He died "
+        "on August 16, 1977.",
+    ),
 ]
 
 

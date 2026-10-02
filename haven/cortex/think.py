@@ -82,6 +82,18 @@ def misworded(text: str) -> bool:
 
 
 _SAYS = re.compile(r"\bIt (?:also )?says: (.+)$")
+_PRONOUN = re.compile(r"\b(he|she|it|they|him|her|them|his|its|their)\b", re.IGNORECASE)
+
+
+def resolved(text: str, name: str | None) -> str:
+    """A question about what it just told them, with that named, to find what it read that answers it ("When was he
+    born?", just after telling about Albert Einstein: "When was Albert Einstein born?")."""
+    if not name:
+        return text
+    name = re.sub(r"\s*\(.*?\)", "", name).strip()
+    return _PRONOUN.sub(
+        lambda found: f"{name}'s" if found.group(1).lower() in ("his", "its", "their") else name, text, count=1
+    )
 
 
 def misread(text: str, context: str) -> bool:
@@ -189,6 +201,8 @@ class Thinker:
         self._shelf = None  # (whole encyclopedias, and what it's given to read: see shelf.py)
         self.shown: dict[str, set[int]] = {}  # what it has told of each thing it read, in this conversation
         self.last_read: str | None = None  # what it last told them it read
+        self.telling: list[str] = []  # what came to mind as it told that, and as it told more of it since
+        self.since_told = 0  # how many times it has answered since
         self.wondered: set[str] = set()  # what it has tried reading about out of curiosity
         # Someone following along as it answers (the app): hears ("draft" | "words" | "pondering" | "thought" |
         # "reading" | "read", text) as a reply takes shape.
@@ -372,23 +386,23 @@ class Thinker:
                 return []
             title = fresh[-1] if library.sources[fresh[-1]] != "book" else random.choice(fresh)
             self.shown.setdefault(title, set()).add(0)
-            self.last_read = title
-            return [f"I read about {title}: {library.sentence(title, 0)}"]
+            return self._told(title, [f"I read about {title}: {library.sentence(title, 0)}"])
         if MORE.search(text):  # more of what it read
             title = library.title_for(text) or self.last_read
             if title is None or title not in library:
                 return []
             told = self.shown.setdefault(title, set())
-            self.last_read = title
             if not told:
                 told.add(0)
-                return [f"I read about {title}: {library.sentence(title, 0)}"]
-            first = min(told)  # what it told them, and what it read next (as it practised it)
+                return self._told(title, [f"I read about {title}: {library.sentence(title, 0)}"])
             index = next((i for i in range(len(library.docs[title])) if i not in told), None)
             if index is not None:
                 told.add(index)
             more = more_note(title, None if index is None else library.sentence(title, index))
-            return [f"I read about {title}: {library.sentence(title, first)}", more]
+            if self.last_read == title and self.telling:  # what came to mind as it told them, and what it read next
+                return self._told(title, [*self.telling, more])
+            first = min(told)  # (as it practised it)
+            return self._told(title, [f"I read about {title}: {library.sentence(title, first)}", more])
         if about_them(text) or mentioned(text):  # about them, or about its valley: not what it read
             return []
         if about_haven(text) and not library.title_for(text):  # about it ("who made you?"), not something it read
@@ -396,26 +410,30 @@ class Thinker:
         taught = best_lesson(text, [item for _, item in mind.lessons])
         if taught:  # something someone taught it
             return [f"You told me that {taught}."]
+        if self.since_told <= 1:  # (just after it told them something it read, "he" or "they" is likely that)
+            text = resolved(text, self.last_read)
         found = library.find(text, strict=True)  # what it has practised telling, or what something it read is
         if found is None and self.shelf is not None:  # what it read on its shelf that answers them
             try:
                 hit = self.shelf.find(text)
             except Exception:  # noqa: BLE001  (a shelf that can't be read just now)
                 hit = None
-            if hit is not None:
-                if library.sources.get(hit.title) != "book":  # (its little book stays as it practised it)
-                    library.add(hit.title, hit.sentences, "shelf")  # (in mind now: it can tell more of it)
-                    self.shown[hit.title] = set(range(hit.index, hit.index + hit.count))
-                self.last_read = hit.title
+            if hit is not None:  # (in mind now, as it read it there, even if its little book has it: it can tell more)
+                library.add(hit.title, hit.sentences, "shelf")
+                self.shown[hit.title] = set(range(hit.index, hit.index + hit.count))
                 self._tell("found", hit.title)
-                return [f"I read about {hit.title}: {hit.said}"]
+                return self._told(hit.title, [f"I read about {hit.title}: {hit.said}"])
         found = found or library.find(text)
         if found is None:
             return []
         title, index = found
         self.shown.setdefault(title, set()).add(index)
-        self.last_read = title
-        return [f"I read about {title}: {library.sentence(title, index)}"]
+        return self._told(title, [f"I read about {title}: {library.sentence(title, index)}"])
+
+    def _told(self, title: str, found: list[str]) -> list[str]:
+        """What it read that comes to mind as it tells them about it (and, asked for more, comes to mind again)."""
+        self.last_read, self.telling, self.since_told = title, found, 0
+        return found
 
     def look_up(self, topic: str, life=None, why: str = "asked") -> str | None:
         """Read about something: on its shelf if it's there, or else in the Simple English Wikipedia online (`why`:
@@ -548,11 +566,12 @@ class OwnThinker(Thinker):
         from ..will import consider
         from . import engage
         from .library import asked_to_read
-        from .talk import DONT_KNOW, addressed, answer_to, notes, request, request_note, story_asked, sum_of
+        from .talk import DONT_KNOW, MORE, addressed, answer_to, notes, request, request_note, story_asked, sum_of
         from .tokenizer import HAVEN, THINK, YOU
 
         torch = self.torch
         self.hearing.heard_said(text)  # (what people say to it, it goes over in its sleep, as it does what it hears)
+        self.since_told += 1
         text = addressed(text, life.mind.me.name)  # ("Hi Pip!" is being greeted, as "Hi Haven!" is)
         if getattr(life, "talk", None) is None:
             life.talk = Thread()
@@ -600,13 +619,19 @@ class OwnThinker(Thinker):
 
         long = 180 if story_asked(text) == "tale" else 100  # (a story takes longer to tell)
 
-        def prompt_for(known: str) -> list[int]:
+        def in_view(found: list[str]) -> list[dict]:
+            """What was said lately, in view as it answers; but when what it read about something new comes to mind,
+            it tells it as it learned to, as if they had only just asked (asked for more, what it said is in view)."""
+            fresh = any(f.startswith("I read about ") for f in found) and not MORE.search(text)
+            return [] if fresh else history
+
+        def prompt_for(known: str, view: list[dict]) -> list[int]:
             """What came to mind, what was said lately, and what they said: if that's more than it can hold at once,
             the oldest of what was said goes first (what came to mind just now stays, or the end of it does)."""
             room = self.model.cfg.context - long
             head = [THINK, *self.tok.encode(known)]
             asked = [YOU, *self.tok.encode(text), HAVEN]
-            said = [[YOU if t["who"] == "you" else HAVEN, *self.tok.encode(t["text"])] for t in history]
+            said = [[YOU if t["who"] == "you" else HAVEN, *self.tok.encode(t["text"])] for t in view]
             while said and len(head) + sum(map(len, said)) + len(asked) > room:
                 said.pop(0)
             if len(head) + len(asked) > room:
@@ -614,12 +639,13 @@ class OwnThinker(Thinker):
             return head + [token for turn in said for token in turn] + asked
 
         told = bool(just) and not learned  # (told something about them: more drafts, so one names it right)
-        words, confidence = self._say(prompt_for(known), state, drafts + 2 if told else drafts, long, heard=text)
+        view = in_view(extra)
+        words, confidence = self._say(prompt_for(known, view), state, drafts + 2 if told else drafts, long, heard=text)
         if long <= 100 and engage.said_before(words, [t["text"] for t in history if t["who"] != "you"]):
             follow.append(engage.said_note(words))  # it's about to say again what it said just now: it knows it is
             with life.lock:
                 known = notes(mind, text, (), just, extra + follow)
-            words, confidence = self._say(prompt_for(known), state, drafts, long, heard=text)
+            words, confidence = self._say(prompt_for(known, view), state, drafts, long, heard=text)
         topic = None if sum_of(text) else topic_of(text)  # (a sum isn't something to look up)
         can_read = self.web is not None or self.shelf is not None
         if words.startswith(DONT_KNOW[:24]) and can_read and topic and not self.library.title_for(topic):
@@ -628,7 +654,7 @@ class OwnThinker(Thinker):
                     extra = self.recollect(mind, text)
                     known = notes(mind, text, (), just, extra + follow)
                 if extra:
-                    words, confidence = self._say(prompt_for(known), state, drafts)
+                    words, confidence = self._say(prompt_for(known, in_view(extra)), state, drafts)
         if decision is not None and decision.answer in engage.WILLING:
             with life.lock:
                 mind.take_errand(req.do, req.thing, req.action, req.need)  # it chose to, so it sets off

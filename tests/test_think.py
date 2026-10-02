@@ -170,3 +170,27 @@ def test_it_notices_when_it_tells_as_read_what_it_didnt_read():
     assert not misread("I feel cuddly, because you stroked me.", came)  # (it isn't telling what it read)
     more = came + " More that I read about World War II: The war ended with an Allied victory."
     assert not misread("It also says: The war ended with an Allied victory.", more)
+
+
+def test_what_it_read_about_something_new_it_tells_as_if_they_had_only_just_asked(cortex_home, monkeypatch):
+    from dataclasses import replace
+
+    thinker, _ = make_thinker("own", cortex_home, web=Web(delay=0, allow_private=True))
+    life = Life(Mind(seed=1), None)
+    minded = []  # (what came to mind, and what was said in view, each time it put a reply into words)
+
+    def say(prompt, state, drafts, most=100, heard=None):
+        minded.append(thinker.tok.decode(prompt))
+        return "Okay.", 0.9
+
+    monkeypatch.setattr(thinker, "_say", say)
+    monkeypatch.setattr(thinker.model, "cfg", replace(thinker.model.cfg, context=4096))  # (room for all of it)
+    answers = ("Answer number one.", "Answer number two.", "Answer number three.", "Answer number four.")
+    for text, answer in zip(("What's your name?", "What is the moon?", "Tell me more.", "How are you?"), answers):
+        life.conversation.append({"tick": 0, "who": "you", "text": text})
+        thinker.deliberate(life, text)
+        life.conversation.append({"tick": 0, "who": "haven", "text": answer})
+    _, moon, more, feeling = minded
+    assert "I read about Moon" in moon and answers[0] not in moon  # (something new it read: as if they just asked)
+    assert answers[1] in more and "I read about Moon" in more  # (asked for more: what it said, and what it read)
+    assert answers[2] in feeling  # (anything else: with what was said lately in view)

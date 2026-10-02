@@ -98,6 +98,10 @@ def shelf(tmp_path):
         ("What's the tallest mountain?", "Mount Everest", "Mount Everest is the highest mountain on Earth."),
         ("what is a cat", "Cat", "Cats are small, carnivorous mammals."),
         ("How many people live in Rome?", "Rome", "About 2.8 million people live in Rome."),
+        ("What do koalas eat?", "Koala", "They eat leaves of eucalyptus trees."),  # (about them, not just "eat")
+        ("When was Albert Einstein born?", "Albert Einstein", "Einstein was born in Ulm in 1879."),  # (not German-born)
+        ("When did Elvis Presley die?", "Elvis Presley", "He died on August 16, 1977."),  # (asked when: a date)
+        ("What do pandas eat?", "Giant panda", "The panda's diet is mostly bamboo."),  # (not a Mr Panda)
     ],
 )
 def test_it_finds_the_sentence_that_answers(shelf, question, title, says):
@@ -109,6 +113,16 @@ def test_asked_to_tell_about_something_it_tells_two_sentences(shelf):
     found = shelf.find("Tell me about Paris")
     assert found.title == "Paris" and found.count == 2
     assert found.said == "Paris is the capital and largest city of France. The river Seine flows through it."
+
+
+def test_it_knows_what_a_plural_is_of(shelf):
+    from haven.cortex.shelf import singulars
+
+    assert {"volcano", "potato", "wolf", "mouse", "child", "leaf"} <= set().union(
+        *map(singulars, ("volcanoes", "potatoes", "wolves", "mice", "children", "leaves"))
+    )
+    found = shelf.find("Tell me about volcanoes")  # (Volcano, not Volcanoes in Iceland)
+    assert found.title == "Volcano" and found.said.startswith("A volcano is a mountain")
 
 
 def test_only_questions_about_the_world(shelf):
@@ -281,6 +295,38 @@ def test_what_it_read_on_its_shelf_comes_to_mind(shelf, tmp_path):
     assert thinker.recollect(mind, "What is the moon?") == [  # (its little book first: what it practised)
         "I read about Moon: The Moon is the Earth's only natural satellite."
     ]
+
+
+def test_he_or_they_just_after_it_told_them_something_is_what_it_told(shelf, tmp_path):
+    from haven.cortex.think import Thinker, resolved
+    from haven.mind import Mind
+
+    assert resolved("When was he born?", "Albert Einstein") == "When was Albert Einstein born?"
+    assert resolved("What is its capital?", "France") == "What is France's capital?"
+    assert resolved("Where do they live?", "Cat (zodiac)") == "Where do Cat live?"
+    thinker = Thinker(tmp_path)
+    thinker.shelf = shelf
+    mind = Mind(seed=3)
+    assert thinker.recollect(mind, "Who was Elvis Presley?") == [
+        "I read about Elvis Presley: Elvis Presley was an American singer and actor."
+    ]
+    assert thinker.recollect(mind, "When did he die?") == ["I read about Elvis Presley: He died on August 16, 1977."]
+
+
+def test_what_it_read_on_its_shelf_takes_the_place_of_its_little_books_telling(shelf, tmp_path):
+    from haven.cortex.think import Thinker
+    from haven.mind import Mind
+
+    thinker = Thinker(tmp_path)
+    thinker.shelf = shelf
+    mind = Mind(seed=3)
+    assert thinker.library.find("What is lava?") == ("Volcano", 1)  # (practised, from its little book)
+    assert thinker.recollect(mind, "Tell me about volcanoes") == [
+        "I read about Volcano: A volcano is a mountain that has lava coming out of it. Volcanoes are formed by the "
+        "movement of tectonic plates."
+    ]
+    assert thinker.library.sources["Volcano"] == "shelf"  # (what it told is what it tells more of)
+    assert all(doc != "Volcano" for _, doc, _ in thinker.library.questions)  # (its practised questions were about the book's)
 
 
 # --- the app's library -----------------------------------------------------------------------------------------------

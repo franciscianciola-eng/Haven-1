@@ -115,6 +115,8 @@ class Library:
                 for word in self._words(title, i):
                     self.postings.get(word, set()).discard((title, i))
             self.count -= len(self.docs[title])
+            if self.sources[title] == "book" and source != "book":  # (what it practised was about its book's telling)
+                self.questions = [q for q in self.questions if q[1] != title]
         self.docs[title], self.sources[title] = sentences, source
         self.count += len(sentences)
         for i in range(len(sentences)):

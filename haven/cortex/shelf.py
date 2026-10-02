@@ -70,7 +70,8 @@ FILLER = frozenset(
     hows which explain describe define definition meaning mean means look up find out read reading anything something
     everything heard hear any some more much lot lots exactly really actually ever thing things kind sort type hey hi
     hello haven ok okay so well just also too very like let lets see show give teach learn learned want wanna wondering
-    wonder idea ideas info information fact facts called named name many s t""".split()
+    wonder idea ideas info information fact facts called named name many s t he she they him her them his hers their
+    theirs""".split()
 )
 QUESTION = re.compile(
     r"\?\s*$|^(?:(?:hey|hi|ok|okay|so|and|but|well|haven)[, ]+)*(?:what|who|whom|whose|where|when|why|how|which|"
@@ -145,7 +146,8 @@ SAME = {  # words that mean the same, for finding what answers a question (each 
     "made": ("created", "invented", "built"),
     "live": ("lives", "found", "habitat"),
     "born": ("birth",),
-    "died": ("death",),
+    "died": ("death", "killed", "assassinated"),
+    "die": ("died", "death", "killed", "assassinated"),
     "speak": ("language", "languages", "spoken"),
     "people": ("population", "inhabitants"),
     "eat": ("food", "diet", "prey", "feed"),
@@ -168,6 +170,49 @@ def singular(word: str) -> str:
     if len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is")):
         return word[:-1]
     return word
+
+
+IRREGULAR = {"mice": "mouse", "geese": "goose", "children": "child", "women": "woman", "men": "man", "feet": "foot",
+             "teeth": "tooth"}
+
+
+def singulars(word: str) -> set[str]:
+    """What a word may be the plural of ("volcanoes": a volcano, "wolves": a wolf, "mice": a mouse)."""
+    found = {singular(word)}
+    if word in IRREGULAR:
+        found.add(IRREGULAR[word])
+    if len(word) > 4 and word.endswith("oes"):
+        found.add(word[:-2])
+    if len(word) > 4 and word.endswith("ves"):
+        found |= {word[:-3] + "f", word[:-3] + "fe"}
+    return found
+
+
+PRONOUNS = ("it", "they", "he", "she", "its", "their", "his", "her")
+DATE = re.compile(
+    r"\b\d{3,4}\b|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b"
+)
+
+
+def about(sentence: str, named: list[str]) -> bool:
+    """Whether a sentence is about what was asked: it starts by naming it ("Koalas do not drink often", every word of
+    the name, not just "war" for World War II), or with "it", "they", "he" or "she" ("They eat leaves of eucalyptus
+    trees.")."""
+    said = re.findall(r"[^\W_]+", sentence)
+    words = [word.lower() for word in said]
+    if words and words[0] in PRONOUNS:
+        return True
+    name = [word for word in named if not word.isdigit() and word not in ROMAN.values()]
+    start = {form for word in words[: len(name) + 2] for form in (word, singular(word))}
+    if len(name) > 1 and name[-1] in words[:3] and said[words.index(name[-1])][0].isupper():
+        return True  # (someone's name, the second time: "Einstein was born in Ulm")
+    return bool(name) and all(word in start or singulars(word) & start for word in name)
+
+
+def says(sentence: str, words: tuple[str, ...]) -> bool:
+    """Whether a sentence says one of these words as a word of its own, not as part of another ("born", not
+    "German-born")."""
+    return any(re.search(rf"(?<![-\w]){re.escape(word)}", sentence, re.IGNORECASE) for word in words)
 
 
 @dataclass
@@ -526,13 +571,14 @@ class Shelf:
         if not content:
             return None
         who = tokens[0] == "who" or tokens[:2] in (["who", "was"], ["who", "is"])
+        when = tokens[0] == "when" or tokens[:2] == ["what", "year"]
         meaning = bool(MEANING.search(text))
         if meaning:
             content = [t for t in content if t not in ("mean", "means", "meaning", "define", "definition", "word")]
             if not content:
                 return None
         with self.lock:
-            named = self._named(tokens, content, count, who)
+            named = self._named(tokens, content, count, who, when)
             found = [*named, *self._anywhere(content, count, bool(named))]
         for f in found:  # (a dictionary says what words mean; an encyclopedia, what things are)
             if f.source == "dictionary":
@@ -541,9 +587,11 @@ class Shelf:
             return None
         return max(found, key=lambda f: f.score)
 
-    def _named(self, tokens: list[str], content: list[str], count: int, who: bool = False) -> list[Found]:
+    def _named(
+        self, tokens: list[str], content: list[str], count: int, who: bool = False, when: bool = False
+    ) -> list[Found]:
         """Answers from articles a question names, by their titles (or what else they're called)."""
-        why = tokens[0] in ("why", "how")
+        why = tokens[0] == "why"
         found = []
         seen: set[tuple[str, int]] = set()
         for n in range(min(6, len(tokens)), 0, -1):
@@ -553,7 +601,7 @@ class Shelf:
                     continue
                 if why and n > 1 and i + n == len(tokens):
                     continue  # ("why is the sky blue": about the sky, not the colour sky blue)
-                said = {" ".join(gram), " ".join([*gram[:-1], singular(gram[-1])])}
+                said = {" ".join(gram), *(" ".join([*gram[:-1], one]) for one in singulars(gram[-1]))}
                 if gram[-1] in ROMAN and n > 1:  # ("World War 2": "World War II")
                     said.add(" ".join([*gram[:-1], ROMAN[gram[-1]]]))
                 for name in said:
@@ -572,14 +620,14 @@ class Shelf:
                             exact = plain_name(title) == name and "(" not in title  # (its own article, not a namesake)
                             found.append(
                                 self._in_article(
-                                    volume, title, first, last, size, source, named, rest, count, exact, who
+                                    volume, title, first, last, size, source, named, rest, count, exact, who, when
                                 )
                             )
             if found and n > 1:
                 break  # (the longest names first: "New York City", not "York")
         return found
 
-    def _in_article(self, volume, title, first, last, size, source, named, rest, count, exact, who) -> Found:
+    def _in_article(self, volume, title, first, last, size, source, named, rest, count, exact, who, when) -> Found:
         lead = volume.sentences(first, last)
         base = 3.0 * len(named) + 0.3 * math.log10(1 + size) + (1.0 if exact else 0.0)
         base += 0.5 if source == "simple" else 0.0  # (in simple words: easier to tell)
@@ -589,17 +637,24 @@ class Shelf:
             return Found(title, lead, 0, min(count, len(lead)), 10 + base, source)
         weights = {t: self._weight(t) for t in set(rest)}
         has: dict[int, float] = {}
+        said: dict[int, str] = {}
         for term, weight in weights.items():
-            for (row,) in volume.db.execute(
-                "SELECT rowid FROM sentences WHERE sentences MATCH ? AND rowid BETWEEN ? AND ? LIMIT 400",
+            for row, sentence in volume.db.execute(
+                "SELECT rowid, text FROM sentences WHERE sentences MATCH ? AND rowid BETWEEN ? AND ? LIMIT 400",
                 (self._query(term), first, last),
             ):
-                has[row] = has.get(row, 0.0) + weight
-        if not has:  # nothing it read about it says that: what it is, at least (less likely the answer)
-            return Found(title, lead, 0, 1, 3 + base, source)
-        row = min(has, key=lambda r: (-has[r], r))
+                has[row] = has.get(row, 0.0) + (weight if says(sentence, (term, *SAME.get(term, ()))) else weight / 2)
+                said[row] = sentence
+        if not has:  # nothing it read about it says that: what it is, at least (less likely the answer; and a namesake,
+            return Found(title, lead, 0, 1, (3.0 if exact else 1.0) + base, source)  # like a Mr Panda, less still)
+        lean = 0.3 * max(weights.values())  # (of sentences that say as much, the first one about what was asked,
+        rank = {  # and asked when, one that says when)
+            r: has[r] + (lean if about(said[r], named) else 0.0) + (lean if when and DATE.search(said[r]) else 0.0)
+            for r in has
+        }
+        row = min(rank, key=lambda r: (-rank[r], r))
         covered = has[row] / sum(weights.values())
-        (sentence,) = volume.db.execute("SELECT text FROM sentences WHERE rowid = ?", (row,)).fetchone()
+        sentence = said[row]
         index = row - first
         sentences = lead
         if index >= len(lead):
@@ -635,7 +690,7 @@ class Shelf:
                     sentences = lead if index < len(lead) else [*lead, sentence]
                     index = min(index, len(sentences) - 1)
                     words = set(plain_name(title).split())
-                    titled = sum(1 for t in used if t in words or singular(t) in words)
+                    titled = sum(1 for t in used if t in words or singulars(t) & words)
                     score = 6 * covered + 2 * titled - 0.05 * index + 0.3 * math.log10(1 + size_) - 0.01 * rank
                     score -= 2.0 if named else 0.0  # (an article the question names is likelier to answer it)
                     found.append(Found(title, sentences, index, 1, score, source))
