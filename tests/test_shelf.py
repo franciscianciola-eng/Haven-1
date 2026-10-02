@@ -313,6 +313,22 @@ def test_he_or_they_just_after_it_told_them_something_is_what_it_told(shelf, tmp
     assert thinker.recollect(mind, "When did he die?") == ["I read about Elvis Presley: He died on August 16, 1977."]
 
 
+def test_what_it_read_comes_to_mind_in_plain_letters_and_valley_words_can_name_other_things(shelf, tmp_path):
+    from haven.cortex.think import Thinker
+    from haven.mind import Mind
+
+    thinker = Thinker(tmp_path)
+    thinker.shelf = shelf
+    mind = Mind(seed=3)
+    assert thinker.recollect(mind, "Where is Wieluń?") == [  # (an accent is hard for it to say back)
+        "I read about Wielun: Wielun is a town in Lodz Voivodeship, in the middle of Poland."
+    ]
+    assert thinker.recollect(mind, "What is Apple Macintosh?") == [  # (not the apples in its valley)
+        "I read about Apple Macintosh: The Apple Macintosh is a line of personal computers made by Apple."
+    ]
+    assert thinker.recollect(mind, "What do apples taste like?") == []  # (that it knows from its valley)
+
+
 def test_what_it_read_on_its_shelf_takes_the_place_of_its_little_books_telling(shelf, tmp_path):
     from haven.cortex.think import Thinker
     from haven.mind import Mind

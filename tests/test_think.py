@@ -170,6 +170,9 @@ def test_it_notices_when_it_tells_as_read_what_it_didnt_read():
     assert not misread("I feel cuddly, because you stroked me.", came)  # (it isn't telling what it read)
     more = came + " More that I read about World War II: The war ended with an Allied victory."
     assert not misread("It also says: The war ended with an Allied victory.", more)
+    assert misread("I read about World War III. It says: Japan formally surrendered on September 2, 1945.", came)
+    word = "I read about the word ubiquitous: Ubiquitous means being present everywhere at once."
+    assert misread("I read about the word uiquitous. It says: Ubiquitous means being present everywhere at once.", word)
 
 
 def test_what_it_read_about_something_new_it_tells_as_if_they_had_only_just_asked(cortex_home, monkeypatch):

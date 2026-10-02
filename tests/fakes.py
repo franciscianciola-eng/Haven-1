@@ -160,6 +160,8 @@ ARTICLES = [
     ),
     ("Giant panda", "The giant panda is a bear that lives in China. The panda's diet is mostly bamboo."),
     ("Atal Bihari Panda", "Atal Bihari Panda was an Indian actor and songwriter."),
+    ("Wieluń", "Wieluń is a town in Łódź Voivodeship, in the middle of Poland."),
+    ("Apple Macintosh", "The Apple Macintosh is a line of personal computers made by Apple."),
     (
         "Elvis Presley",
         "Elvis Presley was an American singer and actor. His fame has lasted for a long time after his death. He died "

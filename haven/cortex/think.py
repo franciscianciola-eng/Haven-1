@@ -23,6 +23,7 @@ import random
 import re
 import threading
 import time
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 
@@ -96,11 +97,28 @@ def resolved(text: str, name: str | None) -> str:
     )
 
 
+_READ_ABOUT = re.compile(r"^I read about (.+?)\. It says: ")
+_LETTERS = str.maketrans(
+    {"ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "æ": "ae", "Æ": "Ae", "œ": "oe", "Œ": "Oe", "ß": "ss", "đ": "d", "Đ": "D",
+     "ð": "d", "Ð": "D", "þ": "th", "Þ": "Th", "ı": "i"}
+)
+
+
+def plain_letters(text: str) -> str:
+    """Words in plain letters ("Łódź": "Lodz", "Beyoncé": "Beyonce"); other characters stay as they are."""
+    text = unicodedata.normalize("NFKD", text.translate(_LETTERS))
+    return unicodedata.normalize("NFC", "".join(c for c in text if not unicodedata.combining(c)))
+
+
 def misread(text: str, context: str) -> bool:
     """Whether a draft tells as read what it didn't read ("It says: Japan formally surreamed…", where what it read
-    says "surrendered"): what it says it read has to be in what came to mind, word for word."""
+    says "surrendered"): what it says it read has to be in what came to mind, word for word, and so does what it read
+    it in ("I read about the word uiquitous" won't do)."""
     found = _SAYS.search(text)
-    return bool(found) and " ".join(found.group(1).split()) not in " ".join(context.split())
+    if found and " ".join(found.group(1).split()) not in " ".join(context.split()):
+        return True
+    named = _READ_ABOUT.match(text)
+    return bool(named) and f"I read about {named.group(1)}:" not in context
 
 
 def misnamed(text: str, heard: str | None) -> bool:
@@ -403,7 +421,7 @@ class Thinker:
                 return self._told(title, [*self.telling, more])
             first = min(told)  # (as it practised it)
             return self._told(title, [f"I read about {title}: {library.sentence(title, first)}", more])
-        if about_them(text) or mentioned(text):  # about them, or about its valley: not what it read
+        if about_them(text) or (mentioned(text) and not self._beyond_valley(text)):  # about them, or its valley
             return []
         if about_haven(text) and not library.title_for(text):  # about it ("who made you?"), not something it read
             return []
@@ -430,8 +448,24 @@ class Thinker:
         self.shown.setdefault(title, set()).add(index)
         return self._told(title, [f"I read about {title}: {library.sentence(title, index)}"])
 
+    def _beyond_valley(self, text: str) -> bool:
+        """Whether a question that names something in its valley is about something else with that in its name
+        ("What is Apple Macintosh?"): something on its shelf is called that, all of it in the question."""
+        from .shelf import plain_name
+
+        if self.shelf is None:
+            return False
+        try:
+            hit = self.shelf.find(text)
+        except Exception:  # noqa: BLE001  (a shelf that can't be read just now)
+            return False
+        name = plain_name(hit.title).split() if hit else []
+        return len(name) > 1 and set(name) <= set(plain_name(text).split())
+
     def _told(self, title: str, found: list[str]) -> list[str]:
-        """What it read that comes to mind as it tells them about it (and, asked for more, comes to mind again)."""
+        """What it read that comes to mind as it tells them about it (and, asked for more, comes to mind again), in
+        the letters it learned ("Lodz" for "Łódź": a letter with an accent is hard for it to say back)."""
+        found = [plain_letters(n) for n in found]
         self.last_read, self.telling, self.since_told = title, found, 0
         return found
 
@@ -617,7 +651,17 @@ class OwnThinker(Thinker):
         with life.lock:
             mind.understand(text, heard)  # what it made of what was said comes to mind
 
-        long = 180 if story_asked(text) == "tale" else 100  # (a story takes longer to tell)
+        tale = story_asked(text) == "tale"
+
+        def length(found: list[str]) -> int:
+            """How long its reply may be: a story takes longer to tell, and telling what it read takes as long as what
+            it read (but that's no story: see _say)."""
+            if tale:
+                return 180
+            read = [n for n in found if n.startswith(("I read about ", "More that I read about "))]
+            return max(100, min(170, len(self.tok.encode(read[-1])) + 12)) if read else 100
+
+        long = length(extra)
 
         def in_view(found: list[str]) -> list[dict]:
             """What was said lately, in view as it answers; but when what it read about something new comes to mind,
@@ -625,10 +669,11 @@ class OwnThinker(Thinker):
             fresh = any(f.startswith("I read about ") for f in found) and not MORE.search(text)
             return [] if fresh else history
 
-        def prompt_for(known: str, view: list[dict]) -> list[int]:
-            """What came to mind, what was said lately, and what they said: if that's more than it can hold at once,
-            the oldest of what was said goes first (what came to mind just now stays, or the end of it does)."""
-            room = self.model.cfg.context - long
+        def prompt_for(known: str, view: list[dict], most: int) -> list[int]:
+            """What came to mind, what was said lately, and what they said: if that's more than it can hold at once
+            (with room to answer), the oldest of what was said goes first (what came to mind just now stays, or the end
+            of it does)."""
+            room = self.model.cfg.context - most
             head = [THINK, *self.tok.encode(known)]
             asked = [YOU, *self.tok.encode(text), HAVEN]
             said = [[YOU if t["who"] == "you" else HAVEN, *self.tok.encode(t["text"])] for t in view]
@@ -640,12 +685,14 @@ class OwnThinker(Thinker):
 
         told = bool(just) and not learned  # (told something about them: more drafts, so one names it right)
         view = in_view(extra)
-        words, confidence = self._say(prompt_for(known, view), state, drafts + 2 if told else drafts, long, heard=text)
-        if long <= 100 and engage.said_before(words, [t["text"] for t in history if t["who"] != "you"]):
+        words, confidence = self._say(
+            prompt_for(known, view, long), state, drafts + 2 if told else drafts, long, heard=text
+        )
+        if not tale and engage.said_before(words, [t["text"] for t in history if t["who"] != "you"]):
             follow.append(engage.said_note(words))  # it's about to say again what it said just now: it knows it is
             with life.lock:
                 known = notes(mind, text, (), just, extra + follow)
-            words, confidence = self._say(prompt_for(known, view), state, drafts, long, heard=text)
+            words, confidence = self._say(prompt_for(known, view, long), state, drafts, long, heard=text)
         topic = None if sum_of(text) else topic_of(text)  # (a sum isn't something to look up)
         can_read = self.web is not None or self.shelf is not None
         if words.startswith(DONT_KNOW[:24]) and can_read and topic and not self.library.title_for(topic):
@@ -654,7 +701,8 @@ class OwnThinker(Thinker):
                     extra = self.recollect(mind, text)
                     known = notes(mind, text, (), just, extra + follow)
                 if extra:
-                    words, confidence = self._say(prompt_for(known, in_view(extra)), state, drafts)
+                    long = length(extra)
+                    words, confidence = self._say(prompt_for(known, in_view(extra), long), state, drafts, long)
         if decision is not None and decision.answer in engage.WILLING:
             with life.lock:
                 mind.take_errand(req.do, req.thing, req.action, req.need)  # it chose to, so it sets off
@@ -759,9 +807,9 @@ class OwnThinker(Thinker):
                     prompt[-(self.model.cfg.context - most) :],
                     state,
                     max_new=most,
-                    temperature=0.0 if i == 0 else 0.4 if most > 100 else 0.6,
+                    temperature=0.0 if i == 0 else 0.4 if most >= 180 else 0.6,
                     stop=(END, YOU),
-                    no_repeat=4 if most > 100 else 0,  # (a story mustn't go round in circles)
+                    no_repeat=4 if most >= 180 else 0,  # (a story mustn't go round in circles)
                 )
                 words = self.tok.decode(tokens).strip()
                 found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
@@ -787,7 +835,7 @@ class OwnThinker(Thinker):
         # A draft that's babble loses, then one that tells as read what it didn't read, then one that misnames what it
         # was just told, one that goes round in circles, one that says a number or name it can't back up, and one that
         # gets "a" and "an" wrong.
-        times = 2 if most > 100 else 1  # (a story can say "said the fox" twice)
+        times = 2 if most >= 180 else 1  # (a story can say "said the fox" twice)
         found.sort(
             key=lambda d: (
                 not garbled(d[0]),
