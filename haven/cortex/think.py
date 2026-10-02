@@ -69,7 +69,7 @@ def repeats(text: str, context: str = "", times: int = 1) -> bool:
 
 def garbled(text: str) -> bool:
     """Whether a draft has come out as babble ("Tababababa", a "word" far longer than any it knows)."""
-    return bool(re.search(r"[A-Za-z]{19,}|(\w{1,3})\1{5,}", text))
+    return bool(re.search(r"[A-Za-z]{19,}|(\w{1,3})\1{5,}|\ufffd", text))  # (or a piece of a letter, "synth�")
 
 
 REACTION = re.compile(r"^(?:Oh|Ooh|Aww|Mmm|Hm)\b[^!?.]*?,\s*(?:an?\s+)?([^!?.,]+)!")
@@ -119,6 +119,25 @@ def misread(text: str, context: str) -> bool:
         return True
     named = _READ_ABOUT.match(text)
     return bool(named) and f"I read about {named.group(1)}:" not in context
+
+
+def told_only(text: str, context: str, told: list[str] | tuple = ()) -> str:
+    """A draft that tells what it read word for word and then goes on ("…the Middle Ages. It's spring, my first
+    spring."): it stops where what it read does (`told`: what it read, as it came to mind), or where the last sentence
+    of it that's in what came to mind does."""
+    found = _SAYS.search(text)
+    if not found:
+        return text
+    said = " ".join(found.group(1).split())
+    for note in told:
+        read = " ".join(note.split(": ", 1)[-1].split())
+        if said.startswith(read) and len(said) > len(read):
+            return text[: found.start(1)] + read
+    if not misread(text, context):
+        return text
+    came = " ".join(context.split())
+    ends = [m.end() for m in re.finditer(r"[.!?](?=\s|$)", said) if said[: m.end()] in came]
+    return text[: found.start(1)] + said[: ends[-1]] if ends else text
 
 
 def misnamed(text: str, heard: str | None) -> bool:
@@ -221,6 +240,7 @@ class Thinker:
         self.last_read: str | None = None  # what it last told them it read
         self.telling: list[str] = []  # what came to mind as it told that, and as it told more of it since
         self.since_told = 0  # how many times it has answered since
+        self.heard_as: str | None = None  # what they asked, with "he" or "it" as what that is, if it was
         self.wondered: set[str] = set()  # what it has tried reading about out of curiosity
         # Someone following along as it answers (the app): hears ("draft" | "words" | "pondering" | "thought" |
         # "reading" | "read", text) as a reply takes shape.
@@ -377,6 +397,7 @@ class Thinker:
             thing_note,
         )
 
+        self.heard_as = None
         if req is not None:
             thing = memo(mind)["things"][req.thing]
             return [thing_note(req.thing, thing["stats"], thing["where"]), request_note(req)]
@@ -421,6 +442,8 @@ class Thinker:
                 return self._told(title, [*self.telling, more])
             first = min(told)  # (as it practised it)
             return self._told(title, [f"I read about {title}: {library.sentence(title, first)}", more])
+        if self.since_told <= 1 and resolved(text, self.last_read) != text:  # (just after it told them something it
+            text = self.heard_as = resolved(text, self.last_read)  # read, "he" or "they" is likely that)
         if about_them(text) or (mentioned(text) and not self._beyond_valley(text)):  # about them, or its valley
             return []
         if about_haven(text) and not library.title_for(text):  # about it ("who made you?"), not something it read
@@ -428,8 +451,6 @@ class Thinker:
         taught = best_lesson(text, [item for _, item in mind.lessons])
         if taught:  # something someone taught it
             return [f"You told me that {taught}."]
-        if self.since_told <= 1:  # (just after it told them something it read, "he" or "they" is likely that)
-            text = resolved(text, self.last_read)
         found = library.find(text, strict=True)  # what it has practised telling, or what something it read is
         if found is None and self.shelf is not None:  # what it read on its shelf that answers them
             try:
@@ -629,7 +650,10 @@ class OwnThinker(Thinker):
             else:
                 just = self.listen(mind, meant or text)
             req = None if just else request(text)
+            self.heard_as = None
             extra = [] if just else self.recollect(mind, text, req)
+            if not any(f.startswith("I read about ") for f in extra):
+                self.heard_as = None  # (they're heard as they said it, unless it tells what it read about "it")
             follow, question = self._follow(mind, talk, text, just, meant or text, learned)
             if req is not None:  # asked to do something: it makes up its own mind
                 decision = consider(mind, req)
@@ -670,12 +694,12 @@ class OwnThinker(Thinker):
             return [] if fresh else history
 
         def prompt_for(known: str, view: list[dict], most: int) -> list[int]:
-            """What came to mind, what was said lately, and what they said: if that's more than it can hold at once
-            (with room to answer), the oldest of what was said goes first (what came to mind just now stays, or the end
-            of it does)."""
+            """What came to mind, what was said lately, and what they said (with "he" or "it" as what that is, if it
+            tells what it read about it): if that's more than it can hold at once (with room to answer), the oldest of
+            what was said goes first (what came to mind just now stays, or the end of it does)."""
             room = self.model.cfg.context - most
             head = [THINK, *self.tok.encode(known)]
-            asked = [YOU, *self.tok.encode(text), HAVEN]
+            asked = [YOU, *self.tok.encode(self.heard_as or text), HAVEN]
             said = [[YOU if t["who"] == "you" else HAVEN, *self.tok.encode(t["text"])] for t in view]
             while said and len(head) + sum(map(len, said)) + len(asked) > room:
                 said.pop(0)
@@ -801,6 +825,7 @@ class OwnThinker(Thinker):
         from .tokenizer import END, YOU
 
         found = []
+        mind = self.tok.decode(prompt)  # what came to mind, and what was said
         with self.model_lock:
             for i in range(drafts):  # its most careful draft first, then freer ones
                 tokens, logprobs = self.model.generate(
@@ -811,16 +836,15 @@ class OwnThinker(Thinker):
                     stop=(END, YOU),
                     no_repeat=4 if most >= 180 else 0,  # (a story mustn't go round in circles)
                 )
-                words = self.tok.decode(tokens).strip()
+                words = told_only(self.tok.decode(tokens).strip(), mind, self.telling)
                 found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
-        mind = self.tok.decode(prompt)  # what came to mind, and what was said
 
         def flawed(words: str) -> bool:
             return garbled(words) or misread(words, mind) or misnamed(words, heard) or misworded(words)
 
         if heard and all(flawed(d[0]) for d in found):  # (every draft misnames what it was just told, or slips)
             with self.model_lock:
-                for _ in range(4):  # a few more tries, until one says it right
+                for _ in range(6):  # a few more tries, until one says it right
                     tokens, logprobs = self.model.generate(
                         prompt[-(self.model.cfg.context - most) :],
                         state,
@@ -828,7 +852,7 @@ class OwnThinker(Thinker):
                         temperature=0.6,
                         stop=(END, YOU),
                     )
-                    words = self.tok.decode(tokens).strip()
+                    words = told_only(self.tok.decode(tokens).strip(), mind, self.telling)
                     found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
                     if not flawed(words):
                         break

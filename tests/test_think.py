@@ -161,6 +161,19 @@ def test_it_knows_when_it_says_again_what_it_said_just_now(cortex_home, monkeypa
     assert "I said that just now: My name is Haven." in minded[1] and "I said that just now" not in minded[0]
 
 
+def test_it_stops_where_what_it_read_does():
+    from haven.cortex.think import garbled, told_only
+
+    came = "It's spring, my first spring. I read about Roman Empire: It fell in 476 AD. The war ended."
+    went_on = "I read about Roman Empire. It says: It fell in 476 AD. It's spring, my first spring."
+    assert told_only(went_on, came) == "I read about Roman Empire. It says: It fell in 476 AD."
+    assert told_only("I read about Roman Empire. It says: It fell in 476 AD.", came).endswith("476 AD.")  # (as it was)
+    assert told_only("I feel fine. It's spring.", came) == "I feel fine. It's spring."  # (it isn't telling what it read)
+    note = "I read about Roman Empire: It fell in 476 AD."  # (and when what else came to mind follows on from it)
+    assert told_only(went_on, f"{note} It's spring, my first spring.", [note]).endswith("It says: It fell in 476 AD.")
+    assert garbled("Photosynthesis is synth\ufffd of compounds.")  # (a piece of a letter)
+
+
 def test_it_notices_when_it_tells_as_read_what_it_didnt_read():
     from haven.cortex.think import misread
 

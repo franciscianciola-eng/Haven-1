@@ -102,6 +102,14 @@ def shelf(tmp_path):
         ("When was Albert Einstein born?", "Albert Einstein", "Einstein was born in Ulm in 1879."),  # (not German-born)
         ("When did Elvis Presley die?", "Elvis Presley", "He died on August 16, 1977."),  # (asked when: a date)
         ("What do pandas eat?", "Giant panda", "The panda's diet is mostly bamboo."),  # (not a Mr Panda)
+        ("What is the moon made of?", "Moon", "It is made of rock and dust."),  # (not Mr Moon: "moon" isn't a name)
+        ("What do tigers eat?", "Tiger", "Tigers eat many types of prey, mostly large mammals."),  # (not "feeds")
+        ("When did the Titanic sink?", "Titanic", "It sank on 15 April 1912 after it hit an iceberg."),  # (sank)
+        (
+            "Who was Martin Luther King?",
+            "Martin Luther King Jr.",
+            "Martin Luther King Jr. was an American minister and civil rights activist.",
+        ),
     ],
 )
 def test_it_finds_the_sentence_that_answers(shelf, question, title, says):

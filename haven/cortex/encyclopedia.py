@@ -277,6 +277,7 @@ PLACE = re.compile(
     r"archipelago|sea|desert|volcano|peninsula|bay|neighbourhood|neighborhood|settlement|hamlet)\b"
 )
 _REGNAL = re.compile(r"^(.+?) (?:[IVX]+|the Great|the Elder|the Younger)$")
+_SUFFIX = re.compile(r",? (?:Jr|Sr)\.?$")
 
 
 def other_names(title: str, first: str) -> list[str]:
@@ -285,11 +286,14 @@ def other_names(title: str, first: str) -> list[str]:
     base = re.sub(r"\s*\([^()]*\)", "", title).strip()
     found = []
     if PERSON.search(first[:200]):
-        regnal = _REGNAL.match(base)
+        plain = _SUFFIX.sub("", base)
+        if plain != base:
+            found.append(plain)  # ("Martin Luther King Jr.": "Martin Luther King")
+        regnal = _REGNAL.match(plain)
         if regnal:
             found.append(regnal.group(1))
-        elif len(base.split()) >= 2 and base.split()[-1][:1].isupper():
-            found.append(base.split()[-1])
+        elif len(plain.split()) >= 2 and plain.split()[-1][:1].isupper():
+            found.append(plain.split()[-1])
     return found
 
 

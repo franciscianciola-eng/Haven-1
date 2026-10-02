@@ -161,6 +161,15 @@ ARTICLES = [
     ("Giant panda", "The giant panda is a bear that lives in China. The panda's diet is mostly bamboo."),
     ("Atal Bihari Panda", "Atal Bihari Panda was an Indian actor and songwriter."),
     ("Wieluń", "Wieluń is a town in Łódź Voivodeship, in the middle of Poland."),
+    ("Moon", "The Moon is the Earth's only natural satellite. It is made of rock and dust."),
+    (
+        "Tiger",
+        "The tiger is the largest wild cat. It feeds by hunting. Tigers have orange fur with black stripes. Tigers eat "
+        "many types of prey, mostly large mammals.",
+    ),
+    ("Sun Myung Moon", "Sun Myung Moon was a Korean religious leader. He made high demands on his followers."),
+    ("Martin Luther King Jr.", "Martin Luther King Jr. was an American minister and civil rights activist."),
+    ("Titanic", "The Titanic was a British passenger ship. It sank on 15 April 1912 after it hit an iceberg."),
     ("Apple Macintosh", "The Apple Macintosh is a line of personal computers made by Apple."),
     (
         "Elvis Presley",
