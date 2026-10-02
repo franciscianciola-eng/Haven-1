@@ -39,7 +39,7 @@ def add_commands(commands) -> None:
     feed.add_argument("what", nargs="*", help="simple, english, files to read, or web addresses")
     feed.add_argument("--text", help="something to read, given here")
     feed.add_argument("--title", help="what to call it")
-    feed.add_argument("--forget", metavar="TITLE", help="take something off its shelf")
+    feed.add_argument("--forget", metavar="TITLE", help="take something off its shelf (or a whole encyclopedia)")
 
     read = commands.add_parser("read", help="have Haven read an encyclopedia article about something")
     read.add_argument("topic", nargs="+")
@@ -241,6 +241,11 @@ def feed(args: argparse.Namespace, store, term) -> int:
     web = Web()
     feeding = Feeding(store.root, web, log=term.dim)
     if args.forget:
+        if args.forget in ENCYCLOPEDIAS:  # a whole encyclopedia
+            term.say(f"Taking {ENCYCLOPEDIAS[args.forget].title} off its shelf (a big one takes a while)…")
+            n = feeding.shelf.forget_all(args.forget) if feeding.shelf is not None else 0
+            term.say(f"Took {n:,} articles off its shelf. (`haven feed {args.forget}` reads it again.)")
+            return 0
         n = feeding.forget(args.forget)
         term.say(f"Took {n} thing{'s' if n != 1 else ''} called “{args.forget}” off its shelf.")
         return 0
@@ -270,11 +275,8 @@ def feed(args: argparse.Namespace, store, term) -> int:
                 return 0
             feeding.wait()
             last = feeding.last or {}
-            term.say(
-                f"Haven has read {which.title}: {last.get('articles', 0):,} articles."
-                if last.get("finished")
-                else f"It couldn't finish: {last.get('error')}. Run this again to carry on."
-            )
+            if not last.get("finished"):
+                term.say(f"It couldn't finish: {last.get('error')}. Run this again to carry on where it was.")
             continue
         try:
             title, kept = give(feeding, what, args.title)

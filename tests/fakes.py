@@ -141,7 +141,10 @@ ARTICLES = [
         "Mount Everest",
         "Mount Everest is the highest mountain on Earth. It is in the Himalayas, on the border of Nepal and China.",
     ),
-    ("Capital of France", "This article is about the French national capital in general. The capital of France is Paris."),
+    (
+        "Capital of France",
+        "This article is about the French national capital in general. The capital of France is Paris.",
+    ),
     ("Rome", "Rome is the capital city of Italy. About 2.8 million people live in Rome."),
 ]
 
@@ -170,6 +173,32 @@ def tfrecord(articles: list[tuple[str, str]]) -> bytes:
         example = _field(1, entries)
         out += len(example).to_bytes(8, "little") + b"\0\0\0\0" + example + b"\0\0\0\0"
     return bytes(out)
+
+
+def wordnet() -> bytes:
+    """A tiny WordNet, zipped as nltk_data keeps it: a few words, and what they mean."""
+    import io
+    import zipfile
+
+    files = {
+        "data.noun": "  1 This software and database is being provided to you\n"
+        '00001740 05 n 02 dog 0 domestic_dog 0 000 | a member of the genus Canis; "the dog barked all night"  \n'
+        "00002100 05 n 01 Einstein 0 000 | physicist born in Germany who formulated the theory of relativity  \n",
+        "data.verb": "00003000 30 v 01 run 0 000 | move fast by using one's feet  \n",
+        "data.adj": "00002000 00 a 01 ubiquitous 0 000 | being present everywhere at once  \n",
+        "data.adv": "",
+        "index.noun": "dog n 1 0 1 1 00001740  \ndomestic_dog n 1 0 1 0 00001740  \neinstein n 1 0 1 0 00002100  \n",
+        "index.verb": "run v 1 0 1 1 00003000  \n",
+        "index.adj": "ubiquitous a 1 0 1 0 00002000  \n",
+        "index.adv": "",
+        "index.sense": "dog%1:05:00:: 00001740 1 42\neinstein%1:18:00:: 00002100 1 0\n"
+        "run%2:38:00:: 00003000 1 12\nubiquitous%3:00:00:: 00002000 1 0\n",
+    }
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name, text in files.items():
+            z.writestr(f"wordnet31/{name}", text)
+    return out.getvalue()
 
 
 PAGE = """<html><head><title>Bread - a page</title><script>var x = 1;</script></head><body>
@@ -238,6 +267,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         elif path == "/bread.html":
             body, kind = PAGE, "text/html"
+        elif path == "/wordnet31.zip":
+            data = wordnet()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         else:
             self.send_response(404)
             self.end_headers()
@@ -266,5 +303,6 @@ def serve() -> tuple[ThreadingHTTPServer, dict]:
         "gsm8k-test": f"{base}/gsm8k-test.jsonl",
         "tfds": f"{base}/tfds",
         "page": f"{base}/bread.html",
+        "wordnet": f"{base}/wordnet31.zip",
     }
     return server, urls

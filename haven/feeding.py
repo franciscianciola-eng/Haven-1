@@ -50,7 +50,7 @@ class Feeding:
 
     @property
     def paused_path(self) -> Path:
-        return shelf_path(self.root).parent / "paused"
+        return shelf_path(self.root) / "paused"
 
     # --- what it has read ------------------------------------------------------------------------------------------
 
@@ -90,6 +90,7 @@ class Feeding:
                     "title": e.title,
                     "articles": e.articles,
                     "size": e.size,
+                    "about": e.about,
                     "read": counts["by source"].get(e.name, 0),
                     "finished": bool(shelves.get(e.name, {}).get("finished")),
                 }
@@ -100,21 +101,23 @@ class Feeding:
 
     # --- reading a whole encyclopedia, in the background -------------------------------------------------------------
 
+    FIRST = ("dictionary", "simple")  # what it reads by itself, the first time: a dictionary, and an encyclopedia
+
     def start(self) -> bool:
-        """The first time (and every time after, until it has finished, unless someone paused it): read the Simple
-        English Wikipedia. Returns whether it started reading."""
+        """The first time (and every time after, until it has finished, unless someone paused it): read a dictionary
+        and the Simple English Wikipedia. Returns whether it started reading."""
         if self.web is None or self.shelf is None or self.paused_path.exists():
             return False
-        simple = next(e for e in self.status()["encyclopedias"] if e["name"] == "simple")
-        if simple["finished"]:
-            return False
-        return self.read("simple")
+        done = {e["name"] for e in self.status()["encyclopedias"] if e["finished"]}
+        left = [name for name in self.FIRST if name not in done]
+        return bool(left) and self.read(*left)
 
-    def read(self, name: str) -> bool:
-        """Start reading an encyclopedia, in the background. Returns False if it's reading one already."""
-        which = ENCYCLOPEDIAS.get(name)
-        if which is None:
-            raise FeedError(f"there's no encyclopedia called {name!r} (there's {', '.join(ENCYCLOPEDIAS)})")
+    def read(self, *names: str) -> bool:
+        """Start reading encyclopedias, one after another, in the background. Returns False if it's reading already."""
+        found = [ENCYCLOPEDIAS.get(name) for name in names]
+        if not names or None in found:
+            wrong = next((n for n, w in zip(names, found, strict=True) if w is None), "")
+            raise FeedError(f"there's no encyclopedia called {wrong!r} (there's {', '.join(ENCYCLOPEDIAS)})")
         if self.web is None:
             raise FeedError("Haven isn't allowed on the internet here, so it can't get an encyclopedia")
         self._shelf()
@@ -123,10 +126,17 @@ class Feeding:
                 return False
             self._stop.clear()
             self.paused_path.unlink(missing_ok=True)
-            self.reading = {"name": which.name, "title": which.title, "part": 0, "parts": which.files}
-            self._thread = threading.Thread(target=self._read, args=(which,), name="haven-reading", daemon=True)
+            self.reading = {"name": found[0].name, "title": found[0].title, "part": 0, "parts": found[0].files}
+            self._thread = threading.Thread(target=self._read_all, args=(found,), name="haven-reading", daemon=True)
             self._thread.start()
         return True
+
+    def _read_all(self, encyclopedias: list[Encyclopedia]) -> None:
+        for which in encyclopedias:
+            if self._stop.is_set():
+                break
+            self.reading = {"name": which.name, "title": which.title, "part": 0, "parts": which.files}
+            self._read(which)
 
     def stop(self, pause: bool = True) -> None:
         """Stop reading for now (what it finished stays read). `pause`: and don't start again by itself."""

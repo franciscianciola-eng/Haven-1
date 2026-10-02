@@ -78,6 +78,9 @@ QUESTION = re.compile(
     r"have you heard|i want to know|i wonder)\b",
     re.I,
 )
+MEANING = re.compile(  # asked what a word means: its dictionary first
+    r"\bmean(?:s|ing)?\b|\bdefin(?:e|ition)\b|\bsynonyms?\b|\bwhat(?:'s| is) (?:a|an|the) word\b", re.IGNORECASE
+)
 TELLING = re.compile(  # asked to tell about something (two sentences), not what it is (one)
     r"\b(?:tell (?:me|us) (?:something |anything |all |more )?about|what (?:do|did) you know about|"
     r"(?:know|read) anything about|explain|describe|teach (?:me|us) about|i want to know about|"
@@ -88,8 +91,9 @@ MOST_GIVEN = 20_000  # sentences it keeps of something it's given to read
 
 
 def shelf_path(root: Path) -> Path:
-    """Where Haven's shelf is kept, in its home folder."""
-    return Path(root) / "library" / "shelf.sqlite"
+    """Where Haven's shelf is kept, in its home folder: a folder, with a file for each encyclopedia it has read, and
+    one for what people gave it."""
+    return Path(root) / "library"
 
 
 def plain_name(text: str) -> str:
@@ -145,6 +149,8 @@ SAME = {  # words that mean the same, for finding what answers a question (each 
     "speak": ("language", "languages", "spoken"),
     "people": ("population", "inhabitants"),
     "eat": ("food", "diet", "prey", "feed"),
+    "synonym": ("same",),
+    "synonyms": ("same",),
 }
 NOT_ASKED = re.compile(  # questions about here and now, or about it: not for an encyclopedia
     r"\b(?:what time is it|what(?:'s| is) the time|what(?:'s| is) the weather|how(?:'s| is) the weather|"
@@ -178,17 +184,19 @@ class Found:
         return " ".join(self.sentences[self.index : self.index + self.count])
 
 
-class Shelf:
+GIVEN = "given"  # the volume of what people give it to read (texts, files, web pages)
+ORDER = (GIVEN, "dictionary", "simple", "english")  # where it looks first for an article by its title
+
+
+class Volume:
+    """One part of the shelf, in a file of its own: an encyclopedia, a dictionary, or what people gave it. (A whole
+    encyclopedia can be taken off the shelf at once, and what it reads never waits on what it's given.)"""
+
     def __init__(self, path: Path):
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.lock = threading.RLock()
-        self.db = self._connect()
-        self._counts: dict[str, int] = {}  # how many sentences say a word (how telling it is)
-        self._total: int | None = None
-        self._counted: tuple[float, dict] | None = None  # (when, what was on it then)
+        self.db = self.connect()
 
-    def _connect(self) -> sqlite3.Connection:
+    def connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, check_same_thread=False, timeout=60)
         db.execute("PRAGMA journal_mode = WAL")
         db.execute("PRAGMA synchronous = NORMAL")
@@ -198,8 +206,93 @@ class Shelf:
         return db
 
     def close(self) -> None:
+        self.db.close()
+
+    def sentences(self, first: int, last: int, most: int = 12) -> list[str]:
+        rows = self.db.execute(
+            "SELECT text FROM sentences WHERE rowid BETWEEN ? AND ? ORDER BY rowid LIMIT ?", (first, last, most)
+        ).fetchall()
+        return [t for (t,) in rows]
+
+    def size(self) -> int:
+        """How many sentences are in it (near enough: what's been taken off leaves gaps)."""
+        return self.db.execute("SELECT max(last) FROM articles").fetchone()[0] or 0
+
+    @staticmethod
+    def next_row(db: sqlite3.Connection) -> int:
+        return (db.execute("SELECT max(last) FROM articles").fetchone()[0] or 0) + 1
+
+    @staticmethod
+    def put(
+        db: sqlite3.Connection,
+        title: str,
+        sentences: list[str],
+        source: str,
+        part: int,
+        size: int,
+        row: int,
+        names: list[str] | None = None,
+    ) -> int:
+        """One article into it (in an open transaction), its sentences from row `row` on, and the names it's looked up
+        by (what its title says, unless they're given). Returns the next row."""
+        cursor = db.execute(
+            "INSERT INTO articles (title, source, part, size, first, last, added) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (title, source, part, size, row, row + len(sentences) - 1, time.time()),
+        )
+        article = cursor.lastrowid
+        db.executemany(
+            "INSERT INTO sentences (rowid, text, article) VALUES (?, ?, ?)",
+            [(row + i, s, article) for i, s in enumerate(sentences)],
+        )
+        called = names if names is not None else names_of(title, sentences[0])
+        db.executemany("INSERT INTO names (name, article) VALUES (?, ?)", [(n, article) for n in called])
+        return row + len(sentences)
+
+    @staticmethod
+    def remove(db: sqlite3.Connection, article: int, first: int, last: int) -> None:
+        db.execute("DELETE FROM sentences WHERE rowid BETWEEN ? AND ?", (first, last))
+        db.execute("DELETE FROM names WHERE article = ?", (article,))
+        db.execute("DELETE FROM articles WHERE id = ?", (article,))
+
+
+def fts5() -> None:
+    """Raise sqlite3.OperationalError if this Python's SQLite has no full-text search (FTS5)."""
+    with contextlib.closing(sqlite3.connect(":memory:")) as db:
+        db.execute("CREATE VIRTUAL TABLE t USING fts5 (x)")
+
+
+class Shelf:
+    def __init__(self, folder: Path):
+        self.folder = Path(folder)
+        fts5()
+        self.folder.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.RLock()
+        self.volumes: dict[str, Volume] = {path.stem: Volume(path) for path in sorted(self.folder.glob("*.sqlite"))}
+        self._counts: dict[str, int] = {}  # how many sentences say a word (how telling it is)
+        self._total: int | None = None
+        self._counted: tuple[float, dict] | None = None  # (when, what was on it then)
+
+    @property
+    def path(self) -> Path:
+        return self.folder
+
+    def volume(self, name: str, make: bool = False) -> Volume | None:
+        """The volume a source is kept in ("given" and "web" share one), made if `make` and it isn't there yet."""
+        name = GIVEN if name in (GIVEN, "web") else name
         with self.lock:
-            self.db.close()
+            if name not in self.volumes and make:
+                self.volumes[name] = Volume(self.folder / f"{name}.sqlite")
+            return self.volumes.get(name)
+
+    def _changed(self) -> None:
+        self._total = self._counted = None
+        self._counts.clear()
+
+    def close(self) -> None:
+        with self.lock:
+            for volume in self.volumes.values():
+                volume.close()
+            self.volumes = {}
 
     # --- what's on it ------------------------------------------------------------------------------------------
 
@@ -208,15 +301,19 @@ class Shelf:
         counted = self._counted
         if counted is not None and time.monotonic() - counted[0] < 5:
             return counted[1]
+        by_source: dict[str, int] = {}
+        sentences, shelves = 0, []
         with self.lock:
-            articles = self.db.execute("SELECT source, count(*) FROM articles GROUP BY source").fetchall()
-            sentences = self.db.execute("SELECT max(last) FROM articles").fetchone()[0] or 0
-            shelves = self.db.execute(
-                "SELECT name, title, parts, done, articles, started, finished FROM shelves"
-            ).fetchall()
+            for volume in self.volumes.values():
+                for source, n in volume.db.execute("SELECT source, count(*) FROM articles GROUP BY source"):
+                    by_source[source] = by_source.get(source, 0) + n
+                sentences += volume.size()
+                shelves += volume.db.execute(
+                    "SELECT name, title, parts, done, articles, started, finished FROM shelves"
+                ).fetchall()
         found = {
-            "articles": sum(n for _, n in articles),
-            "by source": dict(articles),
+            "articles": sum(by_source.values()),
+            "by source": by_source,
             "sentences": sentences,
             "shelves": [
                 {
@@ -237,53 +334,38 @@ class Shelf:
     def titles(self, source: str | None = None, most: int = 50) -> list[str]:
         """The latest titles it was given or read (of a source, if one is named)."""
         with self.lock:
-            rows = self.db.execute(
-                "SELECT title FROM articles" + (" WHERE source = ?" if source else "") + " ORDER BY id DESC LIMIT ?",
-                (source, most) if source else (most,),
-            ).fetchall()
-        return [t for (t,) in rows]
+            volumes = [self.volume(source)] if source else list(self.volumes.values())
+            found = []
+            for volume in volumes:
+                if volume is None:
+                    continue
+                found += volume.db.execute(
+                    "SELECT added, title FROM articles"
+                    + (" WHERE source = ?" if source else "")
+                    + " ORDER BY id DESC LIMIT ?",
+                    (source, most) if source else (most,),
+                ).fetchall()
+        return [t for _, t in sorted(found, reverse=True)[:most]]
 
-    def article(self, title: str) -> tuple[str, list[str], str] | None:
+    def article(self, title: str, source: str | None = None) -> tuple[str, list[str], str] | None:
         """(title, its sentences, where it came from), of the article with this title, if it's on the shelf."""
         with self.lock:
-            row = self.db.execute(
-                "SELECT id, title, first, last, source FROM articles WHERE title = ? ORDER BY id DESC LIMIT 1",
-                (title,),
-            ).fetchone()
-            if row is None:
-                return None
-            return row[1], self._sentences(row[2], row[3]), row[4]
-
-    def _sentences(self, first: int, last: int, most: int = 12) -> list[str]:
-        rows = self.db.execute(
-            "SELECT text FROM sentences WHERE rowid BETWEEN ? AND ? ORDER BY rowid LIMIT ?", (first, last, most)
-        ).fetchall()
-        return [t for (t,) in rows]
+            names = [source] if source else [n for n in (*ORDER, *self.volumes) if n in self.volumes]
+            for name in dict.fromkeys(names):
+                volume = self.volume(name)
+                if volume is None:
+                    continue
+                row = volume.db.execute(
+                    "SELECT title, first, last, source FROM articles WHERE title = ? ORDER BY id DESC LIMIT 1",
+                    (title,),
+                ).fetchone()
+                if row is not None:
+                    return row[0], volume.sentences(row[1], row[2]), row[3]
+        return None
 
     # --- putting things on it ----------------------------------------------------------------------------------
 
-    def _next_row(self, db: sqlite3.Connection) -> int:
-        return (db.execute("SELECT max(last) FROM articles").fetchone()[0] or 0) + 1
-
-    def _put(
-        self, db: sqlite3.Connection, title: str, sentences: list[str], source: str, part: int, size: int, row: int
-    ) -> int:
-        """One article onto the shelf (in an open transaction), its sentences from row `row` on. Returns the next row."""
-        cursor = db.execute(
-            "INSERT INTO articles (title, source, part, size, first, last, added) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (title, source, part, size, row, row + len(sentences) - 1, time.time()),
-        )
-        article = cursor.lastrowid
-        db.executemany(
-            "INSERT INTO sentences (rowid, text, article) VALUES (?, ?, ?)",
-            [(row + i, s, article) for i, s in enumerate(sentences)],
-        )
-        db.executemany(
-            "INSERT INTO names (name, article) VALUES (?, ?)", [(n, article) for n in names_of(title, sentences[0])]
-        )
-        return row + len(sentences)
-
-    def add(self, title: str, text: str, source: str = "given", keep: int | None = None) -> int:
+    def add(self, title: str, text: str, source: str = GIVEN, keep: int | None = None) -> int:
         """Something to read: its sentences go on the shelf (replacing anything of the same title it was given before).
         Returns how many sentences it kept."""
         found = []
@@ -300,28 +382,48 @@ class Shelf:
         if not found:
             return 0
         with self.lock:
-            self.forget(title, source)
-            with self.db:
-                self._put(self.db, title, found[:MOST_GIVEN], source, 0, len(text), self._next_row(self.db))
-        self._total = self._counted = None
+            db = self.volume(source, make=True).db
+            with db:
+                for article, first, last in db.execute(
+                    "SELECT id, first, last FROM articles WHERE title = ? AND source = ?", (title, source)
+                ).fetchall():
+                    Volume.remove(db, article, first, last)
+                Volume.put(db, title, found[:MOST_GIVEN], source, 0, len(text), Volume.next_row(db))
+        self._changed()
         return len(found[:MOST_GIVEN])
 
     def forget(self, title: str, source: str | None = None) -> int:
         """Take an article off the shelf. Returns how many were taken off."""
-        with self.lock, self.db:
-            rows = self.db.execute(
-                "SELECT id, first, last FROM articles WHERE title = ?" + (" AND source = ?" if source else ""),
-                (title, source) if source else (title,),
-            ).fetchall()
-            for article, first, last in rows:
-                self._remove(self.db, article, first, last)
-        self._total = self._counted = None
-        return len(rows)
+        n = 0
+        with self.lock:
+            for volume in [self.volume(source)] if source else list(self.volumes.values()):
+                if volume is None:
+                    continue
+                with volume.db:
+                    rows = volume.db.execute(
+                        "SELECT id, first, last FROM articles WHERE title = ?" + (" AND source = ?" if source else ""),
+                        (title, source) if source else (title,),
+                    ).fetchall()
+                    for article, first, last in rows:
+                        Volume.remove(volume.db, article, first, last)
+                n += len(rows)
+        self._changed()
+        return n
 
-    def _remove(self, db: sqlite3.Connection, article: int, first: int, last: int) -> None:
-        db.execute("DELETE FROM sentences WHERE rowid BETWEEN ? AND ?", (first, last))
-        db.execute("DELETE FROM names WHERE article = ?", (article,))
-        db.execute("DELETE FROM articles WHERE id = ?", (article,))
+    def forget_all(self, source: str) -> int:
+        """Take a whole encyclopedia off the shelf (or all it was given): its file goes, and the room it took with it.
+        Returns how many articles that was."""
+        with self.lock:
+            volume = self.volume(source)
+            if volume is None:
+                return 0
+            n = volume.db.execute("SELECT count(*) FROM articles").fetchone()[0]
+            volume.close()
+            del self.volumes[volume.path.stem]
+            for path in (volume.path, Path(f"{volume.path}-wal"), Path(f"{volume.path}-shm")):
+                path.unlink(missing_ok=True)
+        self._changed()
+        return n
 
     # --- reading a whole encyclopedia ---------------------------------------------------------------------------
 
@@ -334,7 +436,7 @@ class Shelf:
     ) -> bool:
         """Read every article of an encyclopedia onto the shelf, part by part (each a file of records, opened by
         `open_part`). It can stop and carry on later: what it finished stays read. Returns whether it read it all."""
-        writer = self._connect()  # (its own connection: it can find answers while it reads)
+        writer = self.volume(which.name, make=True).connect()  # (its own connection: it can answer while it reads)
         try:
             with writer:
                 writer.execute(
@@ -349,9 +451,9 @@ class Shelf:
                     return False
                 with writer:  # (anything left from a part it didn't finish)
                     for article, first, last in writer.execute(
-                        "SELECT id, first, last FROM articles WHERE source = ? AND part = ?", (which.name, part)
+                        "SELECT id, first, last FROM articles WHERE part = ?", (part,)
                     ).fetchall():
-                        self._remove(writer, article, first, last)
+                        Volume.remove(writer, article, first, last)
                 n = self._read_part(writer, which, part, open_part, progress, stop)
                 if n is None:
                     return False
@@ -360,8 +462,7 @@ class Shelf:
                         "UPDATE shelves SET done = done || ? || ',', articles = articles + ? WHERE name = ?",
                         (str(part), n, which.name),
                     )
-                self._total = self._counted = None
-                self._counts.clear()
+                self._changed()
             with writer:
                 writer.execute("UPDATE shelves SET finished = ? WHERE name = ?", (time.time(), which.name))
             return True
@@ -369,39 +470,47 @@ class Shelf:
             writer.close()
 
     def _read_part(self, writer, which, part: int, open_part, progress, stop) -> int | None:
-        n, batch = 0, 0
-        row = self._next_row(writer)
-        writer.execute("BEGIN")
-        try:
-            with open_part(part) as stream:
-                for title, text in encyclopedia.articles(stream):
-                    if stop is not None and stop.is_set():
-                        writer.rollback()
-                        return None
-                    paragraphs = encyclopedia.prose(text, which.keep)
-                    found = [
-                        said
-                        for p in paragraphs
-                        for s in encyclopedia.sentences(p)
-                        if (said := encyclopedia.speakable(s))
-                    ]
-                    if not found:
-                        continue
-                    row = self._put(writer, title, found, which.name, part, len(text), row)
-                    n += 1
-                    batch += 1
-                    if batch >= 2000:  # (in steps, so finding answers isn't held up for long)
-                        writer.commit()
-                        writer.execute("BEGIN")
-                        batch = 0
-                        self._counted = None
-                        progress({"part": part, "parts": which.files, "articles": n})
-            writer.commit()
-        except BaseException:
-            writer.rollback()
-            raise
+        """Read one part of an encyclopedia onto the shelf, a batch of articles at a time (so finding answers is never
+        held up for long). Returns how many articles it read, or None if it was stopped (what it read of this part is
+        taken off again, next time)."""
+        n, batch = 0, []
+        with open_part(part) as stream:
+            for article in self._articles(which, stream):
+                if stop is not None and stop.is_set():
+                    return None
+                batch.append(article)
+                if len(batch) >= 2000:
+                    n += self._write(writer, which, part, batch)
+                    batch = []
+                    progress({"part": part, "parts": which.files, "articles": n})
+        n += self._write(writer, which, part, batch)
         progress({"part": part + 1, "parts": which.files, "articles": n})
         return n
+
+    def _write(self, db: sqlite3.Connection, which, part: int, batch: list) -> int:
+        if not batch:
+            return 0
+        with db:
+            row = Volume.next_row(db)
+            for title, found, size, names in batch:
+                row = Volume.put(db, title, found, which.name, part, size, row, names)
+        self._counted = None
+        return len(batch)
+
+    def _articles(self, which, stream):
+        """(title, the sentences it keeps, how big the article is, its names or None) of each article in a part."""
+        if which.url.endswith(".zip"):  # a dictionary: WordNet's files, zipped
+            import io
+            import zipfile
+
+            for title, sentences, names in encyclopedia.dictionary(zipfile.ZipFile(io.BytesIO(stream.read()))):
+                yield title, sentences, 0, names
+            return
+        for title, text in encyclopedia.articles(stream):
+            paragraphs = encyclopedia.prose(text, which.keep)
+            found = [said for p in paragraphs for s in encyclopedia.sentences(p) if (said := encyclopedia.speakable(s))]
+            if found:
+                yield title, found, len(text), None
 
     # --- finding what answers a question ------------------------------------------------------------------------
 
@@ -417,9 +526,17 @@ class Shelf:
         if not content:
             return None
         who = tokens[0] == "who" or tokens[:2] in (["who", "was"], ["who", "is"])
+        meaning = bool(MEANING.search(text))
+        if meaning:
+            content = [t for t in content if t not in ("mean", "means", "meaning", "define", "definition", "word")]
+            if not content:
+                return None
         with self.lock:
             named = self._named(tokens, content, count, who)
             found = [*named, *self._anywhere(content, count, bool(named))]
+        for f in found:  # (a dictionary says what words mean; an encyclopedia, what things are)
+            if f.source == "dictionary":
+                f.score += 4.0 if meaning else -1.5
         if not found:
             return None
         return max(found, key=lambda f: f.score)
@@ -428,7 +545,7 @@ class Shelf:
         """Answers from articles a question names, by their titles (or what else they're called)."""
         why = tokens[0] in ("why", "how")
         found = []
-        seen: set[int] = set()
+        seen: set[tuple[str, int]] = set()
         for n in range(min(6, len(tokens)), 0, -1):
             for i in range(len(tokens) - n + 1):
                 gram = tokens[i : i + n]
@@ -440,25 +557,30 @@ class Shelf:
                 if gram[-1] in ROMAN and n > 1:  # ("World War 2": "World War II")
                     said.add(" ".join([*gram[:-1], ROMAN[gram[-1]]]))
                 for name in said:
-                    for article, title, first, last, size, source in self.db.execute(
-                        "SELECT a.id, a.title, a.first, a.last, a.size, a.source FROM names n "
-                        "JOIN articles a ON a.id = n.article WHERE n.name = ? "
-                        "ORDER BY a.source = 'simple' DESC, a.size DESC LIMIT 4",
-                        (name,),
-                    ):
-                        if article in seen:
-                            continue
-                        seen.add(article)
-                        named = [t for t in gram if t not in FILLER]
-                        rest = [t for t in content if t not in gram and t not in ROMAN]
-                        exact = plain_name(title) == name and "(" not in title  # (its own article, not a namesake's)
-                        found.append(self._in_article(title, first, last, size, source, named, rest, count, exact, who))
+                    for volume in self.volumes.values():
+                        rows = volume.db.execute(  # (the likeliest few of its namesakes)
+                            "SELECT a.id, a.title, a.first, a.last, a.size, a.source FROM names n "
+                            "JOIN articles a ON a.id = n.article WHERE n.name = ? ORDER BY a.size DESC LIMIT 4",
+                            (name,),
+                        ).fetchall()
+                        for article, title, first, last, size, source in rows:
+                            if (volume.path.stem, article) in seen:
+                                continue
+                            seen.add((volume.path.stem, article))
+                            named = [t for t in gram if t not in FILLER]
+                            rest = [t for t in content if t not in gram and t not in ROMAN]
+                            exact = plain_name(title) == name and "(" not in title  # (its own article, not a namesake)
+                            found.append(
+                                self._in_article(
+                                    volume, title, first, last, size, source, named, rest, count, exact, who
+                                )
+                            )
             if found and n > 1:
                 break  # (the longest names first: "New York City", not "York")
         return found
 
-    def _in_article(self, title, first, last, size, source, named, rest, count, exact, who) -> Found:
-        lead = self._sentences(first, last)
+    def _in_article(self, volume, title, first, last, size, source, named, rest, count, exact, who) -> Found:
+        lead = volume.sentences(first, last)
         base = 3.0 * len(named) + 0.3 * math.log10(1 + size) + (1.0 if exact else 0.0)
         base += 0.5 if source == "simple" else 0.0  # (in simple words: easier to tell)
         if who and lead and encyclopedia.PERSON.search(lead[0][:200]):
@@ -468,7 +590,7 @@ class Shelf:
         weights = {t: self._weight(t) for t in set(rest)}
         has: dict[int, float] = {}
         for term, weight in weights.items():
-            for (row,) in self.db.execute(
+            for (row,) in volume.db.execute(
                 "SELECT rowid FROM sentences WHERE sentences MATCH ? AND rowid BETWEEN ? AND ? LIMIT 400",
                 (self._query(term), first, last),
             ):
@@ -477,7 +599,7 @@ class Shelf:
             return Found(title, lead, 0, 1, 3 + base, source)
         row = min(has, key=lambda r: (-has[r], r))
         covered = has[row] / sum(weights.values())
-        (sentence,) = self.db.execute("SELECT text FROM sentences WHERE rowid = ?", (row,)).fetchone()
+        (sentence,) = volume.db.execute("SELECT text FROM sentences WHERE rowid = ?", (row,)).fetchone()
         index = row - first
         sentences = lead
         if index >= len(lead):
@@ -497,18 +619,18 @@ class Shelf:
             covered = sum(self._weight(t) for t in used) / total
             if covered < 0.6:
                 break
-            rows = self.db.execute(
-                "SELECT rowid, text, article, bm25(sentences) FROM sentences WHERE sentences MATCH ? "
-                "ORDER BY rank LIMIT 8",
-                (" AND ".join(self._query(t) for t in used),),
-            ).fetchall()
-            if rows:
-                found = []
+            found = []
+            for volume in self.volumes.values():
+                rows = volume.db.execute(
+                    "SELECT rowid, text, article, bm25(sentences) FROM sentences WHERE sentences MATCH ? "
+                    "ORDER BY rank LIMIT 8",
+                    (" AND ".join(self._query(t) for t in used),),
+                ).fetchall()
                 for row, sentence, article, rank in rows:
-                    title, first, last, size_, source = self.db.execute(
+                    title, first, last, size_, source = volume.db.execute(
                         "SELECT title, first, last, size, source FROM articles WHERE id = ?", (article,)
                     ).fetchone()
-                    lead = self._sentences(first, last)
+                    lead = volume.sentences(first, last)
                     index = row - first
                     sentences = lead if index < len(lead) else [*lead, sentence]
                     index = min(index, len(sentences) - 1)
@@ -517,6 +639,7 @@ class Shelf:
                     score = 6 * covered + 2 * titled - 0.05 * index + 0.3 * math.log10(1 + size_) - 0.01 * rank
                     score -= 2.0 if named else 0.0  # (an article the question names is likelier to answer it)
                     found.append(Found(title, sentences, index, 1, score, source))
+            if found:
                 return found
         return []
 
@@ -531,11 +654,14 @@ class Shelf:
     def _weight(self, word: str) -> float:
         """How telling a word is: rarer words say more about what was asked."""
         if word not in self._counts:
-            self._counts[word] = self.db.execute(
-                "SELECT count(*) FROM sentences WHERE sentences MATCH ?", (self._term(word),)
-            ).fetchone()[0]
+            self._counts[word] = sum(
+                v.db.execute("SELECT count(*) FROM sentences WHERE sentences MATCH ?", (self._term(word),)).fetchone()[
+                    0
+                ]
+                for v in self.volumes.values()
+            )
         if self._total is None:
-            self._total = (self.db.execute("SELECT max(last) FROM articles").fetchone()[0] or 0) + 1
+            self._total = sum(v.size() for v in self.volumes.values()) + 1
         return math.log(1 + self._total / (1 + self._counts[word]))
 
 

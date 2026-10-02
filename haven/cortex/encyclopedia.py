@@ -36,16 +36,30 @@ class Encyclopedia:
     articles: int
     size: int  # bytes to download
     keep: int  # paragraphs it keeps of each article (the start of each article holds most of what it's about)
+    about: str = ""  # how long it takes, and how much room it needs
+    url: str = ""  # (a dictionary: one file, WordNet's)
 
     def urls(self) -> list[str]:
+        if self.url:
+            return [self.url]
         return [
             f"{BUCKET}/{self.folder}/wikipedia-train.tfrecord-{i:05d}-of-{self.files:05d}" for i in range(self.files)
         ]
 
 
-SIMPLE = Encyclopedia("simple", "the Simple English Wikipedia", "20230601.simple/1.0.0", 4, 231_282, 283_905_360, 12)
-ENGLISH = Encyclopedia("english", "the English Wikipedia", "20230601.en/1.0.0", 256, 6_700_000, 21_454_958_141, 3)
-ENCYCLOPEDIAS = {e.name: e for e in (SIMPLE, ENGLISH)}
+SIMPLE = Encyclopedia(
+    "simple", "the Simple English Wikipedia", "20230601.simple/1.0.0", 4, 231_282, 283_905_360, 12,
+    "a few minutes; about 300 MB on disk",
+)  # fmt: skip
+ENGLISH = Encyclopedia(
+    "english", "the English Wikipedia", "20230601.en/1.0.0", 256, 6_200_000, 21_454_958_141, 3,
+    "hours; about 10 GB on disk",
+)  # fmt: skip
+DICTIONARY = Encyclopedia(
+    "dictionary", "WordNet, a dictionary of English", "", 1, 147_000, 11_058_667, 0, "under a minute; about 70 MB on disk",
+    "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/wordnet31.zip",
+)  # fmt: skip
+ENCYCLOPEDIAS = {e.name: e for e in (DICTIONARY, SIMPLE, ENGLISH)}
 
 
 # --- reading the records ---------------------------------------------------------------------------------------
@@ -272,3 +286,80 @@ def other_names(title: str, first: str) -> list[str]:
         elif len(base.split()) >= 2 and base.split()[-1][:1].isupper():
             found.append(base.split()[-1])
     return found
+
+
+# --- a dictionary: what words mean -------------------------------------------------------------------------------
+
+_PARTS = {"noun": "n", "verb": "v", "adj": "a", "adv": "r"}
+_SENSE_PART = {"1": "n", "2": "v", "3": "a", "4": "r", "5": "a"}  # (in WordNet's sense keys; 5: adjectives too)
+_COUNTED = re.compile(r"^(?:a|an|the|any|one|some|someone|something|somebody)\b", re.I)
+
+
+def _lines(archive, name: str):
+    import io
+
+    with archive.open(name) as f:
+        yield from io.TextIOWrapper(f, encoding="utf-8", errors="replace")
+
+
+def dictionary(archive) -> Iterator[tuple[str, list[str], list[str]]]:
+    """What each word in WordNet means (Princeton University's dictionary of English, WordNet 3.1): (a title, sentences
+    saying what it means, its commonest meanings first, the names it's looked up by), from WordNet's zip file."""
+    files = {name.rsplit("/", 1)[-1]: name for name in archive.namelist()}
+    meant: dict[tuple[str, str], tuple[str, str, list[str]]] = {}  # (part of speech, synset): (meaning, example, words)
+    shown: dict[str, str] = {}  # how each word is written ("Einstein", not "einstein")
+    for part, letter in _PARTS.items():
+        for line in _lines(archive, files[f"data.{part}"]):
+            if line.startswith("  "):  # (the licence, at the top)
+                continue
+            head, _, gloss = line.partition(" | ")
+            fields = head.split()
+            words = [re.sub(r"\(.*\)$", "", fields[4 + 2 * i]) for i in range(int(fields[3], 16))]
+            for word in words:
+                shown.setdefault(word.lower(), word)
+            pieces = [p.strip() for p in gloss.strip().split("; ")]
+            definition = next((p for p in pieces if not p.startswith('"')), "")
+            example = next((p.strip('"') for p in pieces if p.startswith('"')), "")
+            meant[(letter, fields[0])] = (definition, example, [w.replace("_", " ") for w in words])
+    tagged: dict[tuple[str, str, str], int] = {}  # how often each meaning of each word was found in real text
+    for line in _lines(archive, files["index.sense"]):
+        key, offset, _, count = line.split()
+        lemma, _, rest = key.partition("%")
+        tagged[(lemma, _SENSE_PART.get(rest[:1], "n"), offset)] = int(count)
+    senses: dict[str, list[tuple[int, int, str, str]]] = {}
+    for part, letter in _PARTS.items():
+        for line in _lines(archive, files[f"index.{part}"]):
+            if line.startswith("  "):
+                continue
+            fields = line.split()
+            lemma, pointers = fields[0], int(fields[3])
+            for order, offset in enumerate(fields[6 + pointers :]):
+                count = tagged.get((lemma, letter, offset), 0)
+                senses.setdefault(lemma, []).append((-count, order, letter, offset))
+    for lemma, found in senses.items():
+        word = shown.get(lemma, lemma).replace("_", " ")
+        said = []
+        same: list[str] = []
+        for _, _, letter, offset in sorted(found)[:3]:
+            definition, example, words = meant.get((letter, offset), ("", "", []))
+            if not definition:
+                continue
+            same += [w for w in words if w.lower() != word.lower() and w not in same]
+            if said:
+                sentence = f"{word[0].upper() + word[1:]} can also mean {definition}."
+            elif letter == "v":
+                sentence = f"To {word} means to {definition}."
+            elif letter == "n" and _COUNTED.match(definition) and word[:1].islower():
+                sentence = f"{'An' if word[0] in 'aeiou' else 'A'} {word} is {definition}."
+            elif letter == "n":
+                sentence = f"{word[0].upper() + word[1:]} is {definition}."
+            else:
+                sentence = f"{word[0].upper() + word[1:]} means {definition}."
+            said.append(sentence)
+            if len(said) == 1 and example:
+                said.append(f'For example: "{example[0].upper() + example[1:]}."')
+        if same:  # (other words that mean the same)
+            said.append(f"{word[0].upper() + word[1:]} means the same as {' or '.join(same[:3])}.")
+        sentences = [s for s in (speakable(s) for s in said) if s]
+        if sentences:
+            yield f"the word {word}", sentences, [lemma.replace("_", " ").lower()]

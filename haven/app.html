@@ -903,9 +903,8 @@ function renderLibrary(s) {
   for (const e of s.encyclopedias || []) {
     const item = el("div", "shelfitem"), row = el("div", "row"), about = el("div");
     const gb = e.size / 1e9;
-    about.innerHTML = `<b>${plain(e.title[0].toUpperCase() + e.title.slice(1))}</b><div class="small">${number(e.articles)} articles · ` +
-      `${gb >= 1 ? gb.toFixed(0) + " GB" : Math.round(e.size / 1e6) + " MB"} to download` +
-      (e.name === "english" ? " · about 10 GB on disk · takes many hours" : " · a few minutes") + `</div>`;
+    about.innerHTML = `<b>${plain(e.title[0].toUpperCase() + e.title.slice(1))}</b><div class="small">${number(e.articles)} ${e.name === "dictionary" ? "words" : "articles"} · ` +
+      `${gb >= 1 ? gb.toFixed(0) + " GB" : Math.round(e.size / 1e6) + " MB"} to download · ${plain(e.about || "")}</div>`;
     row.append(about);
     const nowReading = reading && reading.name === e.name;
     if (e.finished) row.append(el("span", "small", `✓ read (${number(e.read)})`));

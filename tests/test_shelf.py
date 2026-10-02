@@ -36,8 +36,16 @@ def test_it_keeps_the_paragraphs_not_the_headings_or_what_comes_at_the_end():
 
 
 def test_it_splits_sentences_where_they_end():
-    said = sentences('Dr. Smith went to St. Louis. He met J. R. R. Tolkien there. It was 3.5 km away! "Wow." Then he left.')
-    assert said == ["Dr. Smith went to St. Louis.", "He met J. R. R. Tolkien there.", "It was 3.5 km away!", '"Wow."', "Then he left."]
+    said = sentences(
+        'Dr. Smith went to St. Louis. He met J. R. R. Tolkien there. It was 3.5 km away! "Wow." Then he left.'
+    )
+    assert said == [
+        "Dr. Smith went to St. Louis.",
+        "He met J. R. R. Tolkien there.",
+        "It was 3.5 km away!",
+        '"Wow."',
+        "Then he left.",
+    ]
 
 
 def test_it_says_sentences_plainly_and_leaves_out_what_cant_be_said():
@@ -82,7 +90,11 @@ def shelf(tmp_path):
         ("Who was Einstein?", "Albert Einstein", "Albert Einstein was a German-born American scientist."),
         ("how many legs does a spider have", "Spider", "They have eight legs, and fangs that inject venom."),
         ("when did world war 2 end", "World War II", "The war ended with an Allied victory in 1945."),
-        ("who wrote romeo and juliet", "Romeo and Juliet", "Romeo and Juliet is a play written by William Shakespeare."),
+        (
+            "who wrote romeo and juliet",
+            "Romeo and Juliet",
+            "Romeo and Juliet is a play written by William Shakespeare.",
+        ),
         ("What's the tallest mountain?", "Mount Everest", "Mount Everest is the highest mountain on Earth."),
         ("what is a cat", "Cat", "Cats are small, carnivorous mammals."),
         ("How many people live in Rome?", "Rome", "About 2.8 million people live in Rome."),
@@ -147,7 +159,11 @@ def test_web_pages_are_read_without_menus_or_scripts():
 
 @pytest.fixture
 def feeding(tmp_path, internet, monkeypatch):
+    import dataclasses
+
     monkeypatch.setattr(encyclopedia, "BUCKET", internet["tfds"])
+    fake = dataclasses.replace(encyclopedia.DICTIONARY, url=internet["wordnet"])
+    monkeypatch.setitem(encyclopedia.ENCYCLOPEDIAS, "dictionary", fake)
     events = []
     feeding = Feeding(tmp_path, Web(delay=0, allow_private=True), log=lambda s: None, emit=events.append)
     feeding.events = events
@@ -156,16 +172,31 @@ def feeding(tmp_path, internet, monkeypatch):
     feeding.wait(10)
 
 
-def test_the_first_time_it_reads_the_simple_english_wikipedia_by_itself(feeding):
+def test_the_first_time_it_reads_a_dictionary_and_the_simple_english_wikipedia_by_itself(feeding):
     assert feeding.start()
     feeding.wait(30)
     status = feeding.status()
-    assert status["articles"] == len(ARTICLES) and status["reading"] is None
+    assert status["by source"] == {"dictionary": 5, "simple": len(ARTICLES)} and status["reading"] is None
     simple = next(e for e in status["encyclopedias"] if e["name"] == "simple")
     assert simple["finished"] and simple["read"] == len(ARTICLES)
-    assert feeding.events[0] == "started reading the Simple English Wikipedia"
+    assert feeding.events[0] == "started reading WordNet, a dictionary of English"
     assert feeding.events[-1].startswith("finished reading the Simple English Wikipedia")
-    assert not feeding.start()  # (it has read it: it doesn't read it again)
+    assert not feeding.start()  # (it has read them: it doesn't read them again)
+    shelf = feeding.shelf
+    assert shelf.find("What does ubiquitous mean?").said == "Ubiquitous means being present everywhere at once."
+    assert shelf.find("what does dog mean").said == "A dog is a member of the genus Canis."  # (asked what it means)
+    assert shelf.find("What is a dog?").title == "the word dog"  # (only its dictionary has dogs, here)
+    assert shelf.article("the word dog")[1][-1] == "Dog means the same as domestic dog."
+    assert shelf.find("Who was Einstein?").title == "Albert Einstein"  # (the encyclopedia's, not the dictionary's)
+
+
+def test_a_whole_encyclopedia_can_be_taken_off_the_shelf(feeding):
+    assert feeding.read("dictionary")
+    feeding.wait(30)
+    feeding.give("Owls can turn their heads a long way round.", "Owls")
+    assert feeding.shelf.forget_all("dictionary") == 5
+    assert feeding.status()["by source"] == {"given": 1}
+    assert not next(e for e in feeding.status()["encyclopedias"] if e["name"] == "dictionary")["finished"]
 
 
 def test_paused_it_doesnt_start_again_by_itself(feeding):
@@ -174,6 +205,26 @@ def test_paused_it_doesnt_start_again_by_itself(feeding):
     assert feeding.read("simple")  # (unless they ask it to)
     feeding.wait(30)
     assert feeding.status()["articles"] == len(ARTICLES)
+
+
+def test_what_its_given_while_it_reads_an_encyclopedia_takes_rows_of_its_own(tmp_path):
+    shelf = Shelf(shelf_path(tmp_path))
+    parts = [tfrecord(ARTICLES[i::4]) for i in range(4)]
+    given = []
+
+    def opener(part):  # (someone gives it something to read while it reads each part)
+        given.append(shelf.add(f"Notes {part}", f"Note number {part} is about owls and their big eyes."))
+        return io.BytesIO(parts[part])
+
+    assert shelf.read_encyclopedia(encyclopedia.SIMPLE, opener)
+    assert given == [1, 1, 1, 1] and shelf.counts()["articles"] == len(ARTICLES) + 4
+    assert sorted(p.name for p in shelf.folder.glob("*.sqlite")) == ["given.sqlite", "simple.sqlite"]  # (each its own)
+    for volume in shelf.volumes.values():
+        rows = volume.db.execute("SELECT first, last FROM articles ORDER BY first").fetchall()
+        assert all(a[1] < b[0] for a, b in zip(rows, rows[1:], strict=False))  # (no two share a row)
+    assert shelf.find("What is note number 2 about?").title == "Notes 2"
+    assert shelf.forget_all("simple") == len(ARTICLES)  # (a whole encyclopedia goes at once, and its file with it)
+    assert not (shelf.folder / "simple.sqlite").exists() and shelf.counts()["articles"] == 4
 
 
 def test_it_reads_what_its_given_and_web_pages(feeding, internet):
@@ -262,7 +313,7 @@ def test_the_app_lets_people_feed_it(tmp_path, internet, monkeypatch):
 
     try:
         assert call("/api/library")[1]["articles"] == 0
-        assert call("/api/library/read", {"which": "simple"})[1]["ok"]
+        assert call("/api/library/read", {"which": "simple"})[1]["ok"]  # (the dictionary isn't served here)
         deadline = time.monotonic() + 30
         while call("/api/library")[1]["reading"] and time.monotonic() < deadline:
             time.sleep(0.2)
