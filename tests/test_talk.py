@@ -297,3 +297,27 @@ def test_asked_about_itself_it_says_what_it_has_found_out(lived):
     assert said in recall(memo(lived), "Are you alive?") and said not in recall(memo(lived), "How are you?")
     assert answers(lived)["alive"] == said
     assert answers(lived)["what"].endswith(answers(lived)["personality"])  # what it is: a creature, and what it's like
+
+
+def test_it_practises_telling_what_it_read_in_an_encyclopedia(monkeypatch):
+    from fakes import ARTICLES
+
+    from haven.cortex import talk
+
+    entries = [e for e in (talk.entry_of(title, text) for title, text in ARTICLES) if e]
+    einstein = next(e for e in entries if e.title == "Albert Einstein")
+    assert einstein.sentences[0] == "Albert Einstein was a German-born American scientist."
+    assert ("When was {} born?", 3) in einstein.questions  # ("Einstein was born in Ulm in 1879.")
+    assert talk.entry_of("Hotaka, Nagano", "was a town in Japan. It had 30,000 people.") is None  # (says what about?)
+    monkeypatch.setattr(talk, "ENCYCLOPEDIA", entries)
+    rng = random.Random(4)
+    for _ in range(200):
+        notes, turns = talk.knowledge_turns(rng, {})
+        first = turns[0]
+        if first.answer == talk.DONT_KNOW:
+            assert not notes  # (nothing came to mind: it says it doesn't know)
+            continue
+        title, said = notes[0].removeprefix("I read about ").split(": ", 1)
+        assert first.answer == f"I read about {title}. It says: {said}"  # (what came to mind, told as it read it)
+        for note, turn in zip(notes[1:], turns[1:], strict=True):
+            assert turn.answer == talk.more_answer(title, note.split(": ", 1)[1] if ": " in note else None)

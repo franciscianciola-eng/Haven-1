@@ -3577,7 +3577,7 @@ def entry_of(title: str, text: str) -> Entry | None:
         if (
             i
             and subject not in ("It", "He", "She", "They", "Its", "His", "Her", "Their")
-            and base.split()[0] != subject
+            and subject not in base.split()
         ):
             continue  # (about something else)
         for pattern, forms in _ASKS_OF:

@@ -442,7 +442,8 @@ class Shelf:
                 for name in said:
                     for article, title, first, last, size, source in self.db.execute(
                         "SELECT a.id, a.title, a.first, a.last, a.size, a.source FROM names n "
-                        "JOIN articles a ON a.id = n.article WHERE n.name = ? ORDER BY a.size DESC LIMIT 4",
+                        "JOIN articles a ON a.id = n.article WHERE n.name = ? "
+                        "ORDER BY a.source = 'simple' DESC, a.size DESC LIMIT 4",
                         (name,),
                     ):
                         if article in seen:
@@ -459,6 +460,7 @@ class Shelf:
     def _in_article(self, title, first, last, size, source, named, rest, count, exact, who) -> Found:
         lead = self._sentences(first, last)
         base = 3.0 * len(named) + 0.3 * math.log10(1 + size) + (1.0 if exact else 0.0)
+        base += 0.5 if source == "simple" else 0.0  # (in simple words: easier to tell)
         if who and lead and encyclopedia.PERSON.search(lead[0][:200]):
             base += 2.0  # (asked who: a person)
         if not rest:  # just what it is: the start of the article
