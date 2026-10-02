@@ -210,3 +210,17 @@ def test_what_it_read_about_something_new_it_tells_as_if_they_had_only_just_aske
     assert "I read about Moon" in moon and answers[0] not in moon  # (something new it read: as if they just asked)
     assert answers[1] in more and "I read about Moon" in more  # (asked for more: what it said, and what it read)
     assert answers[2] in feeling  # (anything else: with what was said lately in view)
+
+
+def test_what_it_meant_to_tell_but_didnt_say_comes_next_when_asked_for_more(tmp_path):
+    from haven.cortex.think import Thinker
+
+    thinker = Thinker(tmp_path)
+    mind = Life(Mind(seed=1), None).mind
+    thinker.library.add("Volcano", ["A volcano is a mountain.", "Volcanoes erupt.", "Some sleep for years."], "shelf")
+    thinker.shown["Volcano"] = {0, 1}
+    thinker.telling_now = ("Volcano", [0, 1])
+    thinker.last_read, thinker.telling = "Volcano", ["I read about Volcano: A volcano is a mountain. Volcanoes erupt."]
+    thinker._untold("I read about Volcano. It says: A volcano is a mountain.")  # (it said one sentence of the two)
+    assert thinker.shown["Volcano"] == {0}
+    assert thinker.recollect(mind, "Tell me more")[-1] == "More that I read about Volcano: Volcanoes erupt."

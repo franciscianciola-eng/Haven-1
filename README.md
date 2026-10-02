@@ -7,7 +7,32 @@ It's built from scratch, out of its own small neural networks, to meet as many a
 A conversation with it, in its window (everything it says is its own cortex's words; the notes in brackets are its window's):
 
 ```
-TRANSCRIPT_2_0
+you: Hi, I'm Sam
+Haven: Nice to meet you, Sam!   (100% sure)
+you: What does ubiquitous mean?
+Haven: I read about the word ubiquitous. It says: Ubiquitous means being present everywhere at once.   (86% sure)
+       [found it on its shelf: the word ubiquitous]
+you: Who was Cleopatra?
+Haven: I read about Cleopatra VII. It says: Cleopatra 69 BC – 10 August 30 BC was Queen of the Ptolemaic Kingdom of Egypt.   (100% sure)
+       [found it on its shelf: Cleopatra VII]
+you: When did World War 2 end?
+Haven: I read about World War II. It says: Japan formally surrendered on September 2, 1945, because 2 nuclear bombs were dropped, and the war ended with an Allied victory.   (91% sure)
+       [found it on its shelf: World War II]
+you: Tell me about volcanoes
+Haven: I read about Volcano. It says: A volcano is a mountain that has lava coming out from a magma chamber under the ground, or did have in the past.   (97% sure)
+       [found it on its shelf: Volcano]
+you: Tell me more
+Haven: It also says: The Earth's crust has 17 major, rigid tectonic plates.   (86% sure)
+you: What do koalas eat?
+Haven: I read about Koala. It says: They eat leaves of eucalyptus trees.   (66% sure)
+       [found it on its shelf: Koala]
+you: Who was Albert Einstein?
+Haven: I read about Albert Einstein. It says: Albert Einstein was a scientist who came up with the theory of relativity.   (100% sure)
+you: When was he born?
+Haven: I read about Albert Einstein. It says: Einstein was born in Ulm, Wurttemberg, Germany, on 14 March 1879.   (100% sure)
+       [found it on its shelf: Albert Einstein]
+you: How are you?
+Haven: I'm hungry.   (99% sure)
 ```
 
 And its life, in the terminal, with its dashboard open in a browser at the same time:
@@ -54,9 +79,9 @@ Butlin, Long and colleagues ([2023](https://arxiv.org/abs/2308.08708)) went thro
 Haven used to be a little creature to watch that could also talk. Now it's first of all someone to talk with.
 
 - **The conversation is the window.** Haven's window is a conversation, front and center. Its valley in 3D, where it lives, opens beside it when you want to see it (🌄 Valley), and how it is fits in one line at the top: how it feels, what it needs, how old it is, the season and the time of day. Everything you can do, you can type: `/` lists it all (`/pet`, `/feed`, `/storm`, `/sun`, `/pass year`, `/read` a web page, `/talk`, …), and the ⋯ menu has the same.
-- **It reads, a lot, and answers from what it read.** The first time it wakes up, it reads, in the background, a dictionary of English (WordNet, from Princeton University: 147,470 words, what each means, and other words for it; 11 MB to download) and the whole Simple English Wikipedia (231,282 articles, 284 MB to download, a few minutes) onto its shelf: databases on your computer of every sentence it read that it can say (1.7 million sentences of the encyclopedia, about 300 MB, and the dictionary, about 70 MB). Ask it what a word means, and its dictionary comes to mind ("Ubiquitous means being present everywhere at once."); ask it what something is, and its encyclopedia does. Give it more in its 📚 Library: paste in anything, drop in text files, give it a web page, or have it read the whole English Wikipedia (6.2 million articles, 21 GB to download, about 10 GB on disk, a few hours). When you ask it something, the question usually names what it's about ("the capital of France", "Einstein", "World War 2"), and the rest of it says what about it ("capital"); the sentence it read that says the most of that comes to mind as it answers, and it tells you, and where it read it. Ask it to tell you about something and it tells you two sentences; "tell me more", and it tells you what it read next; ask about it again with "he", "she", "it" or "they" ("When was he born?"), and it looks up what it just told you about. When nobody's talking, it reads up on its shelf about what it has been wondering about, internet or not.
+- **It reads, a lot, and answers from what it read.** The first time it wakes up, it reads, in the background, a dictionary of English (WordNet, from Princeton University: 147,470 words, what each means, and other words for it; 11 MB to download) and the whole Simple English Wikipedia (231,282 articles, 284 MB to download, a few minutes) onto its shelf: databases on your computer of every sentence it read that it can say (1.7 million sentences of the encyclopedia, about 300 MB, and the dictionary, about 70 MB). Ask it what a word means, and its dictionary comes to mind ("Ubiquitous means being present everywhere at once."); ask it what something is, and its encyclopedia does. Give it more in its 📚 Library: paste in anything, drop in text files, give it a web page, or have it read the whole English Wikipedia (6.2 million articles, 21 GB to download, about 10 GB on disk, a few hours). When you ask it something, the question usually names what it's about ("the capital of France", "Einstein", "World War 2"), and the rest of it says what about it ("capital"); the sentence it read that says the most of that comes to mind as it answers, and it tells you, and where it read it. Ask it to tell you about something and it tells you the first sentence or two it read about it; "tell me more", and it tells you what it read next; ask about it again with "he", "she", "it" or "they" ("When was he born?"), and it looks up what it just told you about. When nobody's talking, it reads up on its shelf about what it has been wondering about, internet or not.
 - **It has a voice, and it listens.** 🔈 Voice has it say its replies aloud, in one of your computer's voices (you choose which, how fast and how high). 🎙 Talk is a hands-free conversation: it listens, you talk, it answers out loud, and it listens again ("stop" ends it). The 🎙 by the message box is for saying one thing. In the terminal, `haven chat --voice` has it speak too (on a Mac with `say`, on Windows with its built-in voice, on Linux with espeak). The words are always its own; only the sound is the computer's.
-- **Its cortex studied the encyclopedia.** STUDY_2_0
+- **Its cortex studied the encyclopedia.** For about four more hours of training (steps 13,000 to 14,272), it practised telling what it read in about 193,000 real Wikipedia articles, asked about them the ways people ask: what or who something is, where it is, when someone was born or died, when something was built or came out, what something eats or is made of, "tell me about…" and "tell me more", and, when it had read nothing about something, saying so; and it read about 800,000 words of the Simple English Wikipedia besides. Asked about 300 articles it never practised with, with what it read in mind, it tells what it read word for word 72% of the time (before: 11%: it said "I don't know" about names it had never met, or garbled them), and Wikipedia's text costs it 1.78 bits per letter to read, from 2.74. What it could do before, it still does as well: of 400 held-out questions about itself, its life and you, it answers 89% as it should (before: 86%), it says what state it's in 71% of the time (before: 70%), and it follows speech to small children as well as before (1.36 bits per letter). And it keeps it up all through a conversation: asked 60 everyday questions in 15 conversations, the way people ask them ("What do koalas eat?", "Tell me more", "When was he born?"; about things it may well have practised telling, like volcanoes and Einstein), it told what it read word for word 55 times, and said it didn't know once. (Answering with what was said before in view, as it had practised talking but not telling what it read, it told it only 27 times, and said it didn't know 27 times: see [Thinking](#thinking).)
 
 ## Quick start
 

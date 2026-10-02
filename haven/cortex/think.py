@@ -241,6 +241,7 @@ class Thinker:
         self.telling: list[str] = []  # what came to mind as it told that, and as it told more of it since
         self.since_told = 0  # how many times it has answered since
         self.heard_as: str | None = None  # what they asked, with "he" or "it" as what that is, if it was
+        self.telling_now: tuple[str, list[int]] | None = None  # what it means to tell of what it read, just now
         self.wondered: set[str] = set()  # what it has tried reading about out of curiosity
         # Someone following along as it answers (the app): hears ("draft" | "words" | "pondering" | "thought" |
         # "reading" | "read", text) as a reply takes shape.
@@ -397,7 +398,7 @@ class Thinker:
             thing_note,
         )
 
-        self.heard_as = None
+        self.heard_as = self.telling_now = None
         if req is not None:
             thing = memo(mind)["things"][req.thing]
             return [thing_note(req.thing, thing["stats"], thing["where"]), request_note(req)]
@@ -425,6 +426,7 @@ class Thinker:
                 return []
             title = fresh[-1] if library.sources[fresh[-1]] != "book" else random.choice(fresh)
             self.shown.setdefault(title, set()).add(0)
+            self.telling_now = (title, [0])
             return self._told(title, [f"I read about {title}: {library.sentence(title, 0)}"])
         if MORE.search(text):  # more of what it read
             title = library.title_for(text) or self.last_read
@@ -433,10 +435,12 @@ class Thinker:
             told = self.shown.setdefault(title, set())
             if not told:
                 told.add(0)
+                self.telling_now = (title, [0])
                 return self._told(title, [f"I read about {title}: {library.sentence(title, 0)}"])
             index = next((i for i in range(len(library.docs[title])) if i not in told), None)
             if index is not None:
                 told.add(index)
+                self.telling_now = (title, [index])
             more = more_note(title, None if index is None else library.sentence(title, index))
             if self.last_read == title and self.telling:  # what came to mind as it told them, and what it read next
                 return self._told(title, [*self.telling, more])
@@ -460,6 +464,7 @@ class Thinker:
             if hit is not None:  # (in mind now, as it read it there, even if its little book has it: it can tell more)
                 library.add(hit.title, hit.sentences, "shelf")
                 self.shown[hit.title] = set(range(hit.index, hit.index + hit.count))
+                self.telling_now = (hit.title, list(range(hit.index, hit.index + hit.count)))
                 self._tell("found", hit.title)
                 return self._told(hit.title, [f"I read about {hit.title}: {hit.said}"])
         found = found or library.find(text)
@@ -467,7 +472,21 @@ class Thinker:
             return []
         title, index = found
         self.shown.setdefault(title, set()).add(index)
+        self.telling_now = (title, [index])
         return self._told(title, [f"I read about {title}: {library.sentence(title, index)}"])
+
+    def _untold(self, words: str) -> None:
+        """What it meant to tell of what it read but didn't say (it told one sentence of two), it hasn't told: asked
+        for more, that comes next."""
+        if not self.telling_now:
+            return
+        title, meant = self.telling_now
+        said = " ".join(words.split())
+        told = self.shown.get(title, set())
+        for i in meant:
+            sentence = self.library.sentence(title, i)
+            if sentence and " ".join(plain_letters(sentence).split()) not in said:
+                told.discard(i)
 
     def _beyond_valley(self, text: str) -> bool:
         """Whether a question that names something in its valley is about something else with that in its name
@@ -737,6 +756,7 @@ class OwnThinker(Thinker):
         felt, why = talk.feeling
         if felt and why and f"i feel {felt}" in words.lower():
             talk.reason = why  # it said how it feels: asked why, it says what made it feel that way
+        self._untold(words)
         with self.model_lock:
             meaning = self.model.meaning([HAVEN, *self.tok.encode(words)], state).float().cpu().numpy()
         with life.lock:
