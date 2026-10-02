@@ -673,6 +673,7 @@ class WikiShelf(Shelf):
             self.gather(question)
         except Exception as error:  # noqa: BLE001  (offline, or Wikipedia didn't answer: it answers from what it has)
             self.problem = f"{type(error).__name__}: {error}"
+            self.tell("unread", self.problem)
         return super().find(question)
 
     # (reading what it's asked about)

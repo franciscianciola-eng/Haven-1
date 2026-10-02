@@ -217,11 +217,53 @@ export async function gpuReady({ software = false } = {}) {
   }
 }
 
-// The model's bytes, saying how far along the download is.
-export async function fetchBytes(url, onProgress) {
+// The bytes of one of Haven's files, saying how far along the download is. With `keep`, they're kept in the browser's
+// storage (its Cache Storage: a browser's own cache may not keep a file this big), and next time only checked against
+// the site's copy (or, if the site can't be reached, taken as they were).
+export async function fetchBytes(url, onProgress, { keep = false } = {}) {
   if (typeof url !== "string") return url; // (bytes already)
-  const response = await fetch(url);
+  let cache = null;
+  let kept = null;
+  if (keep) {
+    try {
+      cache = await caches.open("haven");
+      kept = await cache.match(url);
+    } catch {
+      cache = null; // (no storage for it here)
+    }
+  }
+  const headers = {};
+  if (kept?.headers.get("etag")) headers["If-None-Match"] = kept.headers.get("etag");
+  else if (kept?.headers.get("last-modified")) headers["If-Modified-Since"] = kept.headers.get("last-modified");
+  let response;
+  try {
+    response = await fetch(url, { headers });
+  } catch (error) {
+    if (kept) return keptBytes(kept, onProgress);
+    throw error;
+  }
+  if (response.status === 304 && kept) return keptBytes(kept, onProgress);
   if (!response.ok) throw new Error(`couldn't get ${url} (${response.status})`);
+  const bytes = await read(response, onProgress);
+  if (cache) {
+    const saved = new Headers({ "content-type": response.headers.get("content-type") || "application/octet-stream" });
+    for (const name of ["etag", "last-modified"]) if (response.headers.get(name)) saved.set(name, response.headers.get(name));
+    try {
+      await cache.put(url, new Response(bytes, { headers: saved }));
+    } catch {
+      /* not kept: next time, it's downloaded again */
+    }
+  }
+  return bytes;
+}
+
+async function keptBytes(kept, onProgress) {
+  const bytes = new Uint8Array(await kept.arrayBuffer());
+  onProgress?.(bytes.length, bytes.length);
+  return bytes;
+}
+
+async function read(response, onProgress) {
   const total = Number(response.headers.get("content-length")) || 0;
   if (!response.body || !onProgress) return new Uint8Array(await response.arrayBuffer());
   const reader = response.body.getReader();

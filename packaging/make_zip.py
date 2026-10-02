@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from haven.cortex.starter import source
 
-LEAVE_OUT = ("tests/", "packaging/", "downloads/", ".git")
+LEAVE_OUT = ("tests/", "packaging/", "downloads/", "docs/", ".git")  # (docs/: Haven in the browser, on GitHub Pages)
 CORTEX = "haven/cortex/starter/cortex.pt"  # (left out, to keep the download small: Haven gets it from GitHub)
 
 

@@ -1,6 +1,7 @@
 // Haven's page in a real browser (headless Chromium, with Playwright): it wakes up, talks, reads what it's asked
 // about (in a stand-in for the Simple English Wikipedia: serve.py), and is stroked; opened in a second tab meanwhile, it
-// waits there until the first is closed, and comes there with everything it had. Prints what happened as JSON.
+// waits there until the first is closed, and comes there with everything it had; offline, it answers from what it
+// has; and started over, it's a newborn again. Prints what happened as JSON.
 // Options, as environment variables: HAVEN_GPU=1 to let its cortex use a (software) graphics card, HAVEN_SHOT=path for
 // pictures of the page, HAVEN_VERBOSE=1 to see the page's console as it goes.
 import { spawn } from "node:child_process";
@@ -14,6 +15,7 @@ const browser = await chromium.launch({
   args: process.env.HAVEN_GPU ? ["--enable-unsafe-webgpu", "--use-webgpu-adapter=swiftshader", "--enable-features=Vulkan"] : [],
 });
 const out = { visits: [], wiki: [], console: [] };
+let offline = false;
 
 async function open(context) {
   const page = await context.newPage();
@@ -68,6 +70,7 @@ async function done(page, seen, n) {
 try {
   const context = await browser.newContext();
   await context.route("https://simple.wikipedia.org/**", async (route) => {
+    if (offline) return route.abort("internetdisconnected");
     const url = new URL(route.request().url());
     out.wiki.push(Object.fromEntries(url.searchParams));
     const answer = await fetch(`http://127.0.0.1:${port}/w/api.php${url.search}`);
@@ -79,6 +82,10 @@ try {
   await first.click("#more");
   await first.click("[data-touch=stroke]");
   await first.waitForFunction(() => /cuddly/.test(document.querySelector("#state").textContent), null, { timeout: 10000 });
+  await first.click("#more");
+  await first.click("#aboutBtn");
+  out.about = await first.textContent("#aboutCortex");
+  await first.click("#aboutClose");
   await done(first, seen, 1);
 
   const second = await open(context); // (while the first is still open)
@@ -88,7 +95,19 @@ try {
   await first.close();
   const again = await awake(second);
   for (const text of ["Tell me about volcanoes", "What's my name?"]) await talk(second, again, text);
+  offline = true;
+  await talk(second, again, "Who was Cleopatra?");
+  offline = false;
   await done(second, again, 2);
+
+  second.on("dialog", (dialog) => dialog.accept()); // ("Start over with a newborn Haven?")
+  second.started = Date.now();
+  await second.click("#more");
+  await second.click("#forget");
+  const newborn = await awake(second);
+  newborn.hello = await second.locator("#hello").count();
+  await done(second, newborn, 3);
+  out.asked = await (await fetch(`http://127.0.0.1:${port}/asked`)).json();
 } finally {
   await browser.close();
   server.kill();

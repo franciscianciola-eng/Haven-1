@@ -7,6 +7,7 @@ from __future__ import annotations
 import io
 import json
 import random
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -170,7 +171,7 @@ def test_the_page_in_a_browser():
     found = subprocess.run([NODE, "page.e2e.mjs"], cwd=WEB, capture_output=True, text=True, timeout=1500, check=False)
     assert found.returncode == 0, found.stderr[-3000:]
     out = json.loads(found.stdout)
-    first, second = out["visits"]
+    first, second, newborn = out["visits"]
     replies = [t["haven"] for t in first["turns"] + second["turns"]]
     assert "Sam" in replies[0]
     assert replies[1].startswith("I read about Volcano. It says: A volcano is a mountain")
@@ -182,6 +183,13 @@ def test_the_page_in_a_browser():
     read = [q["titles"] for q in out["wiki"] if q.get("prop") == "extracts"]
     assert read == ["Volcano", "Koala"]  # (read once: kept on its shelf, in the browser's storage)
     assert "cuddly" in first["state"]
+    assert "53.0M connections" in out["about"]
+    offline = second["turns"][-1]
+    assert any("Couldn't reach the Simple English Wikipedia" in t for t in offline["thoughts"])
+    assert re.search(r"% sure|couldn't find", offline["note"])  # (it answers from what it has)
+    assert newborn["hello"] == 1 and newborn["earlier"] == 0  # (started over: nothing said before)
+    cortex = [code for path, code in out["asked"] if path == "/docs/cortex/cortex.onnx"]
+    assert cortex[0] == 200 and set(cortex[1:]) == {304}  # (downloaded once, then kept in the browser's storage)
     assert not [line for line in out["console"] if line.startswith(("error", "pageerror"))]
 
 

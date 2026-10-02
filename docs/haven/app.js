@@ -205,6 +205,7 @@ function thoughtLine(t) {
   if (t.kind === "draft") return el("li", "", `Words that came to it: “${t.text}”`);
   if (t.kind === "read") return el("li", "read", `Read about ${t.text} in the Simple English Wikipedia, online.`);
   if (t.kind === "found") return el("li", "read", `Found it on its shelf: ${t.text}.`);
+  if (t.kind === "unread") return el("li", "read", "Couldn't reach the Simple English Wikipedia just now, so it answered from what it had.");
   return el("li", "", t.text);
 }
 
@@ -245,7 +246,7 @@ function thought(m) {
     turn.view.note.textContent = "thinking it over…";
   } else if (m.kind === "reading") {
     turn.view.note.textContent = `reading about ${m.text} in the Simple English Wikipedia…`;
-  } else if (["thought", "read", "found"].includes(m.kind)) {
+  } else if (["thought", "read", "found", "unread"].includes(m.kind)) {
     addThought(turn, m);
   }
   scrollDown();

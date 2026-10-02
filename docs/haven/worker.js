@@ -63,13 +63,14 @@ async function cortexReady() {
   ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
   const runtime = gpu ? "ort-wasm-simd-threaded.asyncify.wasm" : "ort-wasm-simd-threaded.wasm";
   const [binary, model] = await Promise.all([
-    fetchBytes(at(`vendor/ort/${runtime}`), downloading("runtime")),
-    fetchBytes(at("cortex/cortex.onnx"), downloading("cortex")),
+    fetchBytes(at(`vendor/ort/${runtime}`), downloading("runtime"), { keep: true }),
+    fetchBytes(at("cortex/cortex.onnx"), downloading("cortex"), { keep: true }),
   ]);
   ort.env.wasm.wasmBinary = binary;
   note("its cortex is here");
   post({ type: "loading", text: "Waking its cortex" });
   const cortex = await Cortex.load(ort, model, config.config, { webgpu: gpu });
+  ort.env.wasm.wasmBinary = undefined; // (running now: its bytes aren't needed any more)
   note(`its cortex is awake, on the ${cortex.device === "webgpu" ? "graphics card" : "processor"}`);
   return { cortex, info: config };
 }
@@ -78,8 +79,8 @@ async function pythonReady() {
   const { loadPyodide } = await import("../vendor/pyodide/pyodide.mjs");
   const [python, code, weights, tokenizer] = await Promise.all([
     loadPyodide({ indexURL: at("vendor/pyodide/"), stdout: () => {}, stderr: (text) => console.warn(text) }),
-    fetchBytes(at("py/haven.zip"), downloading("python")),
-    text("data/weights.json", downloading("weights")),
+    fetchBytes(at("py/haven.zip"), downloading("python"), { keep: true }),
+    text("data/weights.json", downloading("weights"), { keep: true }),
     text("cortex/tokenizer.json"),
   ]);
   python.unpackArchive(code, "zip", { extractDir: "/lib/haven-page" });
@@ -222,8 +223,8 @@ function fetchText(url) {
   return request.responseText;
 }
 
-async function text(path, onProgress) {
-  return new TextDecoder().decode(await fetchBytes(at(path), onProgress));
+async function text(path, onProgress, options) {
+  return new TextDecoder().decode(await fetchBytes(at(path), onProgress, options));
 }
 
 async function json(path) {
