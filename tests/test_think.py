@@ -159,3 +159,14 @@ def test_it_knows_when_it_says_again_what_it_said_just_now(cortex_home, monkeypa
     answer, _ = thinker.deliberate(life, "What's your name?")
     assert answer == "Like I said, my name is Haven."
     assert "I said that just now: My name is Haven." in minded[1] and "I said that just now" not in minded[0]
+
+
+def test_it_notices_when_it_tells_as_read_what_it_didnt_read():
+    from haven.cortex.think import misread
+
+    came = "I read about World War II: Japan formally surrendered on September 2, 1945."
+    assert not misread("I read about World War II. It says: Japan formally surrendered on September 2, 1945.", came)
+    assert misread("I read about World War II. It says: Japan formally surreamed on September 2, 1945.", came)
+    assert not misread("I feel cuddly, because you stroked me.", came)  # (it isn't telling what it read)
+    more = came + " More that I read about World War II: The war ended with an Allied victory."
+    assert not misread("It also says: The war ended with an Allied victory.", more)

@@ -81,6 +81,16 @@ def misworded(text: str) -> bool:
     return bool(_ARTICLE.search(text))
 
 
+_SAYS = re.compile(r"\bIt (?:also )?says: (.+)$")
+
+
+def misread(text: str, context: str) -> bool:
+    """Whether a draft tells as read what it didn't read ("It says: Japan formally surreamed…", where what it read
+    says "surrendered"): what it says it read has to be in what came to mind, word for word."""
+    found = _SAYS.search(text)
+    return bool(found) and " ".join(found.group(1).split()) not in " ".join(context.split())
+
+
 def misnamed(text: str, heard: str | None) -> bool:
     """Whether a draft's reaction names something as what they just told it that they didn't say ("Oh, a lion!" to
     "My favorite animal is a giraffe"; "Oh, actopus!")."""
@@ -732,7 +742,7 @@ class OwnThinker(Thinker):
         mind = self.tok.decode(prompt)  # what came to mind, and what was said
 
         def flawed(words: str) -> bool:
-            return garbled(words) or misnamed(words, heard) or misworded(words)
+            return garbled(words) or misread(words, mind) or misnamed(words, heard) or misworded(words)
 
         if heard and all(flawed(d[0]) for d in found):  # (every draft misnames what it was just told, or slips)
             with self.model_lock:
@@ -748,12 +758,14 @@ class OwnThinker(Thinker):
                     found.append((words, math.exp(float(np.mean(logprobs))) if logprobs else 0.0))
                     if not flawed(words):
                         break
-        # A draft that's babble loses, then one that goes round in circles, then one that says a number or name it
-        # can't back up, then one that gets "a" and "an" wrong.
+        # A draft that's babble loses, then one that tells as read what it didn't read, then one that misnames what it
+        # was just told, one that goes round in circles, one that says a number or name it can't back up, and one that
+        # gets "a" and "an" wrong.
         times = 2 if most > 100 else 1  # (a story can say "said the fox" twice)
         found.sort(
             key=lambda d: (
                 not garbled(d[0]),
+                not misread(d[0], mind),
                 not misnamed(d[0], heard),
                 not repeats(d[0], mind, times),
                 not unfounded(d[0], mind),
