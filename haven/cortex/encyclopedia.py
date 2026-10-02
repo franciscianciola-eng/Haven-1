@@ -3,9 +3,10 @@
 The Wikipedia it reads is the plain text of every article, as prepared by TensorFlow
 Datasets from Wikipedia's own dumps and kept in a public bucket on Google Cloud Storage:
 the Simple English Wikipedia (231,282 articles, 284 MB) and, for the patient, the whole
-English Wikipedia (6.7 million articles, 21 GB). Each comes in files of records, each
-record one article: its title and its text (see `articles`). Nothing here needs anything
-beyond Python itself.
+English Wikipedia (6.2 million articles, 21 GB). Each comes in files of records, each
+record one article: its title and its text (see `articles`). Its dictionary is WordNet
+(Princeton University's; see `dictionary`), as the NLTK project keeps it on GitHub.
+Nothing here needs anything beyond Python itself.
 
 An article's text is paragraphs, with headings on lines of their own; `prose` keeps the
 paragraphs and drops the headings, lists, tables, categories and the sections at the end

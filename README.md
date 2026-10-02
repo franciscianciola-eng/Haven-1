@@ -101,8 +101,8 @@ haven app
 
 `haven app` is what the launchers run. It opens Haven's window: a conversation with it, where you can
 watch its thoughts as it answers, with its valley in 3D beside it when you want to see it live, and its
-library. The first time, it starts reading the Simple English Wikipedia (`--no-reading` if you'd rather
-it didn't). `haven chat` is the same conversation in the terminal (`--voice` to hear it).
+library. The first time, it starts reading a dictionary and the Simple English Wikipedia (`--no-reading` if
+you'd rather it didn't). `haven chat` is the same conversation in the terminal (`--voice` to hear it).
 
 It can talk right away, with the language cortex it's born with. To have it learn to read, run `haven learn` (see [Its language cortex](#its-language-cortex)).
 
@@ -110,7 +110,7 @@ It can talk right away, with the language cortex it's born with. To have it lear
 
 **Talking with it.** In its window, type and press Enter (Shift+Enter for a new line). Talk about anything: how it is, what it did today, what it's like, what you like, or ask it anything at all, and it answers from what comes to mind: how it feels and why, what it remembers, what you told it, and what it read. Each reply shows how sure it was, and "How it got there" shows the words that came to it on the way, and where on its shelf it found what it read. It speaks up of its own accord too, now and then. `/` lists everything you can do by typing, and the buttons at the top open its voice settings (🔈), a hands-free conversation (🎙 Talk), its library (📚), its valley (🌄) and the rest (⋯: making things happen, letting time pass, its mind's inner workings, letting it rest).
 
-**Its library.** 📚 shows what's on its shelf and lets you give it more: an encyclopedia (the Simple English Wikipedia, which it reads by itself the first time, or the whole English Wikipedia), something you paste in, text files (or drop them anywhere on its window), or a web page (`/read https://…`). Whatever it has read, it can answer from at once. What you gave it is listed there, and you can have it forget something. In the terminal, `haven feed` does the same (see [Commands](#commands)).
+**Its library.** 📚 shows what's on its shelf and lets you give it more: an encyclopedia (the dictionary and the Simple English Wikipedia, which it reads by itself the first time, or the whole English Wikipedia), something you paste in, text files (or drop them anywhere on its window), or a web page (`/read https://…`). Whatever it has read, it can answer from at once. What you gave it is listed there, and you can have it forget something. In the terminal, `haven feed` does the same (see [Commands](#commands)).
 
 `haven` runs its life in real time (8 moments a second; a day is 1,200 moments) and opens a dashboard at http://127.0.0.1:8765. The dashboard only listens on your own computer. It shows:
 
@@ -582,8 +582,8 @@ A reading level takes from about 1,500 to 12,000 steps: hours on a computer's pr
 
 When you talk to Haven, what its cortex makes of your words comes to its mind first, and draws its attention to what you talked about. Then it answers from what it was experiencing when you spoke:
 
-- It drafts three replies. What it says is the one it found likeliest; the others pass by as thoughts (the app shows them under "How it got there"). Its confidence combines how likely it found its words with how much the drafts agree.
-- If it doesn't know about something, it says so, and (unless you turn that off) reads about it in the Simple English Wikipedia and tells you what it read. Everything it reads it keeps, so next time the answer comes to mind straight away.
+- It drafts three replies. What it says is the one it found likeliest, unless that one slips (babble, going round in circles, a number or a name nothing backs up, "a" for "an", or telling as read what it didn't read word for word: then a draft that doesn't slip wins, and if every draft slips, it tries a few more); the others pass by as thoughts (the app shows them under "How it got there"). Its confidence combines how likely it found its words with how much the drafts agree.
+- If it doesn't know about something, it says so, and (unless you turn that off) reads about it in the Simple English Wikipedia (on its shelf, or online if it isn't there) and tells you what it read. Everything it reads it keeps, so next time the answer comes to mind straight away.
 
 What it says enters its workspace as a thought and is remembered like anything else. You can have it read about something, or ask it something and watch it think:
 
